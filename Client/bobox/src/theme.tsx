@@ -8,16 +8,16 @@ const theme = createTheme({
     },
     palette: {
         primary: {
-            main: '#213555', // Set #213555 as the primary color
+            main: '#213555',
         },
         secondary: {
-            main: '#4F709C', // Set #4F709C as the secondary color
+            main: '#4F709C',
         },
         background: {
-            default: '#FFFFFF', // Set #F5EFE7 as the background color
+            default: '#FFFFFF',
         },
         text: {
-            primary: '#172B3F', // Set #172B3F as the moderately darker text color
+            primary: '#172B3F',
             secondary: '#666666',
         },
         action: {
@@ -78,12 +78,12 @@ const theme = createTheme({
                 root: {
                     borderRadius: '10px',
                     '&.Mui-selected': {
-                        backgroundColor: '#4F709C', // Set #4F709C as the selected tab color
+                        backgroundColor: '#4F709C',
                         color: '#ffffff',
                     },
                     '&:hover': {
-                        backgroundColor: '#213555', // New hover color for tabs
-                        color: '#ffffff', // Text color for hover on tabs
+                        backgroundColor: '#213555',
+                        color: '#ffffff',
                     },
                 },
             },
@@ -92,7 +92,7 @@ const theme = createTheme({
             styleOverrides: {
                 root: {
                     borderRadius: '20px',
-                    backgroundColor: '#FFFFFF', // changed from #F5EFE7
+                    backgroundColor: '#FFFFFF',
                 },
             },
         }
