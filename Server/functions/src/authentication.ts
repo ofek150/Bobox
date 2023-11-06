@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 
-export const signInWithGoogle = functions.https.onCall(async (data, context) => {
+export const signInWithGoogle = functions.https.onCall(async (data) => {
     try {
         const userRecord = await admin.auth().getUser(data.uid);
         const db = admin.firestore();
@@ -44,7 +44,7 @@ const isValidPassword = (password: string): boolean => {
     return PASSWORD_REGEX.test(password);
 };
 
-export const registerWithEmailAndPassword = functions.https.onCall(async (data: RegistrationData, context) => {
+export const registerWithEmailAndPassword = functions.https.onCall(async (data: RegistrationData) => {
     try {
 
         const { name, email, password, agreeMailPromotions } = data;

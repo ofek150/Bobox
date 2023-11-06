@@ -5,6 +5,8 @@ import AuthPage from './pages/AuthPage';
 import NotFoundPage from './pages/NotFoundPage';
 import RequireAuth from './components/RequireAuth';
 import AccountInformation from './pages/AccountInformation';
+import ResetPassword from './pages/ResetPassword';
+import FirebaseActionHandler from './components/FirebaseActionHandler';
 
 const App: React.FC = () => {
 
@@ -19,6 +21,8 @@ const App: React.FC = () => {
             {/* Public routes */}
             <Route path="/login" element={<AuthPage initialTab={0} />} />
             <Route path="/signup" element={<AuthPage initialTab={1} />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/auth/action" element={<FirebaseActionHandler />} />
 
             {/* Protected routes */}
             <Route path="/" element={<RequireAuth />}>
