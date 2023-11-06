@@ -46,6 +46,7 @@ const isValidPassword = (password: string): boolean => {
 
 export const registerWithEmailAndPassword = functions.https.onCall(async (data: RegistrationData, context) => {
     try {
+
         const { name, email, password, agreeMailPromotions } = data;
 
         if (!isValidEmail(email)) {

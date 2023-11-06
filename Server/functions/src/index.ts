@@ -1,7 +1,7 @@
-import * as admin from 'firebase-admin';
+import { initializeApp } from "firebase-admin/app";
 import { registerWithEmailAndPassword, signInWithGoogle } from './authentication';
 
-admin.initializeApp();
+initializeApp();
 
 export {
     registerWithEmailAndPassword,

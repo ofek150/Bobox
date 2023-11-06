@@ -1,8 +1,9 @@
 import { initializeApp } from "firebase/app";
-import { GoogleAuthProvider, getAuth, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth";
-import { collection, doc, getDoc, getDocs, getFirestore } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { GoogleAuthProvider, connectAuthEmulator, getAuth, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth";
+import { connectFirestoreEmulator, doc, getDoc, getFirestore } from "firebase/firestore";
+import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
+import { isValidEmail, isValidName, isValidPassword } from "../utils/validations";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_API_KEY,
@@ -20,11 +21,11 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 const functions = getFunctions(app);
 
-// if (process.env.NODE_ENV === 'development') {
-//  connectFirestoreEmulator(db, "localhost", 9000);
-//   connectFunctionsEmulator(functions, "localhost", 5001);
-//   connectAuthEmulator(auth, "http://localhost:9099");
-// }
+if (process.env.NODE_ENV === 'development') {
+  connectFirestoreEmulator(db, "localhost", 8080);
+  connectFunctionsEmulator(functions, "localhost", 5001);
+  connectAuthEmulator(auth, "http://localhost:9099");
+}
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -42,20 +43,6 @@ export const loginWithEmailAndPassword = async (email: string, password: string)
 };
 
 export const registerWithEmailAndPassword = async (name: string, email: string, password: string, agreeMailPromotions: boolean) => {
-  const isValidEmail = (email: string): boolean => {
-    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return EMAIL_REGEX.test(email);
-  };
-
-  const isValidName = (name: string): boolean => {
-    const NAME_REGEX = /^[A-Za-z\s]{2,}$/;
-    return NAME_REGEX.test(name);
-  };
-
-  const isValidPassword = (password: string): boolean => {
-    const PASSWORD_REGEX = /^(?=.{8,4096})(?:(?=(?:[^[A-Z]*[A-Z]){1,})|(?=(?:[^[a-z]*[a-z]){1,})|(?=(?:[^[\d]*\d){1,})|(?=(?:[^[\W_]*[\W_]){1,})){2,}\S{8,4096}$/
-    return PASSWORD_REGEX.test(password);
-  };
 
   if (!isValidEmail(email)) {
     throw new Error("Invalid email format. Please provide a valid email address.");
@@ -91,6 +78,7 @@ export const logout = () => {
 
 export const getUserData = async (uid: string) => {
   try {
+    console.log("Getting data of user with uid ", uid);
     const userRef = doc(db, "users", uid);
     const userSnap = await getDoc(userRef);
 
