@@ -34,7 +34,6 @@ export const signInWithGoogle = async () => {
   await signInWithPopup(auth, googleProvider);
 };
 
-
 export const loginWithEmailAndPassword = async (email: string, password: string) => {
   await signInWithEmailAndPassword(auth, email, password);
 };
@@ -82,11 +81,9 @@ export const getUserData = async (uid: string) => {
     if (userSnap.exists()) {
       return userSnap.data();
     } else {
-      // console.log("No such user!");
       return null;
     }
   } catch (err) {
-    // console.error(err);
     return null;
   }
 };
