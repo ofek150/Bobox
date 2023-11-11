@@ -21,20 +21,17 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 const functions = getFunctions(app);
 
-// if (process.env.NODE_ENV === 'development') {
-//   connectFirestoreEmulator(db, "localhost", 8080);
-//   connectFunctionsEmulator(functions, "localhost", 5001);
-//   connectAuthEmulator(auth, "http://localhost:9099");
-// }
+if (process.env.NODE_ENV === 'development') {
+  connectFirestoreEmulator(db, "localhost", 8080);
+  connectFunctionsEmulator(functions, "localhost", 5001);
+  connectAuthEmulator(auth, "http://localhost:9099");
+}
 
 const googleProvider = new GoogleAuthProvider();
 
 
 export const signInWithGoogle = async () => {
-  const res = await signInWithPopup(auth, googleProvider);
-  const user = res.user;
-  const signInWithGoogle = httpsCallable(functions, 'signInWithGoogle');
-  await signInWithGoogle({ uid: user.uid });
+  await signInWithPopup(auth, googleProvider);
 };
 
 

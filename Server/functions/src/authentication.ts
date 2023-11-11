@@ -1,23 +1,21 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 
-export const signInWithGoogle = functions.https.onCall(async (data) => {
+export const onUserCreated = functions.auth.user().onCreate(async (user) => {
     try {
-        const userRecord = await admin.auth().getUser(data.uid);
         const db = admin.firestore();
-        const docRef = db.collection('users').doc(data.uid);
+        const docRef = db.collection('users').doc(user.uid);
         const docSnap = await docRef.get();
         if (!docSnap.exists) {
             await docRef.set({
-                uid: userRecord.uid,
-                name: userRecord.displayName,
+                uid: user.uid,
+                name: user.displayName,
                 authProvider: 'google',
-                email: userRecord.email,
+                email: user.email,
+                agreeMailToPromotions: false
             });
         }
-        return { message: 'Sign in with Google successful' };
     } catch (error) {
-        // console.error('Error signing in with Google:', error);
         throw new functions.https.HttpsError('internal', 'An error occurred while signing in with Google.');
     }
 });
