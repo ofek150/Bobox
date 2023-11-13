@@ -1,8 +1,8 @@
 import * as functions from "firebase-functions";
-//import * as admin from "firebase-admin";
-import { S3Client } from "@aws-sdk/client-s3";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import * as admin from "firebase-admin";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { uploadFileParameters } from "./utils/types";
 
 export const r2 = new S3Client({
   region: "auto",
@@ -13,11 +13,7 @@ export const r2 = new S3Client({
   },
 });
 
-interface uploadFileParameters {
-  fileName: string;
-}
-
-export const uploadFile = functions.https.onCall(
+export const generateUploadFileURL = functions.https.onCall(
   async (data: uploadFileParameters, context) => {
     try {
       // Ensure the user is authenticated
@@ -27,11 +23,30 @@ export const uploadFile = functions.https.onCall(
           "The function must be called while authenticated."
         );
       }
+
+      const db = admin.firestore();
+      console.log("Data: ", data);
+      const fileKey: string = `${context.auth.uid}/${data.fileName}`
+
+      const docRef = db.collection('users').doc(context.auth.uid).collection('files').doc();
+      const docSnap = await docRef.get();
+      if (!docSnap.exists) {
+        await docRef.set({
+          fileKey: fileKey,
+          fileName: data.fileName,
+          fileType: data.fileType,
+          fileSize: data.fileSize
+        });
+      }
+      else {
+        //for now do nothing
+      }
+
       const signedUrl = await getSignedUrl(
         r2,
         new PutObjectCommand({
           Bucket: process.env.R2_BUCKET_NAME,
-          Key: data.fileName,
+          Key: fileKey,
         }),
         { expiresIn: 60 }
       );
@@ -40,10 +55,10 @@ export const uploadFile = functions.https.onCall(
       if (error & error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
       }
-      console.log("Error in user registration: ", error.message);
+      console.log("Failed to generate upload file url: ", error.message);
       throw new functions.https.HttpsError(
         "internal",
-        "Failed to register user"
+        "Failed to generate upload file url"
       );
     }
   }

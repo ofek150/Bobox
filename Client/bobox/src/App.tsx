@@ -7,6 +7,7 @@ import RequireAuth from './components/RequireAuth';
 import AccountInformation from './pages/AccountInformation';
 import ResetPassword from './pages/ResetPassword';
 import FirebaseActionHandler from './components/FirebaseActionHandler';
+import UploadFile from './pages/UploadFile';
 
 const App: React.FC = () => {
 
@@ -16,7 +17,7 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/" element={<Layout />}>
 
-            <Route path="/" element={<Navigate to='/account-info' replace={true} />} />
+            <Route path="/" element={<Navigate to='/upload-file' replace={true} />} />
 
             {/* Public routes */}
             <Route path="/login" element={<AuthPage initialTab={0} />} />
@@ -27,6 +28,7 @@ const App: React.FC = () => {
             {/* Protected routes */}
             <Route path="/" element={<RequireAuth />}>
               <Route path="/account-info" element={<AccountInformation />} />
+              <Route path="/upload-file" element={<UploadFile />} />
             </Route>
 
             {/* Catch all non existent routes */}

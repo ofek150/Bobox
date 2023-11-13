@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase-admin/app";
 import { registerWithEmailAndPassword, onUserCreated } from "./authentication";
-import { uploadFile } from "./r2";
+import { generateUploadFileURL } from "./r2";
 
 initializeApp();
 
-export { registerWithEmailAndPassword, onUserCreated, uploadFile };
+export { registerWithEmailAndPassword, onUserCreated, generateUploadFileURL };

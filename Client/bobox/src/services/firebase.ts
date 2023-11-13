@@ -4,6 +4,7 @@ import { connectFirestoreEmulator, doc, getDoc, getFirestore } from "firebase/fi
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 import { isValidEmail, isValidName, isValidPassword } from "../utils/validations";
+import { uploadFileParameters } from "../utils/types";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_API_KEY,
@@ -88,3 +89,15 @@ export const getUserData = async (uid: string) => {
   }
 };
 
+
+export const getUploadUrl = async (parameters: uploadFileParameters) => {
+  try {
+    const generateUploadFileURL = httpsCallable(functions, "generateUploadFileURL");
+    console.log("Parameters: ", parameters);
+    const result: any = (await generateUploadFileURL(parameters)).data;
+    return result.toString();
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+};
