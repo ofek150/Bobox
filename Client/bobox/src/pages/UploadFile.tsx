@@ -13,6 +13,7 @@ const UploadFile: React.FC = () => {
     const [uploading, setUploading] = useState(false);
     const [uploaded, setUploaded] = useState(false);
     const controller = new AbortController();
+    const minMultiUploadSize: number = 100 * 1024 * 1024;
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files) {
@@ -21,22 +22,13 @@ const UploadFile: React.FC = () => {
         }
     };
 
-    const handleUpload = async () => {
-        if (selectedFile && selectedFile.name && selectedFile.size && selectedFile.type) {
-            setUploading(true);
-            const fileParameters: uploadFileParameters = {
-                fileName: selectedFile.name,
-                fileType: selectedFile.type,
-                fileSize: selectedFile.size
-            };
-            const uploadUrl: string = await getUploadUrl(fileParameters);
+    const uploadSmallFile = async (fileParameters: uploadFileParameters) => {
+        if (!selectedFile || !selectedFile.name || !selectedFile.size || !selectedFile.type) return;
+        const uploadUrl: string = await getUploadUrl(fileParameters);
             if (!uploadUrl)
                 console.log("Upload url: " + uploadUrl);
             try {
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-
-                const config: AxiosRequestConfig<FormData> = {
+                const config: AxiosRequestConfig = {
                     onUploadProgress: (progressEvent: AxiosProgressEvent) => {
                         if (progressEvent.total) {
                             const progressPercentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -44,12 +36,11 @@ const UploadFile: React.FC = () => {
                         }
                     },
                     headers: {
-                        'Content-Type': 'multipart/form-data'
-                    },
-                    signal: controller.signal
+                        "Content-Type": selectedFile.type
+                    }
                 };
 
-                const response = await axios.put(uploadUrl, formData, config);
+                const response = await axios.put(uploadUrl, selectedFile, config);
 
                 console.log("Response: ", response);
                 setUploading(false);
@@ -61,6 +52,32 @@ const UploadFile: React.FC = () => {
             } catch (error) {
                 console.error('Error uploading file:', error);
             }
+    }
+
+    const uploadLargeFile = async (fileParameters: uploadFileParameters) => {
+
+    }
+    const handleUpload = async () => {
+        if (selectedFile && selectedFile.name && selectedFile.size && selectedFile.type) {
+            setUploading(true);
+
+            const fileParameters: uploadFileParameters = {
+                fileName: selectedFile.name,
+                fileDirectory: "",
+                fileType: selectedFile.type,
+                fileSize: selectedFile.size
+            };
+
+            if(selectedFile.size > minMultiUploadSize) {
+                uploadLargeFile(fileParameters)
+            }
+            else {
+                uploadSmallFile(fileParameters);
+            }
+        
+
+
+            
         } else {
             console.log('No file selected.');
         }
@@ -68,7 +85,7 @@ const UploadFile: React.FC = () => {
 
     const handleCancel = () => {
         console.log("Canceling upload...");
-        controller.abort()
+        //DO SOMETHING
         setUploading(false);
     }
 
@@ -104,9 +121,7 @@ const UploadFile: React.FC = () => {
                     }
                 />
             </div>
-            {uploading && (
-                <LinearProgress variant="determinate" value={progress} />
-            )}
+            {uploading && <LinearProgress value={progress} /> && <div>Progress: {progress}</div>}
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
                 <Button
                     variant="contained"

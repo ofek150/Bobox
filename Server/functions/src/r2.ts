@@ -22,7 +22,8 @@ export const generateUploadFileURL = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if(!data || !data.fileDirectory || !data.fileName || !data.fileSize || !data.fileType){
+    
+    if(!data || !data.fileName || !data.fileSize || !data.fileType){
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
@@ -52,9 +53,10 @@ export const generateUploadFileURL = functions.https.onCall(
         new PutObjectCommand({
           Bucket: process.env.R2_BUCKET_NAME,
           Key: fileKey,
-        }),
-        { expiresIn: 600 }
+          ContentType: data.fileType
+        })
       );
+
       if(!signedUrl) throw new Error("signedUrl is empty or undefined");
 
       return signedUrl;
@@ -80,7 +82,7 @@ export const initiateMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if(!data || !data.fileDirectory || !data.fileDirectory || !data.fileSize || !data.fileType){
+    if(!data || !data.fileDirectory || !data.fileName || !data.fileSize || !data.fileType){
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
@@ -120,7 +122,7 @@ export const generateUploadPartURL = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if(!data || !data.fileDirectory || !data.fileName || !data.partNumber || !data.uploadId){
+    if(!data || !data.fileName || !data.partNumber || !data.uploadId){
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
@@ -162,7 +164,7 @@ export const completeMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if(!data || !data.fileName || !data.fileDirectory || !data.uploadId || !data.uploadResults) {
+    if(!data || !data.fileName || !data.uploadId || !data.uploadResults) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
@@ -208,7 +210,7 @@ export const AbortMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if(!data || !data.fileName || !data.fileDirectory || !data.uploadId) {
+    if(!data || !data.fileName || !data.uploadId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
