@@ -1,8 +1,8 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand,CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { abortMultiPartUploadParameters, completeMultiPartParameters, uploadFileParameters, uploadPartParameters } from "./utils/types";
+import { AbortMultiPartUploadParameters, CompleteMultiPartParameters, UploadFileParameters, UploadPartParameters } from "./utils/types";
 
 export const r2 = new S3Client({
   region: "auto",
@@ -14,7 +14,7 @@ export const r2 = new S3Client({
 });
 
 export const generateUploadFileURL = functions.https.onCall(
-  async (data: uploadFileParameters, context) => {
+  async (data: UploadFileParameters, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -22,8 +22,8 @@ export const generateUploadFileURL = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    
-    if(!data || !data.fileName || !data.fileSize || !data.fileType){
+
+    if (!data || !data.fileName || !data.fileSize || !data.fileType) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
@@ -57,7 +57,7 @@ export const generateUploadFileURL = functions.https.onCall(
         })
       );
 
-      if(!signedUrl) throw new Error("signedUrl is empty or undefined");
+      if (!signedUrl) throw new Error("signedUrl is empty or undefined");
 
       return signedUrl;
     } catch (error: any) {
@@ -74,7 +74,7 @@ export const generateUploadFileURL = functions.https.onCall(
 );
 
 export const initiateMultipartUpload = functions.https.onCall(
-  async (data: uploadFileParameters, context) => {
+  async (data: UploadFileParameters, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -82,7 +82,7 @@ export const initiateMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if(!data || !data.fileDirectory || !data.fileName || !data.fileSize || !data.fileType){
+    if (!data || !data.fileName || !data.fileSize || !data.fileType) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
@@ -90,16 +90,17 @@ export const initiateMultipartUpload = functions.https.onCall(
     }
     try {
       const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
+      console.log("Bucket name: ", process.env.R2_BUCKET_NAME);
       const createMultiPartUploadCommand = new CreateMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileKey,
       });
       const result = await r2.send(createMultiPartUploadCommand);
       const uploadId: string | undefined = result.UploadId;
-      if(!uploadId) throw new Error("uploadId is empty or undefined");
+      if (!uploadId) throw new Error("uploadId is empty or undefined");
 
       return uploadId;
-      
+
     } catch (error: any) {
       if (error & error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
@@ -114,7 +115,7 @@ export const initiateMultipartUpload = functions.https.onCall(
 );
 
 export const generateUploadPartURL = functions.https.onCall(
-  async (data: uploadPartParameters, context) => {
+  async (data: UploadPartParameters, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -122,7 +123,7 @@ export const generateUploadPartURL = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if(!data || !data.fileName || !data.partNumber || !data.uploadId){
+    if (!data || !data.fileName || !data.partNumber || !data.uploadId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
@@ -130,7 +131,7 @@ export const generateUploadPartURL = functions.https.onCall(
     }
     try {
       const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
-      
+
       const uploadPartCommand = new UploadPartCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileKey,
@@ -140,7 +141,7 @@ export const generateUploadPartURL = functions.https.onCall(
 
       const signedUrl = await getSignedUrl(r2, uploadPartCommand);
 
-      if(!signedUrl) throw new Error("signedUrl is empty or undefined");
+      if (!signedUrl) throw new Error("signedUrl is empty or undefined");
       return signedUrl;
     } catch (error: any) {
       if (error & error.code && error.code.startsWith("auth/")) {
@@ -156,7 +157,7 @@ export const generateUploadPartURL = functions.https.onCall(
 );
 
 export const completeMultipartUpload = functions.https.onCall(
-  async (data: completeMultiPartParameters, context) => {
+  async (data: CompleteMultiPartParameters, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -164,7 +165,7 @@ export const completeMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if(!data || !data.fileName || !data.uploadId || !data.uploadResults) {
+    if (!data || !data.fileName || !data.uploadId || !data.uploadResults) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
@@ -172,17 +173,29 @@ export const completeMultipartUpload = functions.https.onCall(
     }
     try {
       const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
+      //console.log("Upload results: ", data.uploadResults);
       const completeCommand = new CompleteMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileKey,
         UploadId: data.uploadId,
         MultipartUpload: {
-          Parts: data.uploadResults.map(({ ETag }, i: number) => ({
-            ETag,
-            PartNumber: i + 1,
-          })),
+          Parts: data.uploadResults.map(({ ETag, partNumber }) => {
+            console.log("Part number: ", partNumber, " ETag: ", ETag);
+            return ({
+              ETag,
+              PartNumber: partNumber,
+            })
+          }),
         },
       })
+
+      // const abortCommand = new AbortMultipartUploadCommand({
+      //   Bucket: process.env.R2_BUCKET_NAME,
+      //   Key: fileKey,
+      //   UploadId: data.uploadId,
+      // });
+
+      // const result = await r2.send(abortCommand);
 
       const result = await r2.send(completeCommand);
 
@@ -202,7 +215,7 @@ export const completeMultipartUpload = functions.https.onCall(
 );
 
 export const AbortMultipartUpload = functions.https.onCall(
-  async (data: abortMultiPartUploadParameters, context) => {
+  async (data: AbortMultiPartUploadParameters, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -210,7 +223,7 @@ export const AbortMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if(!data || !data.fileName || !data.uploadId) {
+    if (!data || !data.fileName || !data.uploadId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
@@ -219,7 +232,7 @@ export const AbortMultipartUpload = functions.https.onCall(
     try {
       const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
 
-      
+
       const abortCommand = new AbortMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileKey,
@@ -228,7 +241,10 @@ export const AbortMultipartUpload = functions.https.onCall(
 
       const result = await r2.send(abortCommand);
       console.log("Abort multipart upload result: ", result);
-      
+      if (result.$metadata.httpStatusCode === 204) return 'SUCCESS';
+      throw new Error("request failed");
+
+
     } catch (error: any) {
       if (error & error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);

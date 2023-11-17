@@ -1,25 +1,25 @@
-export interface uploadFileParameters {
+export interface UploadFileParameters {
     fileName: string;
     fileDirectory: string;
     fileType: string;
     fileSize: number;
 }
 
-export interface uploadPartParameters {
+export interface UploadPartParameters {
     uploadId: string;
     fileName: string;
     fileDirectory: string;
     partNumber: number;
 }
 
-export interface completeMultiPartParameters {
+export interface CompleteMultiPartParameters {
     uploadId: string;
     fileName: string;
     fileDirectory: string;
     uploadResults: any[];
 }
 
-export interface abortMultiPartUploadParameters {
+export interface AbortMultiPartUploadParameters {
     uploadId: string;
     fileName: string;
     fileDirectory: string;

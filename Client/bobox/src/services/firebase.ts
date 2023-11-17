@@ -4,7 +4,7 @@ import { connectFirestoreEmulator, doc, getDoc, getFirestore } from "firebase/fi
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 import { isValidEmail, isValidName, isValidPassword } from "../utils/validations";
-import { uploadFileParameters } from "../utils/types";
+import { AbortMultiPartUploadParameters, CompleteMultiPartParameters, UploadFileParameters, UploadPartParameters } from "../utils/types";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_API_KEY,
@@ -90,11 +90,58 @@ export const getUserData = async (uid: string) => {
 };
 
 
-export const getUploadUrl = async (parameters: uploadFileParameters) => {
+export const generateUploadFileURL = async (parameters: UploadFileParameters) => {
   try {
-    const generateUploadFileURL = httpsCallable(functions, "generateUploadFileURL");
+    const getUploadFileURL = httpsCallable(functions, "generateUploadFileURL");
     console.log("Parameters: ", parameters);
-    const result: any = (await generateUploadFileURL(parameters)).data;
+    const result: any = (await getUploadFileURL(parameters)).data;
+    return result.toString();
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+};
+
+export const initiateMultipartUpload = async (parameters: UploadFileParameters) => {
+  try {
+    const startMultipartUpload = httpsCallable(functions, "initiateMultipartUpload");
+    console.log("Parameters: ", parameters);
+    const result: any = (await startMultipartUpload(parameters)).data;
+    return result.toString();
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+};
+
+export const generateUploadPartURL = async (parameters: UploadPartParameters) => {
+  try {
+    const getUploadPartURL = httpsCallable(functions, "generateUploadPartURL");
+    console.log("Parameters: ", parameters);
+    const result: any = (await getUploadPartURL(parameters)).data;
+    return result.toString();
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+};
+
+export const completeMultipartUpload = async (parameters: CompleteMultiPartParameters) => {
+  try {
+    const endMultipartUpload = httpsCallable(functions, "completeMultipartUpload");
+    console.log("Parameters: ", parameters);
+    await endMultipartUpload(parameters)
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+};
+
+export const AbortMultipartUpload = async (parameters: AbortMultiPartUploadParameters) => {
+  try {
+    const cancelMultipartUpload = httpsCallable(functions, "AbortMultipartUpload");
+    console.log("Parameters: ", parameters);
+    const result: any = (await cancelMultipartUpload(parameters)).data;
     return result.toString();
   } catch (error) {
     console.log(error);
