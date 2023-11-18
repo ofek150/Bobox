@@ -78,11 +78,9 @@ const UploadFile: React.FC = () => {
         const parts: any = [];
         const uploadPromises = [];
         const expectedNumParts = Math.ceil(fileParameters.fileSize / partSize);
-        const Etag: string = await calculateETag(selectedFile, partSize, expectedNumParts);
-        console.log("Etag: ", Etag);
 
         for (let offset = 0, i = 1; offset < fileParameters.fileSize; offset += partSize, i++) {
-            const chunk = selectedFile.slice(offset, offset + partSize);
+            const chunk = await selectedFile.slice(offset, offset + partSize);
 
             const uploadPartParameters: UploadPartParameters = {
                 uploadId: uploadId,
@@ -93,15 +91,19 @@ const UploadFile: React.FC = () => {
 
             const uploadPartUrl: string = await generateUploadPartURL(uploadPartParameters);
             uploadPromises.push(
-                axios.put(uploadPartUrl, chunk)
+                axios.put(uploadPartUrl, chunk,
+                    {
+                        headers: {
+                            'Content-Type': 'application/octet-stream',
+                            'Content-Length': chunk.size.toString()
+                        }
+                    })
                     .then(async (response) => {
-
-                        console.log("Response upload part ", i, ": ", response);
+                        console.log("Uploaded part ", i);
+                        const Etag = response.headers['etag'];
                         if (response.status == 200) {
                             parts.push({ 'ETag': Etag, 'partNumber': i });
-                            console.log("Uploaded part ", i);
-
-                            const currentProgress = (offset + partSize) / fileParameters.fileSize;
+                            const currentProgress = Math.round(((offset + partSize) * 100) / fileParameters.fileSize);
                             setProgress(currentProgress);
                         }
                     }).catch(() => {
@@ -119,7 +121,18 @@ const UploadFile: React.FC = () => {
             fileDirectory: fileParameters.fileDirectory,
             uploadResults: parts
         }
-        completeMultipartUpload(completeMultipartUploadParameters);
+        if (await completeMultipartUpload(completeMultipartUploadParameters)) {
+            setUploading(false);
+            setProgress(0);
+            setUploaded(true);
+            setSelectedFile(null);
+        }
+        else {
+            setUploading(false);
+            setProgress(0);
+            setUploaded(false);
+            setSelectedFile(null);
+        }
     }
     const handleUpload = async () => {
         if (selectedFile && selectedFile.name && selectedFile.size && selectedFile.type) {

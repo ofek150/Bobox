@@ -130,7 +130,8 @@ export const completeMultipartUpload = async (parameters: CompleteMultiPartParam
   try {
     const endMultipartUpload = httpsCallable(functions, "completeMultipartUpload");
     console.log("Parameters: ", parameters);
-    await endMultipartUpload(parameters)
+    const result: any = (await endMultipartUpload(parameters)).data
+    return result.toString() === "SUCCESS" ? true : false;
   } catch (error) {
     console.log(error);
     return null;
@@ -142,7 +143,7 @@ export const AbortMultipartUpload = async (parameters: AbortMultiPartUploadParam
     const cancelMultipartUpload = httpsCallable(functions, "AbortMultipartUpload");
     console.log("Parameters: ", parameters);
     const result: any = (await cancelMultipartUpload(parameters)).data;
-    return result.toString();
+    return result.toString() === "SUCCESS" ? true : false;
   } catch (error) {
     console.log(error);
     return null;

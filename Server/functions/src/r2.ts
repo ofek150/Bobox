@@ -188,6 +188,8 @@ export const completeMultipartUpload = functions.https.onCall(
           }),
         },
       })
+      //JUST TO REMOVE ERROR
+      // completeCommand
 
       // const abortCommand = new AbortMultipartUploadCommand({
       //   Bucket: process.env.R2_BUCKET_NAME,
@@ -200,6 +202,8 @@ export const completeMultipartUpload = functions.https.onCall(
       const result = await r2.send(completeCommand);
 
       console.log("Complete multipart upload result: ", result);
+      if (result.$metadata.httpStatusCode === 200) return 'SUCCESS';
+      throw new Error("request failed");
 
     } catch (error: any) {
       if (error & error.code && error.code.startsWith("auth/")) {
