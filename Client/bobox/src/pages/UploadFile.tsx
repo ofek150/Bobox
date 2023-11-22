@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Typography, LinearProgress, Button, Box, InputAdornment, OutlinedInput, IconButton } from "@mui/material";
 import { MB, MIN_MULTIPART_UPLOAD_SIZE } from "../utils/constants";
-import { generateUploadFileURL, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, AbortMultipartUpload, } from "../services/firebase";
+import { initiateSmallFileUpload, CompleteSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, AbortMultipartUpload, } from "../services/firebase";
 import { UploadFileParameters, UploadPartParameters, CompleteMultiPartParameters, AbortMultiPartUploadParameters } from "../utils/types";
 import axios, { AxiosProgressEvent, AxiosRequestConfig } from "axios";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 //import CancelIcon from '@mui/icons-material/Cancel';
 import DoneIcon from '@mui/icons-material/Done';
-import { calculateETag } from "../utils/helpers";
 
 const UploadFile: React.FC = () => {
     const [progress, setProgress] = useState<number>(0);
@@ -17,8 +16,8 @@ const UploadFile: React.FC = () => {
 
     useEffect(() => {
         const params: AbortMultiPartUploadParameters = {
-            uploadId: 'ANE64TFtmPEdRzqeteT7Xe_fSOZ6mdMFFQhOQokGE0kSaOdpcF51zf3J2om7dOfrty_fyiuiE50flP7M_ufzSRyUEEd4Pv9PPXBPYfvnKfb-XHl6bSHgg8h_Wh_VyumLG9OZX4NUeuLP9A8mPZJ3h7gIYaEKghf6cSoUy4GVQC8uppDm5e4_hOOn12mr01Ku2qP4iJrL0BAZ1PiSOPoZtqd0pUoRrpy66rL2XJkzSqtVZE1VreysCBkEHxA3fk67G7ere7VCjw0sDMwhchSNP6Inz3HcrNqYZGv10pqO5IV1qXvLpV664wdXt3Dz01A3s0aLqlBUu4vury2emXAMVQM',
-            fileName: 'goldberg4.zip',
+            uploadId: '',
+            fileName: '',
             fileDirectory: ''
         }
         let doIt = false;
@@ -39,7 +38,8 @@ const UploadFile: React.FC = () => {
 
     const uploadSmallFile = async (fileParameters: UploadFileParameters) => {
         if (!selectedFile || !selectedFile.name || !selectedFile.size || !selectedFile.type) return;
-        const uploadUrl: string = await generateUploadFileURL(fileParameters);
+        const { uploadUrl, fileId } = await initiateSmallFileUpload(fileParameters);
+        //const uploadUrl: string = await initiateSmallFileUpload(fileParameters);
         if (!uploadUrl)
             console.log("Upload url: " + uploadUrl);
         try {
@@ -61,6 +61,7 @@ const UploadFile: React.FC = () => {
             setUploading(false);
             setProgress(0);
             if (response.status == 200) {
+                CompleteSmallFileUpload(fileId)
                 setUploaded(true);
                 setSelectedFile(null);
             }
@@ -71,7 +72,7 @@ const UploadFile: React.FC = () => {
 
     const uploadLargeFile = async (fileParameters: UploadFileParameters) => {
         if (!selectedFile) return;
-        const uploadId: string = await initiateMultipartUpload(fileParameters);
+        const { uploadId, fileId } = await initiateMultipartUpload(fileParameters);
         if (!uploadId) return;
 
         const partSize = 8 * MB;
@@ -117,6 +118,7 @@ const UploadFile: React.FC = () => {
         console.log("Ordered Upload results: ", parts);
         const completeMultipartUploadParameters: CompleteMultiPartParameters = {
             uploadId: uploadId,
+            fileId: fileId,
             fileName: fileParameters.fileName,
             fileDirectory: fileParameters.fileDirectory,
             uploadResults: parts

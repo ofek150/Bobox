@@ -1,8 +1,9 @@
 import * as functions from "firebase-functions";
-import * as admin from "firebase-admin";
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParameters, CompleteMultiPartParameters, UploadFileParameters, UploadPartParameters } from "./utils/types";
+import { addFileToDB, setFileUploaded } from "./db";
+import { FileEntry } from "./utils/types";
 
 export const r2 = new S3Client({
   region: "auto",
@@ -13,7 +14,7 @@ export const r2 = new S3Client({
   },
 });
 
-export const generateUploadFileURL = functions.https.onCall(
+export const initiateSmallFileUpload = functions.https.onCall(
   async (data: UploadFileParameters, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
@@ -30,23 +31,14 @@ export const generateUploadFileURL = functions.https.onCall(
       );
     }
     try {
-      const db = admin.firestore();
-      console.log("Data: ", data);
       const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
-
-      const docRef = db.collection('users').doc(context.auth.uid).collection('files').doc();
-      const docSnap = await docRef.get();
-      if (!docSnap.exists) {
-        await docRef.set({
-          fileKey: fileKey,
-          fileName: data.fileName,
-          fileType: data.fileType,
-          fileSize: data.fileSize
-        });
+      const fileToAdd: FileEntry = {
+        fileKey: fileKey,
+        fileName: data.fileName,
+        fileType: data.fileType,
+        fileSize: data.fileSize
       }
-      else {
-        //for now do nothing
-      }
+      const fileId: string = await addFileToDB(context.auth.uid, fileToAdd);
 
       const signedUrl = await getSignedUrl(
         r2,
@@ -59,7 +51,7 @@ export const generateUploadFileURL = functions.https.onCall(
 
       if (!signedUrl) throw new Error("signedUrl is empty or undefined");
 
-      return signedUrl;
+      return { uploadUrl: signedUrl, fileId: fileId };
     } catch (error: any) {
       if (error & error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
@@ -68,6 +60,38 @@ export const generateUploadFileURL = functions.https.onCall(
       throw new functions.https.HttpsError(
         "internal",
         "Failed to generate upload file url"
+      );
+    }
+  }
+);
+
+export const CompleteSmallFileUpload = functions.https.onCall(
+  async (fileId: string, context) => {
+    // Ensure the user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "The function must be called while authenticated."
+      );
+    }
+
+    if (!fileId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing arguments"
+      );
+    }
+    try {
+      setFileUploaded(context.auth.uid, fileId);
+      return 'SUCCESS';
+    } catch (error: any) {
+      if (error & error.code && error.code.startsWith("auth/")) {
+        throw new functions.https.HttpsError("invalid-argument", error.message);
+      }
+      console.log("Failed to complete small file upload: ", error.message);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to complete small file upload"
       );
     }
   }
@@ -99,8 +123,15 @@ export const initiateMultipartUpload = functions.https.onCall(
       const uploadId: string | undefined = result.UploadId;
       if (!uploadId) throw new Error("uploadId is empty or undefined");
 
-      return uploadId;
+      const fileToAdd: FileEntry = {
+        fileKey: fileKey,
+        fileName: data.fileName,
+        fileType: data.fileType,
+        fileSize: data.fileSize
+      }
+      const fileId: string = await addFileToDB(context.auth.uid, fileToAdd);
 
+      return { uploadId: uploadId, fileId: fileId };
     } catch (error: any) {
       if (error & error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
@@ -165,7 +196,7 @@ export const completeMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if (!data || !data.fileName || !data.uploadId || !data.uploadResults) {
+    if (!data || !data.fileName || !data.uploadId || !data.uploadResults || !data.fileId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
@@ -202,7 +233,10 @@ export const completeMultipartUpload = functions.https.onCall(
       const result = await r2.send(completeCommand);
 
       console.log("Complete multipart upload result: ", result);
-      if (result.$metadata.httpStatusCode === 200) return 'SUCCESS';
+      if (result.$metadata.httpStatusCode === 200) {
+        setFileUploaded(context.auth.uid, data.fileId);
+        return 'SUCCESS';
+      }
       throw new Error("request failed");
 
     } catch (error: any) {

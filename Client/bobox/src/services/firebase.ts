@@ -90,12 +90,25 @@ export const getUserData = async (uid: string) => {
 };
 
 
-export const generateUploadFileURL = async (parameters: UploadFileParameters) => {
+export const initiateSmallFileUpload = async (parameters: UploadFileParameters) => {
   try {
-    const getUploadFileURL = httpsCallable(functions, "generateUploadFileURL");
+    const getUploadFileURL = httpsCallable(functions, "initiateSmallFileUpload");
     console.log("Parameters: ", parameters);
     const result: any = (await getUploadFileURL(parameters)).data;
-    return result.toString();
+    console.log(result);
+    return result;
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+};
+
+export const CompleteSmallFileUpload = async (fileId: string) => {
+  try {
+    const completeSmallFileUpload = httpsCallable(functions, "CompleteSmallFileUpload");
+    console.log("Parameters: ", fileId);
+    const result: any = (await completeSmallFileUpload(fileId)).data
+    return result.toString() === "SUCCESS" ? true : false;
   } catch (error) {
     console.log(error);
     return null;
@@ -107,7 +120,7 @@ export const initiateMultipartUpload = async (parameters: UploadFileParameters) 
     const startMultipartUpload = httpsCallable(functions, "initiateMultipartUpload");
     console.log("Parameters: ", parameters);
     const result: any = (await startMultipartUpload(parameters)).data;
-    return result.toString();
+    return result;
   } catch (error) {
     console.log(error);
     return null;
