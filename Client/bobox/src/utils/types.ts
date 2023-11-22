@@ -14,7 +14,7 @@ export interface UploadPartParameters {
 
 export interface CompleteMultiPartParameters {
     uploadId: string;
-    fileId: string;
+    fileId: string
     fileName: string;
     fileDirectory: string;
     uploadResults: any[];
@@ -22,6 +22,7 @@ export interface CompleteMultiPartParameters {
 
 export interface AbortMultiPartUploadParameters {
     uploadId: string;
+    fileId: string;
     fileName: string;
     fileDirectory: string;
 }

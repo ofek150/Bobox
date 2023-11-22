@@ -2,7 +2,7 @@ import * as functions from "firebase-functions";
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParameters, CompleteMultiPartParameters, UploadFileParameters, UploadPartParameters } from "./utils/types";
-import { addFileToDB, setFileUploaded } from "./db";
+import { addFileToDB, setFileUploaded, deleteAbortedFile, doesFileExist } from "./db";
 import { FileEntry } from "./utils/types";
 
 export const r2 = new S3Client({
@@ -32,6 +32,8 @@ export const initiateSmallFileUpload = functions.https.onCall(
     }
     try {
       const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
+      if(await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same key already exists");
+
       const fileToAdd: FileEntry = {
         fileKey: fileKey,
         fileName: data.fileName,
@@ -53,8 +55,13 @@ export const initiateSmallFileUpload = functions.https.onCall(
 
       return { uploadUrl: signedUrl, fileId: fileId };
     } catch (error: any) {
-      if (error & error.code && error.code.startsWith("auth/")) {
+      if (error && error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
+      } else if(error && error.message === "File with the same key already exists") {
+        throw new functions.https.HttpsError(
+          "internal",
+          error.message
+        );
       }
       console.log("Failed to generate upload file url: ", error.message);
       throw new functions.https.HttpsError(
@@ -85,7 +92,7 @@ export const CompleteSmallFileUpload = functions.https.onCall(
       setFileUploaded(context.auth.uid, fileId);
       return 'SUCCESS';
     } catch (error: any) {
-      if (error & error.code && error.code.startsWith("auth/")) {
+      if (error && error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
       }
       console.log("Failed to complete small file upload: ", error.message);
@@ -114,7 +121,7 @@ export const initiateMultipartUpload = functions.https.onCall(
     }
     try {
       const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
-      console.log("Bucket name: ", process.env.R2_BUCKET_NAME);
+      if(await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same key already exists");
       const createMultiPartUploadCommand = new CreateMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileKey,
@@ -133,8 +140,13 @@ export const initiateMultipartUpload = functions.https.onCall(
 
       return { uploadId: uploadId, fileId: fileId };
     } catch (error: any) {
-      if (error & error.code && error.code.startsWith("auth/")) {
+      if (error && error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
+      } else if(error && error.message === "File with the same key already exists") {
+        throw new functions.https.HttpsError(
+          "internal",
+          error.message
+        );
       }
       console.log("Failed to initiate multipart upload: ", error.message);
       throw new functions.https.HttpsError(
@@ -161,7 +173,7 @@ export const generateUploadPartURL = functions.https.onCall(
       );
     }
     try {
-      const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
+      const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`;
 
       const uploadPartCommand = new UploadPartCommand({
         Bucket: process.env.R2_BUCKET_NAME,
@@ -175,7 +187,7 @@ export const generateUploadPartURL = functions.https.onCall(
       if (!signedUrl) throw new Error("signedUrl is empty or undefined");
       return signedUrl;
     } catch (error: any) {
-      if (error & error.code && error.code.startsWith("auth/")) {
+      if (error && error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
       }
       console.log("Failed generate upload part url: ", error.message);
@@ -203,7 +215,7 @@ export const completeMultipartUpload = functions.https.onCall(
       );
     }
     try {
-      const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
+      const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`;
       //console.log("Upload results: ", data.uploadResults);
       const completeCommand = new CompleteMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
@@ -240,7 +252,7 @@ export const completeMultipartUpload = functions.https.onCall(
       throw new Error("request failed");
 
     } catch (error: any) {
-      if (error & error.code && error.code.startsWith("auth/")) {
+      if (error && error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
       }
       console.log("Failed to complete multipart upload: ", error.message);
@@ -261,7 +273,7 @@ export const AbortMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if (!data || !data.fileName || !data.uploadId) {
+    if (!data || !data.fileName || !data.fileId || !data.uploadId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
@@ -279,12 +291,17 @@ export const AbortMultipartUpload = functions.https.onCall(
 
       const result = await r2.send(abortCommand);
       console.log("Abort multipart upload result: ", result);
-      if (result.$metadata.httpStatusCode === 204) return 'SUCCESS';
+      if (result.$metadata.httpStatusCode === 204) {
+        deleteAbortedFile(context.auth.uid, data.fileId);
+        return 'SUCCESS';
+      }
+        
+
       throw new Error("request failed");
 
 
     } catch (error: any) {
-      if (error & error.code && error.code.startsWith("auth/")) {
+      if (error && error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
       }
       console.log("Failed to abort multipart upload: ", error.message);

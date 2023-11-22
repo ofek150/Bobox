@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { GoogleAuthProvider, connectAuthEmulator, getAuth, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth";
 import { connectFirestoreEmulator, doc, getDoc, getFirestore } from "firebase/firestore";
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
-import { getAnalytics } from "firebase/analytics";
+//import { getAnalytics } from "firebase/analytics";
 import { isValidEmail, isValidName, isValidPassword } from "../utils/validations";
 import { AbortMultiPartUploadParameters, CompleteMultiPartParameters, UploadFileParameters, UploadPartParameters } from "../utils/types";
 
@@ -17,7 +17,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+//const analytics = getAnalytics(app);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 const functions = getFunctions(app);
@@ -97,9 +97,9 @@ export const initiateSmallFileUpload = async (parameters: UploadFileParameters) 
     const result: any = (await getUploadFileURL(parameters)).data;
     console.log(result);
     return result;
-  } catch (error) {
-    console.log(error);
-    return null;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.message };
   }
 };
 
@@ -109,9 +109,9 @@ export const CompleteSmallFileUpload = async (fileId: string) => {
     console.log("Parameters: ", fileId);
     const result: any = (await completeSmallFileUpload(fileId)).data
     return result.toString() === "SUCCESS" ? true : false;
-  } catch (error) {
-    console.log(error);
-    return null;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.message };
   }
 };
 
@@ -121,9 +121,9 @@ export const initiateMultipartUpload = async (parameters: UploadFileParameters) 
     console.log("Parameters: ", parameters);
     const result: any = (await startMultipartUpload(parameters)).data;
     return result;
-  } catch (error) {
-    console.log(error);
-    return null;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.message };
   }
 };
 
@@ -133,9 +133,9 @@ export const generateUploadPartURL = async (parameters: UploadPartParameters) =>
     console.log("Parameters: ", parameters);
     const result: any = (await getUploadPartURL(parameters)).data;
     return result.toString();
-  } catch (error) {
-    console.log(error);
-    return null;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.message };
   }
 };
 
@@ -145,9 +145,9 @@ export const completeMultipartUpload = async (parameters: CompleteMultiPartParam
     console.log("Parameters: ", parameters);
     const result: any = (await endMultipartUpload(parameters)).data
     return result.toString() === "SUCCESS" ? true : false;
-  } catch (error) {
-    console.log(error);
-    return null;
+  } catch (error : any) {
+    console.error(error);
+    return { error: error.message };
   }
 };
 
@@ -157,8 +157,8 @@ export const AbortMultipartUpload = async (parameters: AbortMultiPartUploadParam
     console.log("Parameters: ", parameters);
     const result: any = (await cancelMultipartUpload(parameters)).data;
     return result.toString() === "SUCCESS" ? true : false;
-  } catch (error) {
-    console.log(error);
-    return null;
+  } catch (error : any) {
+    console.error(error);
+    return { error: error.message };
   }
 };

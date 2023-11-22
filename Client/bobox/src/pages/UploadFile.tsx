@@ -5,29 +5,18 @@ import { initiateSmallFileUpload, CompleteSmallFileUpload, initiateMultipartUplo
 import { UploadFileParameters, UploadPartParameters, CompleteMultiPartParameters, AbortMultiPartUploadParameters } from "../utils/types";
 import axios, { AxiosProgressEvent, AxiosRequestConfig } from "axios";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-//import CancelIcon from '@mui/icons-material/Cancel';
+import useAbortUploadData from "../hooks/useAbortUploadData";
 import DoneIcon from '@mui/icons-material/Done';
+import CancelIcon from '@mui/icons-material/Cancel';
 
 const UploadFile: React.FC = () => {
     const [progress, setProgress] = useState<number>(0);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
     const [uploaded, setUploaded] = useState(false);
-
-    useEffect(() => {
-        const params: AbortMultiPartUploadParameters = {
-            uploadId: '',
-            fileName: '',
-            fileDirectory: ''
-        }
-        let doIt = false;
-        // doIt = true;
-        if (!doIt) return;
-        AbortMultipartUpload(params).then((response) => {
-
-            console.log("Abort response: ", response);
-        });
-    }, []);
+    const [multiPartUploading, setMultiPartUploading] = useState(false);
+    const [abortUploadData, setAbortUploadData] = useAbortUploadData();
+    const [isCancelled, setIsCancelled] = useState(false);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files) {
@@ -38,8 +27,11 @@ const UploadFile: React.FC = () => {
 
     const uploadSmallFile = async (fileParameters: UploadFileParameters) => {
         if (!selectedFile || !selectedFile.name || !selectedFile.size || !selectedFile.type) return;
-        const { uploadUrl, fileId } = await initiateSmallFileUpload(fileParameters);
-        //const uploadUrl: string = await initiateSmallFileUpload(fileParameters);
+        const { uploadUrl, fileId, error } = await initiateSmallFileUpload(fileParameters);
+        if(error) {
+            handleError(error);
+            return;
+        }
         if (!uploadUrl)
             console.log("Upload url: " + uploadUrl);
         try {
@@ -72,15 +64,34 @@ const UploadFile: React.FC = () => {
 
     const uploadLargeFile = async (fileParameters: UploadFileParameters) => {
         if (!selectedFile) return;
-        const { uploadId, fileId } = await initiateMultipartUpload(fileParameters);
-        if (!uploadId) return;
+        const { uploadId, fileId, error } = await initiateMultipartUpload(fileParameters);
+        if(error) {
+            handleError(error);
+            return;
+        }
+
+        console.log("Upload id: ", uploadId);
+        console.log("File id: ", fileId);
+        
+        if (!uploadId || !fileId) return;
+
+        setAbortUploadData({
+            uploadId: uploadId,
+            fileId: fileId,
+            fileName: selectedFile.name,
+            fileDirectory: ''
+        })
 
         const partSize = 8 * MB;
         const parts: any = [];
         const uploadPromises = [];
-        const expectedNumParts = Math.ceil(fileParameters.fileSize / partSize);
+        //const expectedNumParts = Math.ceil(fileParameters.fileSize / partSize);
 
         for (let offset = 0, i = 1; offset < fileParameters.fileSize; offset += partSize, i++) {
+            if(isCancelled) {
+                setIsCancelled(false);
+                return;
+            }
             const chunk = await selectedFile.slice(offset, offset + partSize);
 
             const uploadPartParameters: UploadPartParameters = {
@@ -112,6 +123,12 @@ const UploadFile: React.FC = () => {
                     })
             );
         }
+
+        if(isCancelled) {
+            setIsCancelled(false);
+            return;
+        }
+
         const uploadResults = await Promise.all(uploadPromises);
         parts.sort((a: any, b: any) => a.partNumber - b.partNumber);
 
@@ -123,6 +140,10 @@ const UploadFile: React.FC = () => {
             fileDirectory: fileParameters.fileDirectory,
             uploadResults: parts
         }
+        if(isCancelled) {
+            setIsCancelled(false);
+            return;
+        }
         if (await completeMultipartUpload(completeMultipartUploadParameters)) {
             setUploading(false);
             setProgress(0);
@@ -130,7 +151,9 @@ const UploadFile: React.FC = () => {
             setSelectedFile(null);
         }
         else {
+            //SHOW ERROR
             setUploading(false);
+            setMultiPartUploading(false);
             setProgress(0);
             setUploaded(false);
             setSelectedFile(null);
@@ -148,7 +171,8 @@ const UploadFile: React.FC = () => {
             };
 
             if (selectedFile.size >= MIN_MULTIPART_UPLOAD_SIZE) {
-                uploadLargeFile(fileParameters)
+                setMultiPartUploading(true);
+                uploadLargeFile(fileParameters);
             }
             else {
                 uploadSmallFile(fileParameters);
@@ -161,7 +185,14 @@ const UploadFile: React.FC = () => {
 
     const handleCancel = () => {
         console.log("Canceling upload...");
-        //DO SOMETHING
+        setUploading(false);
+        setIsCancelled(true);
+        AbortMultipartUpload(abortUploadData);
+    }
+
+    const handleError = (error: any) => {
+        // Display error
+        // Handle error
         setUploading(false);
     }
 
@@ -208,7 +239,7 @@ const UploadFile: React.FC = () => {
                     {uploading ? 'Cancel' : uploaded ? 'Done' : 'Upload'}
                     {uploaded && <DoneIcon style={{ marginLeft: '8px' }} />}
                 </Button>
-                {/* {uploading && (
+                { uploading && multiPartUploading && (
                     <IconButton
                         color="secondary"
                         onClick={handleCancel}
@@ -216,7 +247,7 @@ const UploadFile: React.FC = () => {
                     >
                         <CancelIcon />
                     </IconButton>
-                )} */}
+                )}
             </div>
         </Box>
     );
