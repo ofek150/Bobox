@@ -4,6 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParameters, CompleteMultiPartParameters, UploadFileParameters, UploadPartParameters } from "./utils/types";
 import { addFileToDB, setFileUploaded, deleteAbortedFile, doesFileExist } from "./db";
 import { FileEntry } from "./utils/types";
+import { MAX_FILE_SIZE } from "./utils/constants";
 
 export const r2 = new S3Client({
   region: "auto",
@@ -30,9 +31,10 @@ export const initiateSmallFileUpload = functions.https.onCall(
         "Missing arguments"
       );
     }
+    if (data.fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
     try {
       const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
-      if(await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same key already exists");
+      if (await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same key already exists");
 
       const fileToAdd: FileEntry = {
         fileKey: fileKey,
@@ -57,7 +59,13 @@ export const initiateSmallFileUpload = functions.https.onCall(
     } catch (error: any) {
       if (error && error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
-      } else if(error && error.message === "File with the same key already exists") {
+      } else if (error && error.message === "File with the same key already exists") {
+        throw new functions.https.HttpsError(
+          "internal",
+          error.message
+        );
+      }
+      else if (error && error.message === ("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString())) {
         throw new functions.https.HttpsError(
           "internal",
           error.message
@@ -119,9 +127,10 @@ export const initiateMultipartUpload = functions.https.onCall(
         "Missing arguments"
       );
     }
+    if (data.fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
     try {
       const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
-      if(await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same key already exists");
+      if (await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same key already exists");
       const createMultiPartUploadCommand = new CreateMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileKey,
@@ -142,7 +151,13 @@ export const initiateMultipartUpload = functions.https.onCall(
     } catch (error: any) {
       if (error && error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
-      } else if(error && error.message === "File with the same key already exists") {
+      } else if (error && error.message === "File with the same key already exists") {
+        throw new functions.https.HttpsError(
+          "internal",
+          error.message
+        );
+      }
+      else if (error && error.message === ("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString())) {
         throw new functions.https.HttpsError(
           "internal",
           error.message
@@ -185,7 +200,10 @@ export const generateUploadPartURL = functions.https.onCall(
       const signedUrl = await getSignedUrl(r2, uploadPartCommand);
 
       if (!signedUrl) throw new Error("signedUrl is empty or undefined");
-      return signedUrl;
+
+      console.log("Upload part url: ", signedUrl);
+
+      return { uploadUrl: signedUrl };
     } catch (error: any) {
       if (error && error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
@@ -247,7 +265,7 @@ export const completeMultipartUpload = functions.https.onCall(
       console.log("Complete multipart upload result: ", result);
       if (result.$metadata.httpStatusCode === 200) {
         setFileUploaded(context.auth.uid, data.fileId);
-        return 'SUCCESS';
+        return { success: true };
       }
       throw new Error("request failed");
 
@@ -293,9 +311,9 @@ export const AbortMultipartUpload = functions.https.onCall(
       console.log("Abort multipart upload result: ", result);
       if (result.$metadata.httpStatusCode === 204) {
         deleteAbortedFile(context.auth.uid, data.fileId);
-        return 'SUCCESS';
+        return { success: true };
       }
-        
+
 
       throw new Error("request failed");
 

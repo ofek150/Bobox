@@ -38,6 +38,7 @@ export const doesFileExist = async (uid: string, fileKey: string) => {
 }
 
 export const deleteAbortedFile = async (uid: string, fileId: string) => {
+    console.log("Deleting aborted file with fileId ", fileId, " of user with uid ", uid);
     const db = admin.firestore();
 
     const docRef = db.collection('users').doc(uid).collection('files').doc(fileId);

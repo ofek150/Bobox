@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from "react";
-import { Typography, LinearProgress, Button, Box, InputAdornment, OutlinedInput, IconButton } from "@mui/material";
-import { MB, MIN_MULTIPART_UPLOAD_SIZE } from "../utils/constants";
+import React, { useEffect, useRef, useState } from "react";
+import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton } from "@mui/material";
+import { MIN_MULTIPART_UPLOAD_SIZE, MAX_UPLOAD_RETRIES, LARGE_FILE_MAX_SIZE } from "../utils/constants";
 import { initiateSmallFileUpload, CompleteSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, AbortMultipartUpload, } from "../services/firebase";
-import { UploadFileParameters, UploadPartParameters, CompleteMultiPartParameters, AbortMultiPartUploadParameters } from "../utils/types";
+import { UploadFileParameters, UploadPartParameters, CompleteMultiPartParameters } from "../utils/types";
 import axios, { AxiosProgressEvent, AxiosRequestConfig } from "axios";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import useAbortUploadData from "../hooks/useAbortUploadData";
 import DoneIcon from '@mui/icons-material/Done';
 import CancelIcon from '@mui/icons-material/Cancel';
+import CircularProgressWithLabel from "../components/UI/CircularProgressWithLabel";
+import { determinePartSize } from "../utils/helpers";
 
 const UploadFile: React.FC = () => {
     const [progress, setProgress] = useState<number>(0);
@@ -17,6 +19,8 @@ const UploadFile: React.FC = () => {
     const [multiPartUploading, setMultiPartUploading] = useState(false);
     const [abortUploadData, setAbortUploadData] = useAbortUploadData();
     const [isCancelled, setIsCancelled] = useState(false);
+    const abortController = new AbortController();
+    const isCancelledRef = useRef(isCancelled);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files) {
@@ -28,12 +32,11 @@ const UploadFile: React.FC = () => {
     const uploadSmallFile = async (fileParameters: UploadFileParameters) => {
         if (!selectedFile || !selectedFile.name || !selectedFile.size || !selectedFile.type) return;
         const { uploadUrl, fileId, error } = await initiateSmallFileUpload(fileParameters);
-        if(error) {
+        if (error) {
             handleError(error);
             return;
         }
-        if (!uploadUrl)
-            console.log("Upload url: " + uploadUrl);
+
         try {
             const config: AxiosRequestConfig = {
                 onUploadProgress: (progressEvent: AxiosProgressEvent) => {
@@ -49,31 +52,75 @@ const UploadFile: React.FC = () => {
 
             const response = await axios.put(uploadUrl, selectedFile, config);
 
-            console.log("Response: ", response);
             setUploading(false);
             setProgress(0);
             if (response.status == 200) {
-                CompleteSmallFileUpload(fileId)
-                setUploaded(true);
-                setSelectedFile(null);
+                CompleteSmallFileUpload(fileId);
+                finishUpload();
             }
         } catch (error) {
             console.error('Error uploading file:', error);
+            handleError(error);
         }
     }
+
+    const uploadPart = async (uploadPartUrl: string, parts: any, fileSize: number, chunk: any, i: number, offset: number, abortController: AbortController, updateProgress: (increment: number) => void) => {
+        let retryCount = 0;
+
+        while (retryCount < MAX_UPLOAD_RETRIES) {
+            try {
+                console.log(`Part ${i} is isCancelled: ${isCancelledRef.current}`);
+                if (isCancelledRef.current) {
+                    return;
+                }
+
+                const response = await axios.put(
+                    uploadPartUrl,
+                    chunk,
+                    {
+                        headers: {
+                            'Content-Type': 'application/octet-stream',
+                            'Content-Length': chunk.size.toString()
+                        },
+                        signal: abortController.signal,
+                        onUploadProgress: (progressEvent) => {
+                            // Calculate the increment in progress for this part
+                            if (progressEvent.total) {
+                                const partProgress = (progressEvent.loaded / progressEvent.total) * 100;
+                                updateProgress(partProgress);
+                            }
+                        }
+                    }
+                );
+
+                const Etag = response.headers['etag'];
+
+                if (response.status === 200) {
+                    parts.push({ 'ETag': Etag, 'partNumber': i });
+                    return true;
+                }
+            } catch (error: any) {
+                if (error && error.code === 'ECONNABORTED') throw new Error("Upload aborted");
+                console.error(`Upload part ${i} attempt ${retryCount + 1} failed:`, error);
+                retryCount++;
+            }
+        }
+
+        if (retryCount === MAX_UPLOAD_RETRIES) {
+            throw new Error(`Upload part ${i} failed after ${MAX_UPLOAD_RETRIES} attempts`);
+        }
+    };
 
     const uploadLargeFile = async (fileParameters: UploadFileParameters) => {
         if (!selectedFile) return;
         const { uploadId, fileId, error } = await initiateMultipartUpload(fileParameters);
-        if(error) {
+        if (error) {
             handleError(error);
             return;
         }
 
-        console.log("Upload id: ", uploadId);
-        console.log("File id: ", fileId);
-        
         if (!uploadId || !fileId) return;
+        console.log(`uploadId: ${uploadId} fileId: ${fileId}`);
 
         setAbortUploadData({
             uploadId: uploadId,
@@ -81,15 +128,14 @@ const UploadFile: React.FC = () => {
             fileName: selectedFile.name,
             fileDirectory: ''
         })
-
-        const partSize = 8 * MB;
         const parts: any = [];
         const uploadPromises = [];
-        //const expectedNumParts = Math.ceil(fileParameters.fileSize / partSize);
+        const partSize = determinePartSize(fileParameters.fileSize);
+        const expectedNumParts = Math.ceil(fileParameters.fileSize / partSize);
+        const partProgressArray = Array(expectedNumParts).fill(0);
 
         for (let offset = 0, i = 1; offset < fileParameters.fileSize; offset += partSize, i++) {
-            if(isCancelled) {
-                setIsCancelled(false);
+            if (isCancelledRef.current) {
                 return;
             }
             const chunk = await selectedFile.slice(offset, offset + partSize);
@@ -100,39 +146,37 @@ const UploadFile: React.FC = () => {
                 fileDirectory: fileParameters.fileDirectory,
                 partNumber: i
             };
-
-            const uploadPartUrl: string = await generateUploadPartURL(uploadPartParameters);
+            const { uploadUrl, error } = await generateUploadPartURL(uploadPartParameters);
+            if (error) {
+                handleError(error);
+                return;
+            }
             uploadPromises.push(
-                axios.put(uploadPartUrl, chunk,
-                    {
-                        headers: {
-                            'Content-Type': 'application/octet-stream',
-                            'Content-Length': chunk.size.toString()
-                        }
-                    })
-                    .then(async (response) => {
-                        console.log("Uploaded part ", i);
-                        const Etag = response.headers['etag'];
-                        if (response.status == 200) {
-                            parts.push({ 'ETag': Etag, 'partNumber': i });
-                            const currentProgress = Math.round(((offset + partSize) * 100) / fileParameters.fileSize);
-                            setProgress(currentProgress);
-                        }
-                    }).catch(() => {
-                        //Retry upload
-                    })
+                uploadPart(uploadUrl, parts, fileParameters.fileSize, chunk, i, offset, abortController, (partProgress) => {
+                    // Update the part's progress in the array
+                    partProgressArray[i - 1] = partProgress;
+
+                    // Calculate the overall progress based on the sum of part progress
+                    const overallProgress = (partProgressArray.reduce((sum, value) => sum + value, 0) / expectedNumParts);
+                    setProgress(overallProgress);
+                }).catch((error: any) => {
+                    handleError(error);
+                    return;
+                })
             );
         }
 
-        if(isCancelled) {
-            setIsCancelled(false);
+        try {
+            const uploadResults = await Promise.all(uploadPromises);
+
+        } catch (error: any) {
+            if (error & error.message) console.error("Failed to upload file", error.meessage);
+            await AbortMultipartUpload(abortUploadData);
+            handleError(error);
             return;
         }
-
-        const uploadResults = await Promise.all(uploadPromises);
         parts.sort((a: any, b: any) => a.partNumber - b.partNumber);
 
-        console.log("Ordered Upload results: ", parts);
         const completeMultipartUploadParameters: CompleteMultiPartParameters = {
             uploadId: uploadId,
             fileId: fileId,
@@ -140,27 +184,23 @@ const UploadFile: React.FC = () => {
             fileDirectory: fileParameters.fileDirectory,
             uploadResults: parts
         }
-        if(isCancelled) {
-            setIsCancelled(false);
+        if (isCancelledRef.current) {
             return;
         }
-        if (await completeMultipartUpload(completeMultipartUploadParameters)) {
-            setUploading(false);
-            setProgress(0);
-            setUploaded(true);
-            setSelectedFile(null);
+        const result: any = await completeMultipartUpload(completeMultipartUploadParameters);
+        if (result.error) {
+            handleError(error);
+            return;
         }
-        else {
-            //SHOW ERROR
-            setUploading(false);
-            setMultiPartUploading(false);
-            setProgress(0);
-            setUploaded(false);
-            setSelectedFile(null);
-        }
+        finishUpload();
     }
     const handleUpload = async () => {
         if (selectedFile && selectedFile.name && selectedFile.size && selectedFile.type) {
+            if (selectedFile.size > LARGE_FILE_MAX_SIZE) {
+                handleError(new Error("The file is bigger than the max allowed file size - " + LARGE_FILE_MAX_SIZE.toString()));
+            }
+            setIsCancelled(false);
+            isCancelledRef.current = false;
             setUploading(true);
 
             const fileParameters: UploadFileParameters = {
@@ -183,17 +223,44 @@ const UploadFile: React.FC = () => {
         }
     };
 
-    const handleCancel = () => {
+    const handleCancel = async () => {
         console.log("Canceling upload...");
+        abortController.abort();
         setUploading(false);
+        setProgress(0);
         setIsCancelled(true);
-        AbortMultipartUpload(abortUploadData);
+        isCancelledRef.current = true;
+        await AbortMultipartUpload(abortUploadData);
+        setAbortUploadData({
+            uploadId: '',
+            fileId: '',
+            fileName: '',
+            fileDirectory: ''
+        });
+    }
+
+    const finishUpload = () => {
+        setUploading(false);
+        setProgress(0);
+        setUploaded(true);
+        setAbortUploadData({
+            uploadId: '',
+            fileId: '',
+            fileName: '',
+            fileDirectory: ''
+        })
+        setSelectedFile(null);
     }
 
     const handleError = (error: any) => {
+        if (error && error.message) console.error(error.meessage);
+        setUploading(false);
+        setMultiPartUploading(false);
+        setProgress(0);
+        setUploaded(false);
+        setSelectedFile(null);
         // Display error
         // Handle error
-        setUploading(false);
     }
 
     return (
@@ -228,7 +295,7 @@ const UploadFile: React.FC = () => {
                     }
                 />
             </div>
-            {uploading && <LinearProgress value={progress} /> && <div>Progress: {progress}</div>}
+            {uploading && <CircularProgressWithLabel value={progress} />}
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
                 <Button
                     variant="contained"
@@ -239,7 +306,7 @@ const UploadFile: React.FC = () => {
                     {uploading ? 'Cancel' : uploaded ? 'Done' : 'Upload'}
                     {uploaded && <DoneIcon style={{ marginLeft: '8px' }} />}
                 </Button>
-                { uploading && multiPartUploading && (
+                {uploading && multiPartUploading && (
                     <IconButton
                         color="secondary"
                         onClick={handleCancel}
