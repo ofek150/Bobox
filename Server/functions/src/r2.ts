@@ -1,10 +1,10 @@
 import * as functions from "firebase-functions";
-import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { AbortMultiPartUploadParameters, CompleteMultiPartParameters, UploadFileParameters, UploadPartParameters } from "./utils/types";
-import { addFileToDB, setFileUploaded, deleteAbortedFile, doesFileExist } from "./db";
+import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types";
+import { addFileToDB, setFileUploaded, deleteAbortedFileFromDB, doesFileExist, getFileInfo, addLinkToDB } from "./db";
 import { FileEntry } from "./utils/types";
-import { MAX_FILE_SIZE } from "./utils/constants";
+import { MAX_FILE_SIZE, WEBSITE_URL } from "./utils/constants";
 
 export const r2 = new S3Client({
   region: "auto",
@@ -16,7 +16,7 @@ export const r2 = new S3Client({
 });
 
 export const initiateSmallFileUpload = functions.https.onCall(
-  async (data: UploadFileParameters, context) => {
+  async (data: UploadFileParams, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -80,7 +80,7 @@ export const initiateSmallFileUpload = functions.https.onCall(
   }
 );
 
-export const CompleteSmallFileUpload = functions.https.onCall(
+export const completeSmallFileUpload = functions.https.onCall(
   async (fileId: string, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
@@ -97,7 +97,7 @@ export const CompleteSmallFileUpload = functions.https.onCall(
       );
     }
     try {
-      setFileUploaded(context.auth.uid, fileId);
+      setFileUploaded(context.auth.uid, fileId, 1);
       return 'SUCCESS';
     } catch (error: any) {
       if (error && error.code && error.code.startsWith("auth/")) {
@@ -113,7 +113,7 @@ export const CompleteSmallFileUpload = functions.https.onCall(
 );
 
 export const initiateMultipartUpload = functions.https.onCall(
-  async (data: UploadFileParameters, context) => {
+  async (data: UploadFileParams, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -173,7 +173,7 @@ export const initiateMultipartUpload = functions.https.onCall(
 );
 
 export const generateUploadPartURL = functions.https.onCall(
-  async (data: UploadPartParameters, context) => {
+  async (data: UploadPartParams, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -218,7 +218,7 @@ export const generateUploadPartURL = functions.https.onCall(
 );
 
 export const completeMultipartUpload = functions.https.onCall(
-  async (data: CompleteMultiPartParameters, context) => {
+  async (data: CompleteMultiPartParams, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -249,22 +249,12 @@ export const completeMultipartUpload = functions.https.onCall(
           }),
         },
       })
-      //JUST TO REMOVE ERROR
-      // completeCommand
-
-      // const abortCommand = new AbortMultipartUploadCommand({
-      //   Bucket: process.env.R2_BUCKET_NAME,
-      //   Key: fileKey,
-      //   UploadId: data.uploadId,
-      // });
-
-      // const result = await r2.send(abortCommand);
 
       const result = await r2.send(completeCommand);
 
       console.log("Complete multipart upload result: ", result);
       if (result.$metadata.httpStatusCode === 200) {
-        setFileUploaded(context.auth.uid, data.fileId);
+        setFileUploaded(context.auth.uid, data.fileId, data.uploadResults.length);
         return { success: true };
       }
       throw new Error("request failed");
@@ -282,8 +272,8 @@ export const completeMultipartUpload = functions.https.onCall(
   }
 );
 
-export const AbortMultipartUpload = functions.https.onCall(
-  async (data: AbortMultiPartUploadParameters, context) => {
+export const abortMultipartUpload = functions.https.onCall(
+  async (data: AbortMultiPartUploadParams, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -310,7 +300,7 @@ export const AbortMultipartUpload = functions.https.onCall(
       const result = await r2.send(abortCommand);
       console.log("Abort multipart upload result: ", result);
       if (result.$metadata.httpStatusCode === 204) {
-        deleteAbortedFile(context.auth.uid, data.fileId);
+        deleteAbortedFileFromDB(context.auth.uid, data.fileId);
         return { success: true };
       }
 
@@ -327,6 +317,56 @@ export const AbortMultipartUpload = functions.https.onCall(
         "internal",
         "Failed to abort multipart upload"
       );
+    }
+  }
+);
+
+export const generateDownloadLink = functions.https.onCall(
+  async (data: GenerateDownloadLinkParams, context) => {
+    // Ensure the user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "The function must be called while authenticated."
+      );
+    }
+    if (!data || !data.fileId || data.neverExpires == null || !data.expiresAt && data.neverExpires != null && data.neverExpires == false) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing arguments"
+      );
+    }
+
+    try {
+      const fileInfo = await getFileInfo(context.auth.uid, data.fileId);
+      const numOfParts: number = fileInfo.numOfParts;
+      const downloadLinks: string[] = [];
+
+      for (let i = 0; i < numOfParts; i++) {
+        const getObjectCommand = new GetObjectCommand({
+          Bucket: process.env.R2_BUCKET_NAME,
+          Key: fileInfo.fileKey,
+          PartNumber: i,
+        })
+
+        const signedUrl = await getSignedUrl(r2, getObjectCommand);
+        if (!signedUrl) throw new Error("Failed to generate download link, Please try again later.");
+        downloadLinks.push(signedUrl);
+      }
+
+      const linkInfo: LinkInfo = {
+        downloadLinks: downloadLinks,
+        isPublic: true,
+        neverExpires: data.neverExpires,
+        expiresAt: data.expiresAt
+      }
+      const downloadId = addLinkToDB(context.auth.uid, data.fileId, linkInfo);
+      const shareLink = `${WEBSITE_URL}/${context.auth.uid}/${data.fileId}/${downloadId}/view`;
+      return shareLink;
+
+    } catch (error: any) {
+      console.error('Error:', error.message);
+      throw new functions.https.HttpsError("internal", "Internal Server Error", { message: error.message });
     }
   }
 );

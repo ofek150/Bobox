@@ -1,18 +1,18 @@
-export interface UploadFileParameters {
+export interface UploadFileParams {
     fileName: string;
     fileDirectory: string;
     fileType: string;
     fileSize: number;
 }
 
-export interface UploadPartParameters {
+export interface UploadPartParams {
     uploadId: string;
     fileName: string;
     fileDirectory: string;
     partNumber: number;
 }
 
-export interface CompleteMultiPartParameters {
+export interface CompleteMultiPartParams {
     uploadId: string;
     fileId: string
     fileName: string;
@@ -20,11 +20,17 @@ export interface CompleteMultiPartParameters {
     uploadResults: any[];
 }
 
-export interface AbortMultiPartUploadParameters {
+export interface AbortMultiPartUploadParams {
     uploadId: string;
     fileId: string;
     fileName: string;
     fileDirectory: string;
+}
+
+export interface GenerateDownloadLinkParams {
+    fileId: string;
+    neverExpires: boolean;
+    expiresAt: Date | null;
 }
 
 export interface FileEntry {
@@ -32,4 +38,26 @@ export interface FileEntry {
     fileName: string;
     fileType: string;
     fileSize: number;
+}
+
+export interface SharedFile {
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+    uploadedAt: Date;
+    downloadLinks: string[];
+}
+
+export interface LinkInfo {
+    downloadLinks: string[];
+    isPublic: boolean;
+    neverExpires: boolean
+    expiresAt: Date | null;
+}
+
+export interface DownloadInfoParams {
+    downloaderUid: string;
+    ownerUid: string;
+    fileId: string;
+    linkId: string;
 }

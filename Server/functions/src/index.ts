@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase-admin/app";
 import { registerWithEmailAndPassword, onUserCreated } from "./authentication";
-import { initiateSmallFileUpload, CompleteSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, AbortMultipartUpload, } from "./r2";
+import { initiateSmallFileUpload, completeSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, abortMultipartUpload, generateDownloadLink } from "./r2";
 
 initializeApp();
 
@@ -8,9 +8,10 @@ export {
     registerWithEmailAndPassword,
     onUserCreated,
     initiateSmallFileUpload,
-    CompleteSmallFileUpload,
+    completeSmallFileUpload,
     initiateMultipartUpload,
     generateUploadPartURL,
     completeMultipartUpload,
-    AbortMultipartUpload
+    abortMultipartUpload,
+    generateDownloadLink
 };
