@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton } from "@mui/material";
 import { MIN_MULTIPART_UPLOAD_SIZE, MAX_UPLOAD_RETRIES, LARGE_FILE_MAX_SIZE } from "../utils/constants";
 import { initiateSmallFileUpload, CompleteSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, AbortMultipartUpload, } from "../services/firebase";
-import { UploadFileParameters, UploadPartParameters, CompleteMultiPartParameters } from "../utils/types";
+import { UploadFileParams, UploadPartParams, CompleteMultiPartParams } from "../utils/types";
 import axios, { AxiosProgressEvent, AxiosRequestConfig } from "axios";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import useAbortUploadData from "../hooks/useAbortUploadData";
@@ -29,7 +29,7 @@ const UploadFile: React.FC = () => {
         }
     };
 
-    const uploadSmallFile = async (fileParameters: UploadFileParameters) => {
+    const uploadSmallFile = async (fileParameters: UploadFileParams) => {
         if (!selectedFile || !selectedFile.name || !selectedFile.size || !selectedFile.type) return;
         const { uploadUrl, fileId, error } = await initiateSmallFileUpload(fileParameters);
         if (error) {
@@ -111,7 +111,7 @@ const UploadFile: React.FC = () => {
         }
     };
 
-    const uploadLargeFile = async (fileParameters: UploadFileParameters) => {
+    const uploadLargeFile = async (fileParameters: UploadFileParams) => {
         if (!selectedFile) return;
         const { uploadId, fileId, error } = await initiateMultipartUpload(fileParameters);
         if (error) {
@@ -140,7 +140,7 @@ const UploadFile: React.FC = () => {
             }
             const chunk = await selectedFile.slice(offset, offset + partSize);
 
-            const uploadPartParameters: UploadPartParameters = {
+            const uploadPartParameters: UploadPartParams= {
                 uploadId: uploadId,
                 fileName: fileParameters.fileName,
                 fileDirectory: fileParameters.fileDirectory,
@@ -177,7 +177,7 @@ const UploadFile: React.FC = () => {
         }
         parts.sort((a: any, b: any) => a.partNumber - b.partNumber);
 
-        const completeMultipartUploadParameters: CompleteMultiPartParameters = {
+        const completeMultipartUploadParameters: CompleteMultiPartParams= {
             uploadId: uploadId,
             fileId: fileId,
             fileName: fileParameters.fileName,
@@ -203,7 +203,7 @@ const UploadFile: React.FC = () => {
             isCancelledRef.current = false;
             setUploading(true);
 
-            const fileParameters: UploadFileParameters = {
+            const fileParameters: UploadFileParams = {
                 fileName: selectedFile.name,
                 fileDirectory: "",
                 fileType: selectedFile.type,

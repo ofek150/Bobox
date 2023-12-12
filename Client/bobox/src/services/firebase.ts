@@ -4,8 +4,8 @@ import { connectFirestoreEmulator, doc, getDoc, getFirestore } from "firebase/fi
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 //import { getAnalytics } from "firebase/analytics";
 import { isValidEmail, isValidName, isValidPassword } from "../utils/validations";
-import { AbortMultiPartUploadParameters, CompleteMultiPartParameters, UploadFileParameters, UploadPartParameters } from "../utils/types";
-import useAbortUploadData from "../hooks/useAbortUploadData";
+import { AbortMultiPartUploadParams, CompleteMultiPartParams, UploadFileParams, UploadPartParams, DownloadInfoParams } from "../utils/types";
+//import useAbortUploadData from "../hooks/useAbortUploadData";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_API_KEY,
@@ -92,7 +92,7 @@ export const getUserData = async (uid: string) => {
 };
 
 
-export const initiateSmallFileUpload = async (parameters: UploadFileParameters) => {
+export const initiateSmallFileUpload = async (parameters: UploadFileParams) => {
   try {
     const getUploadFileURL = httpsCallable(functions, "initiateSmallFileUpload");
     console.log("Parameters: ", parameters);
@@ -116,7 +116,7 @@ export const CompleteSmallFileUpload = async (fileId: string) => {
   }
 };
 
-export const initiateMultipartUpload = async (parameters: UploadFileParameters) => {
+export const initiateMultipartUpload = async (parameters: UploadFileParams) => {
   try {
     const startMultipartUpload = httpsCallable(functions, "initiateMultipartUpload");
     console.log("Parameters: ", parameters);
@@ -129,7 +129,7 @@ export const initiateMultipartUpload = async (parameters: UploadFileParameters) 
   }
 };
 
-export const generateUploadPartURL = async (parameters: UploadPartParameters) => {
+export const generateUploadPartURL = async (parameters: UploadPartParams) => {
   try {
     const getUploadPartURL = httpsCallable(functions, "generateUploadPartURL");
     console.log("Parameters: ", parameters);
@@ -141,7 +141,7 @@ export const generateUploadPartURL = async (parameters: UploadPartParameters) =>
   }
 };
 
-export const completeMultipartUpload = async (parameters: CompleteMultiPartParameters) => {
+export const completeMultipartUpload = async (parameters: CompleteMultiPartParams) => {
   try {
     const endMultipartUpload = httpsCallable(functions, "completeMultipartUpload");
     console.log("Parameters: ", parameters);
@@ -153,12 +153,24 @@ export const completeMultipartUpload = async (parameters: CompleteMultiPartParam
   }
 };
 
-export const AbortMultipartUpload = async (parameters: AbortMultiPartUploadParameters) => {
+export const AbortMultipartUpload = async (parameters: AbortMultiPartUploadParams) => {
   try {
     console.log("Trying to abort");
     const cancelMultipartUpload = httpsCallable(functions, "AbortMultipartUpload");
     console.log("Parameters: ", parameters);
     const result: any = (await cancelMultipartUpload(parameters)).data;
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.message };
+  }
+};
+export const getFileInfo = async (parameters: DownloadInfoParams) => {
+  try {
+    console.log("Trying to get file information");
+    const getFileInformation = httpsCallable(functions, "getFileDownloadInfo");
+    console.log("Parameters: ", parameters);
+    const result: any = (await getFileInformation(parameters)).data;
     return result;
   } catch (error: any) {
     console.error(error);

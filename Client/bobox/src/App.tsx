@@ -8,6 +8,7 @@ import AccountInformation from './pages/AccountInformation';
 import ResetPassword from './pages/ResetPassword';
 import FirebaseActionHandler from './components/FirebaseActionHandler';
 import UploadFile from './pages/UploadFile';
+import FileInfo from './pages/FileInfo';
 
 const App: React.FC = () => {
 
@@ -29,7 +30,9 @@ const App: React.FC = () => {
             <Route path="/" element={<RequireAuth />}>
               <Route path="/account-info" element={<AccountInformation />} />
               <Route path="/upload-file" element={<UploadFile />} />
+              <Route path="/:ownerUid/:fileId/:downloadId/view" element={<FileInfo />} />
             </Route>
+
 
             {/* Catch all non existent routes */}
             <Route path="*" element={<NotFoundPage />} />
