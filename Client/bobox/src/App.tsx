@@ -1,5 +1,6 @@
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import React from 'react'
+
 import Layout from './components/Layout';
 import AuthPage from './pages/AuthPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -8,6 +9,7 @@ import AccountInformation from './pages/AccountInformation';
 import ResetPassword from './pages/ResetPassword';
 import FirebaseActionHandler from './components/FirebaseActionHandler';
 import UploadFile from './pages/UploadFile';
+
 
 const App: React.FC = () => {
 

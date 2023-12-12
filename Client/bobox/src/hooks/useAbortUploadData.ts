@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AbortMultiPartUploadParameters } from '../utils/types';
-import { AbortMultipartUpload } from '../services/firebase';
+import { abortMultipartUpload } from '../services/firebase';
 
 const STORAGE_KEY = 'abortUploadData';
 
@@ -14,7 +14,7 @@ const useAbortUploadData = (): [AbortMultiPartUploadParameters, React.Dispatch<R
   useEffect(() => {
     console.log("Initial state: ", initialState);
     if (initialState.uploadId && initialState.fileId && initialState.fileName) {
-      AbortMultipartUpload(initialState).then((result) => {
+      abortMultipartUpload(initialState).then((result) => {
         console.log("Result of trying to abort: ", result);
         setAbortUploadData({
           uploadId: '',

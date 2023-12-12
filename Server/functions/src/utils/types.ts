@@ -52,7 +52,7 @@ export interface LinkInfo {
     downloadLinks: string[];
     isPublic: boolean;
     neverExpires: boolean
-    expiresAt: Date | null;
+    expiresAt: any | null;
 }
 
 export interface DownloadInfoParams {

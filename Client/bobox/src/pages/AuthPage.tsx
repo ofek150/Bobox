@@ -22,11 +22,8 @@ import {
   FormControl,
   InputAdornment,
   IconButton,
-  useTheme,
   FormControlLabel,
-  Switch,
-  styled,
-  SwitchProps,
+  Switch
 } from "@mui/material";
 import LockIcon from "@mui/icons-material/Lock";
 import PersonIcon from "@mui/icons-material/Person";
@@ -34,6 +31,8 @@ import GoogleIcon from "../assets/google/btn_google_signin_light_normal_web@2x.p
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { isValidPassword, isValidEmail, isValidName } from "../utils/validations";
+import { SwitchProps } from "@mui/material/Switch";
+import { styled, useTheme } from "@mui/material/styles";
 
 interface AuthPageProps {
   initialTab: number; // 0 for login, 1 for signup
@@ -181,7 +180,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
                   label="Email Address"
                   variant="outlined"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e: any) => setEmail(e.target.value)}
                   error={authError !== null || (email !== "" && !isValidEmail(email))}
                   sx={{ mb: 2 }}
                   InputProps={{
@@ -199,7 +198,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
                     label="Password"
                     variant="outlined"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e: any) => setPassword(e.target.value)}
                     error={authError !== null || (password !== "" && !isValidPassword(password))}
                     InputProps={{
                       startAdornment: (
@@ -269,7 +268,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
                   label="Name"
                   variant="outlined"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e: any) => setName(e.target.value)}
                   error={authError !== null || (name !== "" && !isValidName(name))}
                   sx={{ mb: 2 }}
                   InputProps={{
@@ -286,7 +285,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
                   label="Email Address"
                   variant="outlined"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e: any) => setEmail(e.target.value)}
                   error={authError !== null || (email !== "" && !isValidEmail(email))}
                   sx={{ mb: 2 }}
                   InputProps={{
@@ -304,7 +303,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
                     label="Password"
                     variant="outlined"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e: any) => setPassword(e.target.value)}
                     error={authError !== null || (password !== "" && !isValidPassword(password))}
                     sx={{ mb: 2 }}
                     InputProps={{
@@ -330,7 +329,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
                     label="Retype Password"
                     variant="outlined"
                     value={retypePassword}
-                    onChange={(e) => setRetypePassword(e.target.value)}
+                    onChange={(e: any) => setRetypePassword(e.target.value)}
                     error={authError !== null || (retypePassword !== password)}
                     InputProps={{
                       startAdornment: (
