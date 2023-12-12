@@ -56,8 +56,7 @@ export interface LinkInfo {
 }
 
 export interface DownloadInfoParams {
-    downloaderUid: string;
     ownerUid: string;
     fileId: string;
-    linkId: string;
+    downloadId: string;
 }

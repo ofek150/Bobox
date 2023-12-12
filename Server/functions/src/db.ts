@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
-import { FileEntry, LinkInfo } from "./utils/types";
+import * as functions from "firebase-functions";
+import { FileEntry, SharedFile, LinkInfo, DownloadInfoParams } from "./utils/types";
 
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
     const db = admin.firestore();
@@ -76,3 +77,50 @@ export const deleteAbortedFileFromDB = async (uid: string, fileId: string) => {
 
     console.log("Deleted aborted file's entry with file id " + fileId, " of user with uid " + uid);
 }
+
+export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid: string, fileId: string, downloadId: string) => {
+    const db = admin.firestore();
+    const fileDocRef = db.collection('users').doc(ownerUid).collection('files').doc(fileId);
+    const fileDocSnap = await fileDocRef.get();
+
+    const linkDocRef = fileDocRef.collection('links').doc(downloadId);
+    const linkDocSnap = await linkDocRef.get();
+
+    if (!fileDocSnap.exists || !linkDocSnap.exists) throw new Error('File or link does not exist');
+    const fileInfo = fileDocSnap.data();
+    const linkInfo = linkDocSnap.data();
+
+    if (!fileInfo || !linkInfo) return null;
+    //Later will check if that specific user is authorized but for now unless its public only the owner can download the file
+    if (!linkInfo.isPublic && downloaderUid != ownerUid) throw new Error('Unauthorized');
+    if (linkInfo.expiresAt && linkInfo.expiresAt.toDate() < new Date()) throw new Error('Download link has expired');
+
+    const sharedFileInfo: SharedFile = {
+        fileName: fileInfo.fileName,
+        fileType: fileInfo.fileType,
+        fileSize: fileInfo.fileSize,
+        uploadedAt: fileInfo.uploadedAt.toDate(),
+        downloadLinks: linkInfo.downloadLinks,
+    }
+
+    return sharedFileInfo;
+}
+
+export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadInfoParams, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+        const {ownerUid, fileId, downloadId } = data;
+
+        if (!ownerUid || !fileId || !downloadId) {
+            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+        }
+
+        const result = await getFileDownloadInfoFromDB(context.auth.uid, ownerUid, fileId, downloadId);
+        return result;
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
