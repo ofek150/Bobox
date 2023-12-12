@@ -26,3 +26,9 @@ export interface AbortMultiPartUploadParameters {
     fileName: string;
     fileDirectory: string;
 }
+
+export interface GenerateDownloadLinkParams {
+    fileId: string;
+    neverExpires: boolean;
+    expiresAt: Date | null;
+}

@@ -34,7 +34,7 @@ export const initiateSmallFileUpload = functions.https.onCall(
     if (data.fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
     try {
       const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
-      if (await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same key already exists");
+      if (await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same name already exists");
 
       const fileToAdd: FileEntry = {
         fileKey: fileKey,
@@ -130,7 +130,7 @@ export const initiateMultipartUpload = functions.https.onCall(
     if (data.fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
     try {
       const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
-      if (await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same key already exists");
+      if (await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same name already exists");
       const createMultiPartUploadCommand = new CreateMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileKey,
@@ -360,9 +360,9 @@ export const generateDownloadLink = functions.https.onCall(
         neverExpires: data.neverExpires,
         expiresAt: data.expiresAt
       }
-      const downloadId = addLinkToDB(context.auth.uid, data.fileId, linkInfo);
+      const downloadId = await addLinkToDB(context.auth.uid, data.fileId, linkInfo);
       const shareLink = `${WEBSITE_URL}/${context.auth.uid}/${data.fileId}/${downloadId}/view`;
-      return shareLink;
+      return { link: shareLink };
 
     } catch (error: any) {
       console.error('Error:', error.message);

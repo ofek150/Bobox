@@ -4,7 +4,7 @@ import { connectFirestoreEmulator, doc, getDoc, getFirestore } from "firebase/fi
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 //import { getAnalytics } from "firebase/analytics";
 import { isValidEmail, isValidName, isValidPassword } from "../utils/validations";
-import { AbortMultiPartUploadParameters, CompleteMultiPartParameters, UploadFileParameters, UploadPartParameters } from "../utils/types";
+import { AbortMultiPartUploadParameters, CompleteMultiPartParameters, GenerateDownloadLinkParams, UploadFileParameters, UploadPartParameters } from "../utils/types";
 import useAbortUploadData from "../hooks/useAbortUploadData";
 
 const firebaseConfig = {
@@ -104,12 +104,12 @@ export const initiateSmallFileUpload = async (parameters: UploadFileParameters) 
   }
 };
 
-export const CompleteSmallFileUpload = async (fileId: string) => {
+export const completeSmallFileUpload = async (fileId: string) => {
   try {
-    const completeSmallFileUpload = httpsCallable(functions, "CompleteSmallFileUpload");
+    const finishSmallFileUpload = httpsCallable(functions, "completeSmallFileUpload");
     console.log("Parameters: ", fileId);
-    const result: any = (await completeSmallFileUpload(fileId)).data
-    return result.toString() === "SUCCESS" ? true : false;
+    const result: any = (await finishSmallFileUpload(fileId)).data
+    return { success: result.toString() === "SUCCESS" ? true : false };
   } catch (error: any) {
     console.error(error);
     return { error: error.message };
@@ -153,12 +153,26 @@ export const completeMultipartUpload = async (parameters: CompleteMultiPartParam
   }
 };
 
-export const AbortMultipartUpload = async (parameters: AbortMultiPartUploadParameters) => {
+export const abortMultipartUpload = async (parameters: AbortMultiPartUploadParameters) => {
   try {
     console.log("Trying to abort");
-    const cancelMultipartUpload = httpsCallable(functions, "AbortMultipartUpload");
+    const cancelMultipartUpload = httpsCallable(functions, "abortMultipartUpload");
     console.log("Parameters: ", parameters);
     const result: any = (await cancelMultipartUpload(parameters)).data;
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.message };
+  }
+};
+
+export const generateDownloadLink = async (parameters: GenerateDownloadLinkParams) => {
+  try {
+    console.log("Generating download link for file");
+    const genDownloadLink = httpsCallable(functions, "generateDownloadLink");
+    console.log("Parameters: ", parameters);
+    const result: any = (await genDownloadLink(parameters)).data;
+    console.log(result)
     return result;
   } catch (error: any) {
     console.error(error);

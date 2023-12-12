@@ -1,16 +1,21 @@
 import * as admin from "firebase-admin";
+
 import { FileEntry, LinkInfo } from "./utils/types";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
     const db = admin.firestore();
 
     const fileDocRef = db.collection('users').doc(uid).collection('files').doc(fileId);
-
+    console.log("Date: ", linkInfo.expiresAt);
+    const jsDate: Date | null = !linkInfo.neverExpires && linkInfo.expiresAt ? new Date(linkInfo.expiresAt["$y"], linkInfo.expiresAt["$M"], linkInfo.expiresAt["$D"], linkInfo.expiresAt["$H"], linkInfo.expiresAt["$m"], linkInfo.expiresAt["$s"], linkInfo.expiresAt["$ms"]) : null;
+    console.log("Js Date: ", linkInfo.expiresAt);
+    console.log("Js Date type: ", typeof (jsDate));
     const linkDocRef = await fileDocRef.collection('links').add({
         downloadLinks: linkInfo.downloadLinks,
         isPublic: linkInfo.isPublic,
         neverExpires: linkInfo.neverExpires,
-        expiresAt: linkInfo.neverExpires ? admin.firestore.Timestamp.fromDate(linkInfo.expiresAt as Date) : null
+        expiresAt: !linkInfo.neverExpires ? Timestamp.fromDate(jsDate!) : null
     });
 
     return linkDocRef.id;
@@ -24,7 +29,7 @@ export const addFileToDB = async (uid: string, file: FileEntry) => {
             fileName: file.fileName,
             fileType: file.fileType,
             fileSize: file.fileSize,
-            uploadedAt: admin.firestore.FieldValue.serverTimestamp(),
+            uploadedAt: FieldValue.serverTimestamp(),
             status: 'In Progress'
         }
     );

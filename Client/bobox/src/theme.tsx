@@ -95,6 +95,15 @@ const theme = createTheme({
                     backgroundColor: '#FFFFFF',
                 },
             },
+        },
+        MuiCheckbox: {
+            styleOverrides: {
+                root: {
+                    '&:hover': {
+                        backgroundColor: '#00000014',
+                    },
+                },
+            },
         }
     },
 });
