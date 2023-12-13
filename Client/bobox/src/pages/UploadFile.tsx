@@ -1,15 +1,15 @@
-import React, { useRef, useState } from "react";
-import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton } from "@mui/material";
+import React, { useEffect, useRef, useState } from "react";
+import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton, FormControlLabel, Checkbox, Alert, Paper, Container } from "@mui/material";
 import { MIN_MULTIPART_UPLOAD_SIZE, MAX_UPLOAD_RETRIES, LARGE_FILE_MAX_SIZE } from "../utils/constants";
-import { initiateSmallFileUpload, CompleteSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, AbortMultipartUpload, } from "../services/firebase";
-import { UploadFileParams, UploadPartParams, CompleteMultiPartParams } from "../utils/types";
+import { initiateSmallFileUpload, completeSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, abortMultipartUpload, generateDownloadLink, } from "../services/firebase";
+import { UploadFileParams, UploadPartParams, CompleteMultiPartParams, GenerateDownloadLinkParams } from "../utils/types";
 import axios, { AxiosProgressEvent, AxiosRequestConfig } from "axios";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import useAbortUploadData from "../hooks/useAbortUploadData";
-import DoneIcon from '@mui/icons-material/Done';
 import CancelIcon from '@mui/icons-material/Cancel';
 import CircularProgressWithLabel from "../components/UI/CircularProgressWithLabel";
 import { determinePartSize } from "../utils/helpers";
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 const UploadFile: React.FC = () => {
     const [progress, setProgress] = useState<number>(0);
@@ -19,9 +19,32 @@ const UploadFile: React.FC = () => {
     const [multiPartUploading, setMultiPartUploading] = useState(false);
     const [abortUploadData, setAbortUploadData] = useAbortUploadData();
     const [isCancelled, setIsCancelled] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const abortController = new AbortController();
     const isCancelledRef = useRef(isCancelled);
 
+    const fileIdRef = useRef("");
+
+    const [neverExpires, setNeverExpires] = useState(false);
+    const [expiryDate, setExpiryDate] = useState<Date | null>(null);
+
+    const [shareLink, setShareLink] = useState<string | null>(null);
+
+    // useEffect(() => {
+    //     const today = new Date();
+    //     const nextWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
+    //     setExpiryDate(nextWeek);
+    // }, []);
+
+    useEffect(() => {
+        console.log("Error: ", error);
+    }, [error])
+
+    const getNextWeekDate = () => {
+        const today = new Date();
+        const nextWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
+        return nextWeek;
+    }
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files) {
             setSelectedFile(event.target.files[0]);
@@ -33,7 +56,7 @@ const UploadFile: React.FC = () => {
         if (!selectedFile || !selectedFile.name || !selectedFile.size || !selectedFile.type) return;
         const { uploadUrl, fileId, error } = await initiateSmallFileUpload(fileParameters);
         if (error) {
-            handleError(error);
+            handleUploadError(error);
             return;
         }
 
@@ -54,17 +77,30 @@ const UploadFile: React.FC = () => {
 
             setUploading(false);
             setProgress(0);
-            if (response.status == 200) {
-                CompleteSmallFileUpload(fileId);
-                finishUpload();
+            const { success, error } = await completeSmallFileUpload(fileId)
+            if (response.status == 200 && success) {
+                finishUpload(fileId);
             }
-        } catch (error) {
+            else {
+                if (error) {
+                    throw Error(error.meessage);
+                }
+                else {
+                    throw Error("Unknown error occured while uploading the file, please try again later!");
+                }
+            }
+        } catch (error: any) {
             console.error('Error uploading file:', error);
-            handleError(error);
+            if (error && error.message) {
+                handleUploadError(error.message);
+            }
+            else {
+                handleUploadError("Unknown error occured while uploading the file, please try again later!");
+            }
         }
     }
 
-    const uploadPart = async (uploadPartUrl: string, parts: any, fileSize: number, chunk: any, i: number, offset: number, abortController: AbortController, updateProgress: (increment: number) => void) => {
+    const uploadPart = async (uploadPartUrl: string, parts: any, chunk: any, i: number, abortController: AbortController, updateProgress: (increment: number) => void) => {
         let retryCount = 0;
 
         while (retryCount < MAX_UPLOAD_RETRIES) {
@@ -148,30 +184,37 @@ const UploadFile: React.FC = () => {
             };
             const { uploadUrl, error } = await generateUploadPartURL(uploadPartParameters);
             if (error) {
-                handleError(error);
+                handleUploadError(error);
                 return;
             }
             uploadPromises.push(
-                uploadPart(uploadUrl, parts, fileParameters.fileSize, chunk, i, offset, abortController, (partProgress) => {
+                uploadPart(uploadUrl, parts, chunk, i, abortController, (partProgress) => {
                     // Update the part's progress in the array
                     partProgressArray[i - 1] = partProgress;
 
                     // Calculate the overall progress based on the sum of part progress
                     const overallProgress = (partProgressArray.reduce((sum, value) => sum + value, 0) / expectedNumParts);
                     setProgress(overallProgress);
-                }).catch((error: any) => {
-                    handleError(error);
+                }).catch(async (error: any) => {
+                    if (error & error.message) {
+                        console.error("Failed to upload file", error.meessage);
+                        handleUploadError(error.message);
+                    }
+                    else {
+                        handleUploadError()
+                    }
+
+                    await abortMultipartUpload(abortUploadData);
                     return;
                 })
             );
         }
-
         try {
-            const uploadResults = await Promise.all(uploadPromises);
+            await Promise.all(uploadPromises);
 
         } catch (error: any) {
             if (error & error.message) console.error("Failed to upload file", error.meessage);
-            await AbortMultipartUpload(abortUploadData);
+            await abortMultipartUpload(abortUploadData);
             handleError(error);
             return;
         }
@@ -188,19 +231,24 @@ const UploadFile: React.FC = () => {
             return;
         }
         const result: any = await completeMultipartUpload(completeMultipartUploadParameters);
+
         if (result.error) {
-            handleError(error);
+            handleUploadError(error);
             return;
         }
-        finishUpload();
+        finishUpload(fileId);
     }
+
     const handleUpload = async () => {
         if (selectedFile && selectedFile.name && selectedFile.size && selectedFile.type) {
             if (selectedFile.size > LARGE_FILE_MAX_SIZE) {
-                handleError(new Error("The file is bigger than the max allowed file size - " + LARGE_FILE_MAX_SIZE.toString()));
+                handleUploadError("The file is bigger than the max allowed file size - " + LARGE_FILE_MAX_SIZE.toString());
             }
+            setError(null);
             setIsCancelled(false);
             isCancelledRef.current = false;
+            setUploaded(false);
+            setShareLink(null);
             setUploading(true);
 
             const fileParameters: UploadFileParams = {
@@ -230,7 +278,8 @@ const UploadFile: React.FC = () => {
         setProgress(0);
         setIsCancelled(true);
         isCancelledRef.current = true;
-        await AbortMultipartUpload(abortUploadData);
+        fileIdRef.current = "";
+        await abortMultipartUpload(abortUploadData);
         setAbortUploadData({
             uploadId: '',
             fileId: '',
@@ -239,9 +288,10 @@ const UploadFile: React.FC = () => {
         });
     }
 
-    const finishUpload = () => {
+    const finishUpload = (fileId: string) => {
         setUploading(false);
         setProgress(0);
+        fileIdRef.current = fileId;
         setUploaded(true);
         setAbortUploadData({
             uploadId: '',
@@ -250,72 +300,164 @@ const UploadFile: React.FC = () => {
             fileDirectory: ''
         })
         setSelectedFile(null);
+        setError(null);
     }
 
-    const handleError = (error: any) => {
-        if (error && error.message) console.error(error.meessage);
+    const handleGenerateDownloadLink = async () => {
+        if (uploaded) {
+            console.log("Expires at: ", expiryDate);
+            const generateDownloadLinkParams: GenerateDownloadLinkParams = {
+                fileId: fileIdRef.current,
+                neverExpires: neverExpires,
+                expiresAt: neverExpires ? null : expiryDate ? expiryDate : getNextWeekDate(),
+            };
+            const { link, error } = await generateDownloadLink(generateDownloadLinkParams);
+            if (error) {
+                handleGenerateShareLinkError(error);
+                return;
+            }
+            setShareLink(link);
+            console.log('shareLink:', link);
+        }
+    };
+
+    const handleGenerateShareLinkError = (error: string | null = null) => {
+        if (error) {
+            console.error(error);
+            setError(error);
+        }
+        else {
+            console.error("Unknown error occured, please try again!");
+            setError("Unknown error occured, please try again!");
+        }
+    }
+    const handleError = (error: string | null = null) => {
+        console.log("Error occured, error: ", error);
+        if (error) {
+            console.error(error);
+            setError(error);
+        }
+        else {
+            console.error("Unknown error occured, please try again!");
+            setError("Unknown error occured, please try again!");
+        }
+    }
+
+    const handleUploadError = (error: string | null = null) => {
         setUploading(false);
         setMultiPartUploading(false);
         setProgress(0);
         setUploaded(false);
-        setSelectedFile(null);
-        // Display error
-        // Handle error
+        handleCancel()
+        handleError(error)
     }
 
+    const copyLink = () => {
+        if (!shareLink) return;
+        navigator.clipboard.writeText(shareLink).then(() => {
+            console.log('Link copied to clipboard:', shareLink);
+        });
+    };
     return (
-        <Box
-            display="flex"
-            flexDirection="column"
-            minHeight="100vh"
-            alignItems="center"
-            justifyContent="center"
-            marginBottom="8rem"
-        >
-            <Typography variant="h4" gutterBottom sx={{ mb: "3rem" }}>
-                Upload a File
-            </Typography>
-            <div className="input-container" style={{ marginBottom: '16px' }}>
-                <OutlinedInput
-                    type="file"
-                    onChange={handleFileChange}
-                    endAdornment={
-                        <InputAdornment position="end">
-                            <IconButton
-                                component="label"
-                                htmlFor="file-upload"
-                                color="primary"
-                                aria-label="upload file"
-                                edge="end"
-                                disabled={uploading}
-                            >
-                                <CloudUploadIcon />
-                            </IconButton>
-                        </InputAdornment>
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <Container maxWidth="xs">
+                <Paper elevation={3} sx={{ p: 2, borderRadius: 5, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                    <Typography variant="h4" gutterBottom sx={{ mb: 2, fontWeight: "bold" }}>
+                        Upload a File
+                    </Typography>
+                    <div className="input-container" style={{ marginBottom: '16px' }}>
+                        <OutlinedInput
+                            type="file"
+                            onChange={handleFileChange}
+                            endAdornment={
+                                <InputAdornment position="end">
+                                    <IconButton
+                                        component="label"
+                                        htmlFor="file-upload"
+                                        color="primary"
+                                        aria-label="upload file"
+                                        edge="end"
+                                        disabled={uploading}
+                                    >
+                                        <CloudUploadIcon />
+                                    </IconButton>
+                                </InputAdornment>
+                            }
+                        />
+                    </div>
+                    {uploading && <CircularProgressWithLabel value={progress} sx={{ mt: 1, mb: 2 }} />}
+                    {!uploaded && !uploading &&
+                        (
+                        <Button
+                            variant="contained"
+                            color={uploading ? 'secondary' : uploaded ? 'success' : 'primary'}
+                            onClick={(!uploading && !uploaded) ? handleUpload : () => { }}
+                            disabled={uploading}
+                            sx={{mt: 1}}
+                        >
+                            Upload
+                        </Button>
+                        )
                     }
-                />
-            </div>
-            {uploading && <CircularProgressWithLabel value={progress} />}
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
-                <Button
-                    variant="contained"
-                    color={uploading ? 'secondary' : uploaded ? 'success' : 'primary'}
-                    onClick={(!uploading && !uploaded) ? handleUpload : () => { }}
-                    disabled={uploading}
-                >
-                    {uploading ? 'Cancel' : uploaded ? 'Done' : 'Upload'}
-                    {uploaded && <DoneIcon style={{ marginLeft: '8px' }} />}
-                </Button>
-                {uploading && multiPartUploading && (
-                    <IconButton
-                        color="secondary"
-                        onClick={handleCancel}
-                        aria-label="cancel upload"
-                    >
-                        <CancelIcon />
-                    </IconButton>
-                )}
-            </div>
+                    {uploading && multiPartUploading && (
+                        <IconButton
+                            color="secondary"
+                            onClick={handleCancel}
+                            aria-label="cancel upload"
+                        >
+                            <CancelIcon />
+                        </IconButton>
+                    )}
+                    {/* Generate Download Link Button */}
+                    {uploaded && (
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={handleGenerateDownloadLink}
+                            sx={{ mb: 1 }}
+                        >
+                            Generate Download Link
+                        </Button>
+                    )}
+                    {error && (
+                        <Alert severity="error" sx={{ mb: 2, mt: 2, pl: 1, pr: 1, width: '100%' }}>
+                            {error}
+                        </Alert>
+                    )}
+                    {uploaded && (
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={neverExpires}
+                                    onChange={(e) => setNeverExpires(e.target.checked)}
+                                    color="primary"
+                                />
+                            }
+                            label="Never Expires"
+                            sx={{ mb: 1 }}
+                        />
+                    )}
+                    {/* Expiry Date Input */}
+                    {!neverExpires && uploaded && (
+                        <DatePicker
+                            label="Link expiry date"
+                            value={expiryDate}
+                            onChange={(newValue: Date | null) => setExpiryDate(newValue || new Date())}
+                            sx={{ mb: 1 }}
+                        />
+                    )}
+
+                    {/* Display the generated download link */}
+                    {shareLink && uploaded && (
+                        <>
+                            <Typography variant="subtitle2" color="textPrimary" sx={{mb:2, mt:2}}>
+                                Share this link with others to view the uploaded file.
+                            </Typography>
+                            <Button variant="outlined" onClick={copyLink}>Copy link to Clipboard</Button>
+                        </>
+                    )}
+                </Paper>
+            </Container>
         </Box>
     );
 }

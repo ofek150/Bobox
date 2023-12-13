@@ -1,4 +1,4 @@
-import { createTheme } from '@mui/material/styles';
+import { createTheme } from '@mui/material';
 
 const theme = createTheme({
     typography: {
@@ -93,6 +93,15 @@ const theme = createTheme({
                 root: {
                     borderRadius: '20px',
                     backgroundColor: '#FFFFFF',
+                },
+            },
+        },
+        MuiCheckbox: {
+            styleOverrides: {
+                root: {
+                    '&:hover': {
+                        backgroundColor: '#00000014',
+                    },
                 },
             },
         }

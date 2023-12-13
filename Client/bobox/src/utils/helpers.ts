@@ -8,13 +8,13 @@ export const determinePartSize = (fileSize: number) => {
     }
 }
 
-export const formatFileSize = (sizeInKB: number): string => {
-    if (sizeInKB < 0) {
+export const formatFileSize = (sizeInBytes: number): string => {
+    if (sizeInBytes < 0) {
         throw new Error('File size should be a non-negative number');
     }
 
-    const units = ['KB', 'MB', 'GB', 'TB'];
-    let size = sizeInKB;
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let size = sizeInBytes;
     let unitIndex = 0;
 
     while (size >= 1024 && unitIndex < units.length - 1) {
@@ -22,8 +22,14 @@ export const formatFileSize = (sizeInKB: number): string => {
         unitIndex++;
     }
 
-    const formattedSize = size % 1 === 0 ? size.toFixed(0) : size.toFixed(2);
+    const formattedSize = size % 1 === 0 ? Math.round(size) : size.toFixed(2);
     const unit = units[unitIndex];
 
     return `${formattedSize} ${unit}`;
+};
+
+
+export const formatDateTimeLocal = (date: Date): string => {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };

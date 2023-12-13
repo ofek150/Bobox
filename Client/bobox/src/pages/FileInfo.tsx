@@ -1,21 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ShowFileInfo from '../components/ShowFileInfo';
 import { DownloadInfoParams, SharedFile } from '../utils/types';
 import { getFileInfo } from '../services/firebase';
-import { CircularProgress, Button } from '@mui/material';
+import { CircularProgress, Button, Alert, Container, Paper, Box, Typography } from '@mui/material';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
+import CircularProgressWithLabel from '../components/UI/CircularProgressWithLabel';
 
 const FileInfo: React.FC = () => {
+  const { ownerUid, fileId, downloadId } = useParams();
   const [fileInfo, setFileInfo] = useState<SharedFile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [downloaded, setDownloaded] = useState(false);
+  const [progress, setProgress] = useState<number>(0);
+  const [isCancelled, setIsCancelled] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortController = useRef(new AbortController());
 
   useEffect(() => {
-    // Assuming you have a function to fetch file info based on the URL params
     const fetchFileInfo = async () => {
-      const { ownerUid, fileId, downloadId } = useParams();
+      console.log(ownerUid, fileId, downloadId);
+      console.log("Retrieving file info...");
       if (!ownerUid || !fileId || !downloadId) {
-        console.error('Invalid parameters');
+        setError('Invalid parameters');
         return;
       }
 
@@ -26,14 +33,17 @@ const FileInfo: React.FC = () => {
       };
 
       try {
-        // Fetch data and update state
-        const result = await getFileInfo(downloadInfoParams);
-        setFileInfo(result);
+        const { fileInfo, error } = await getFileInfo(downloadInfoParams);
+        if (error) {
+          handleDownloadError(error);
+        } else {
+          console.log(fileInfo);
+          setFileInfo(fileInfo);
+        }
       } catch (error) {
-        // Handle errors, e.g., display an error message
-        console.error('Error fetching data:', error);
+        console.error('Error fetching file info:', error);
+        handleDownloadError('Failed to fetch file information. Please try again.');
       } finally {
-        // Set loading to false once the request is complete
         setLoading(false);
       }
     };
@@ -41,68 +51,122 @@ const FileInfo: React.FC = () => {
     fetchFileInfo();
   }, []);
 
-  const downloadPart = async (partLink: string) => {
+  const downloadPart = async (partLink: string, signal: AbortSignal, updateProgress: (increment: number) => void) => {
     try {
-      const response = await axios.get(partLink, { responseType: 'arraybuffer' });
+      const response = await axios.get(partLink, { signal: signal, responseType: 'arraybuffer', onDownloadProgress: (progressEvent) => {
+        // Calculate the increment in progress for this part
+        if (progressEvent.total) {
+            const partProgress = (progressEvent.loaded / progressEvent.total) * 100;
+            updateProgress(partProgress);
+        }
+    } });
       return response.data;
     } catch (error) {
       console.error('Error downloading part:', error);
+      handleDownloadError()
       throw error;
     }
   };
 
   const downloadAndAssembleFile = async () => {
-    try {
       if (fileInfo && fileInfo.downloadLinks && fileInfo.downloadLinks.length > 0) {
-        const maxRetries = 3;
+        
+        const assembleFile = async () => {
+          const maxRetries = 3;
+          const partProgressArray = Array(fileInfo.downloadLinks.length).fill(0);
+          const downloadPromises = [];
+          const parts: any = [];
+          for (let i = 0; i < fileInfo.downloadLinks.length; i++) {
+            const partLink = fileInfo.downloadLinks[i];
+              console.log("Part url: ", partLink);
+              const signal = abortController.current.signal;
+              downloadPromises.push(
+                downloadAndRetry(partLink, parts, signal, maxRetries, (partProgress) => {
+                  // Update the part's progress in the array
+                  partProgressArray[i - 1] = partProgress;
 
-        const assembleFile = async (retryCount: number) => {
+                  // Calculate the overall progress based on the sum of part progress
+                  const overallProgress = (partProgressArray.reduce((sum, value) => sum + value, 0) / fileInfo.downloadLinks.length);
+                  setProgress(overallProgress);
+                }).catch((error: any) => {
+                  if (error & error.message) {
+                    handleDownloadError(error.message);
+                  }
+                  else {
+                    handleDownloadError()
+                  }
+                  return;
+                })
+              );
+          }
           try {
-            // Download all parts in parallel
-            const partPromises = fileInfo.downloadLinks.map(async (partLink) => {
-              try {
-                return await downloadPart(partLink);
-              } catch (downloadError) {
-                // Retry if download fails, up to maxRetries times
-                if (retryCount < maxRetries) {
-                  console.warn(`Retrying download part after failure (${retryCount + 1} of ${maxRetries})`);
-                  return await assembleFile(retryCount + 1);
-                } else {
-                  throw downloadError;
-                }
-              }
-            });
+            await Promise.all(downloadPromises);
+            if(isCancelled) return;
 
-            const parts = await Promise.all(partPromises);
-
-            // Concatenate parts into a single ArrayBuffer
             const assembledFile = new Uint8Array(
-              parts.reduce((acc, part) => [...acc, ...new Uint8Array(part)], [])
+              parts.reduce((acc: any, part: any) => [...acc, ...new Uint8Array(part)], [])
             );
-
-            // Convert the ArrayBuffer to a Blob
             const assembledBlob = new Blob([assembledFile]);
-
-            // Create a download link and trigger the download
             const downloadLink = document.createElement('a');
             downloadLink.href = URL.createObjectURL(assembledBlob);
-            downloadLink.download = 'assembledFile.dat'; // Specify the filename
+            downloadLink.download = fileInfo.fileName;
             downloadLink.click();
-          } catch (error) {
-            console.error('Error assembling file:', error);
-          }
-        };
+          } catch (error: any) {
+            handleDownloadError()
+            return;
+          } 
+        }
 
-        await assembleFile(0);
+        const downloadAndRetry = async (partLink: string, parts: any, signal: AbortSignal, maxRetries: number, updateProgress: (increment: number) => void) => {
+          for (let retryCount = 0; retryCount < maxRetries; retryCount++) {
+            try {
+              if(isCancelled) throw new Error("Download cancelled");
+              parts.push(await downloadPart(partLink, signal, updateProgress));
+              return true;
+            } catch (downloadError) {
+              console.warn(`Retrying download part after failure (${retryCount + 1} of ${maxRetries})`);
+            }
+          }
+          throw new Error(`Failed to download part after ${maxRetries} retries`);
+        }
+
+        await assembleFile();
       }
-    } catch (error) {
-      console.error('Error downloading and assembling file:', error);
-    }
   };
 
   const handleDownload = async () => {
-    // Call the function to initiate the download and assembly process
-    await downloadAndAssembleFile();
+    try {
+      setIsCancelled(false);
+      setProgress(0);
+      abortController.current = new AbortController();
+
+      await downloadAndAssembleFile();
+
+      if (!isCancelled) {
+        setDownloaded(true);
+      }
+    } catch (error) {
+      if (!isCancelled) {
+        handleDownloadError('Failed to download file. Please try again.');
+      }
+    }
+  };
+
+  const handleDownloadError = (errorMessage: string | null = null) => {
+    setProgress(0);
+    setIsCancelled(true);
+    abortController.current.abort();
+    abortController.current = new AbortController();
+    setError(
+      errorMessage || 'Failed to download file. Please check your internet connection and try again.'
+    );
+  };
+
+  const handleCancelDownload = () => {
+    setIsCancelled(true);
+    setDownloaded(false);
+    abortController.current.abort();
+    setError('Download canceled by user.');
   };
 
   if (loading) {
@@ -110,18 +174,45 @@ const FileInfo: React.FC = () => {
   }
 
   if (!fileInfo) {
-    // Handle the case where fileInfo is not available
-    return <>Error</>;
+    return (
+      <Alert severity="error">
+        {error || 'File information not available. Please try again later.'}
+      </Alert>
+    );
   }
 
   return (
-    <>
-      <ShowFileInfo {...fileInfo} />
-      <Button variant="contained" color="primary" onClick={handleDownload}>
-        Download File
-      </Button>
-    </>
+    <Box style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <Container maxWidth="xs">
+        <Paper elevation={3} sx={{ py: 2, px: 1, borderRadius: 5, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+          <Typography variant="h4" gutterBottom sx={{ mb: 2, fontWeight: "bold" }}>
+            Shared File
+          </Typography>
+          <ShowFileInfo {...fileInfo} />
+          {!downloaded && (
+            <>
+              <Button variant="contained" color="primary" onClick={handleDownload} disabled={progress > 0} sx={{ mt: 3, mb: 1 }}>
+                {progress > 0 ? 'Downloading...' : 'Download File'}
+              </Button>
+            </>
+          )}
+          {progress > 0 && !isCancelled && (
+                <>
+                  <CircularProgressWithLabel value={progress} sx={{ mt: 1, mb: 2 }} />
+                  {/* <Button variant="outlined" color="secondary" onClick={handleCancelDownload} style={{ marginLeft: '8px' }}>
+                    Cancel Download
+                  </Button> */}
+                </>
+          )}
+          {error && (
+            <Alert severity="error" sx={{ my: 1 }}>
+              {error}
+            </Alert>
+          )}
+        </Paper>
+      </Container>
+    </Box>
   );
-};
+}
 
 export default FileInfo;
