@@ -30,7 +30,7 @@ export interface AbortMultiPartUploadParams {
 export interface GenerateDownloadLinkParams {
     fileId: string;
     neverExpires: boolean;
-    expiresAt: Date | null;
+    expiresAt: any;
 }
 
 export interface FileEntry {
@@ -45,11 +45,11 @@ export interface SharedFile {
     fileType: string;
     fileSize: number;
     uploadedAt: Date;
-    downloadLinks: string[];
+    downloadLink: string;
 }
 
 export interface LinkInfo {
-    downloadLinks: string[];
+    downloadLink: string;
     isPublic: boolean;
     neverExpires: boolean
     expiresAt: any | null;

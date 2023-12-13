@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton, FormControlLabel, Checkbox, Alert, Paper, Container } from "@mui/material";
+import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton, FormControlLabel, Checkbox, Alert, Paper, Container, Select, MenuItem } from "@mui/material";
 import { MIN_MULTIPART_UPLOAD_SIZE, MAX_UPLOAD_RETRIES, LARGE_FILE_MAX_SIZE } from "../utils/constants";
 import { initiateSmallFileUpload, completeSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, abortMultipartUpload, generateDownloadLink, } from "../services/firebase";
 import { UploadFileParams, UploadPartParams, CompleteMultiPartParams, GenerateDownloadLinkParams } from "../utils/types";
@@ -22,6 +22,7 @@ const UploadFile: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const abortController = new AbortController();
     const isCancelledRef = useRef(isCancelled);
+    const [expiryDays, setExpiryDays] = useState<number>(1);
 
     const fileIdRef = useRef("");
 
@@ -39,6 +40,18 @@ const UploadFile: React.FC = () => {
     useEffect(() => {
         console.log("Error: ", error);
     }, [error])
+
+    useEffect(() => {
+        if (!neverExpires && uploaded) {
+            const newExpiryDate = new Date();
+            newExpiryDate.setDate(newExpiryDate.getDate() + expiryDays);
+            setExpiryDate(newExpiryDate);
+        }
+    }, [expiryDays, neverExpires, uploaded]);
+
+    useEffect(() => {
+        console.log("Expiry date: ", expiryDate);
+    }, [expiryDate]);
 
     const getNextWeekDate = () => {
         const today = new Date();
@@ -176,7 +189,7 @@ const UploadFile: React.FC = () => {
             }
             const chunk = await selectedFile.slice(offset, offset + partSize);
 
-            const uploadPartParameters: UploadPartParams= {
+            const uploadPartParameters: UploadPartParams = {
                 uploadId: uploadId,
                 fileName: fileParameters.fileName,
                 fileDirectory: fileParameters.fileDirectory,
@@ -220,7 +233,7 @@ const UploadFile: React.FC = () => {
         }
         parts.sort((a: any, b: any) => a.partNumber - b.partNumber);
 
-        const completeMultipartUploadParameters: CompleteMultiPartParams= {
+        const completeMultipartUploadParameters: CompleteMultiPartParams = {
             uploadId: uploadId,
             fileId: fileId,
             fileName: fileParameters.fileName,
@@ -317,6 +330,7 @@ const UploadFile: React.FC = () => {
                 return;
             }
             setShareLink(link);
+            setError(null);
             console.log('shareLink:', link);
         }
     };
@@ -388,15 +402,15 @@ const UploadFile: React.FC = () => {
                     {uploading && <CircularProgressWithLabel value={progress} sx={{ mt: 1, mb: 2 }} />}
                     {!uploaded && !uploading &&
                         (
-                        <Button
-                            variant="contained"
-                            color={uploading ? 'secondary' : uploaded ? 'success' : 'primary'}
-                            onClick={(!uploading && !uploaded) ? handleUpload : () => { }}
-                            disabled={uploading}
-                            sx={{mt: 1}}
-                        >
-                            Upload
-                        </Button>
+                            <Button
+                                variant="contained"
+                                color={uploading ? 'secondary' : uploaded ? 'success' : 'primary'}
+                                onClick={(!uploading && !uploaded) ? handleUpload : () => { }}
+                                disabled={uploading}
+                                sx={{ mt: 1 }}
+                            >
+                                Upload
+                            </Button>
                         )
                     }
                     {uploading && multiPartUploading && (
@@ -424,7 +438,7 @@ const UploadFile: React.FC = () => {
                             {error}
                         </Alert>
                     )}
-                    {uploaded && (
+                    {/* {uploaded && (
                         <FormControlLabel
                             control={
                                 <Checkbox
@@ -436,21 +450,33 @@ const UploadFile: React.FC = () => {
                             label="Never Expires"
                             sx={{ mb: 1 }}
                         />
-                    )}
+                    )} */}
                     {/* Expiry Date Input */}
                     {!neverExpires && uploaded && (
-                        <DatePicker
-                            label="Link expiry date"
-                            value={expiryDate}
-                            onChange={(newValue: Date | null) => setExpiryDate(newValue || new Date())}
-                            sx={{ mb: 1 }}
-                        />
+                        <Box sx={{ mb: 1 }}>
+                            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                                Link expiry days
+                            </Typography>
+                            <Select
+                                value={expiryDays}
+                                onChange={(e) => setExpiryDays(e.target.value as number)}
+                                displayEmpty
+                                input={<OutlinedInput label="Link expiry days" />}
+                                sx={{ width: "100%" }}
+                            >
+                                {[1, 2, 3, 4, 5, 6, 7].map((days) => (
+                                    <MenuItem key={days} value={days}>
+                                        {days} day{days !== 1 ? "s" : ""}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Box>
                     )}
 
                     {/* Display the generated download link */}
                     {shareLink && uploaded && (
                         <>
-                            <Typography variant="subtitle2" color="textPrimary" sx={{mb:2, mt:2}}>
+                            <Typography variant="subtitle2" color="textPrimary" sx={{ mb: 2, mt: 2 }}>
                                 Share this link with others to view the uploaded file.
                             </Typography>
                             <Button variant="outlined" onClick={copyLink}>Copy link to Clipboard</Button>

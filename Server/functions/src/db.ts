@@ -7,15 +7,13 @@ export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInf
     const db = admin.firestore();
 
     const fileDocRef = db.collection('users').doc(uid).collection('files').doc(fileId);
-    console.log("Date: ", linkInfo.expiresAt);
-    const jsDate: Date | null = !linkInfo.neverExpires && linkInfo.expiresAt ? new Date(linkInfo.expiresAt["$y"], linkInfo.expiresAt["$M"], linkInfo.expiresAt["$D"], linkInfo.expiresAt["$H"], linkInfo.expiresAt["$m"], linkInfo.expiresAt["$s"], linkInfo.expiresAt["$ms"]) : null;
-    console.log("Js Date: ", linkInfo.expiresAt);
-    console.log("Js Date type: ", typeof (jsDate));
+    //const jsDate: Date | null = !linkInfo.neverExpires && linkInfo.expiresAt ? new Date(linkInfo.expiresAt["$y"], linkInfo.expiresAt["$M"], linkInfo.expiresAt["$D"], linkInfo.expiresAt["$H"], linkInfo.expiresAt["$m"], linkInfo.expiresAt["$s"], linkInfo.expiresAt["$ms"]) : null;
+    const expirationDate = new Date(linkInfo.expiresAt);
     const linkDocRef = await fileDocRef.collection('links').add({
-        downloadLinks: linkInfo.downloadLinks,
+        downloadLink: linkInfo.downloadLink,
         isPublic: linkInfo.isPublic,
         neverExpires: linkInfo.neverExpires,
-        expiresAt: !linkInfo.neverExpires ? Timestamp.fromDate(jsDate!) : null
+        expiresAt: !linkInfo.neverExpires ? Timestamp.fromDate(expirationDate!) : null
     });
 
     return linkDocRef.id;
@@ -104,7 +102,7 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
         fileType: fileInfo.fileType,
         fileSize: fileInfo.fileSize,
         uploadedAt: fileInfo.uploadedAt.toDate().toString(),
-        downloadLinks: linkInfo.downloadLinks,
+        downloadLink: linkInfo.downloadLink,
     }
 
     return sharedFileInfo;
@@ -122,7 +120,7 @@ export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadI
         }
 
         const result = await getFileDownloadInfoFromDB(context.auth.uid, ownerUid, fileId, downloadId);
-        return {fileInfo: result};
+        return { fileInfo: result };
     } catch (error: any) {
         console.error('Error:', error.message);
         throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });

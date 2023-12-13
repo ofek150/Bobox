@@ -326,47 +326,63 @@ export const generateDownloadLink = functions.https.onCall(
     // Ensure the user is authenticated
     if (!context.auth) {
       throw new functions.https.HttpsError(
-        "unauthenticated",
-        "The function must be called while authenticated."
+        'unauthenticated',
+        'The function must be called while authenticated.'
       );
     }
-    if (!data || !data.fileId || data.neverExpires == null || !data.expiresAt && data.neverExpires != null && data.neverExpires == false) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "Missing arguments"
-      );
+
+    if (!data || !data.fileId) {
+      throw new functions.https.HttpsError('invalid-argument', 'Missing arguments');
     }
 
     try {
       const fileInfo = await getFileInfo(context.auth.uid, data.fileId);
-      const numOfParts: number = fileInfo.numOfParts;
-      const downloadLinks: string[] = [];
+      const getObjectCommand = new GetObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: fileInfo.fileKey,
+      });
 
-      for (let i = 1; i <= numOfParts; i++) {
-        const getObjectCommand = new GetObjectCommand({
-          Bucket: process.env.R2_BUCKET_NAME,
-          Key: fileInfo.fileKey,
-          PartNumber: i,
-        })
+      let expiresIn: number | null = null;
 
-        const signedUrl = await getSignedUrl(r2, getObjectCommand);
-        if (!signedUrl) throw new Error("Failed to generate download link, Please try again later.");
-        downloadLinks.push(signedUrl);
+      if (data.neverExpires) {
+        // Set expiresIn to 100 years (in seconds)
+        expiresIn = 100 * 365 * 24 * 60 * 60;
+      } else if (data.expiresAt) {
+        const now = new Date();
+        const expirationDate = new Date(data.expiresAt);
+        //const expirationDate = new Date(data.expiresAt["$y"], data.expiresAt["$M"], data.expiresAt["$D"], data.expiresAt["$H"], data.expiresAt["$m"], data.expiresAt["$s"], data.expiresAt["$ms"]);
+        // Calculate the number of seconds until expiresAt from now
+        console.log("Expires at: ", expirationDate);
+        console.log("Expires at type: ", typeof (expirationDate));
+        expiresIn = Math.floor((expirationDate.getTime() - now.getTime()) / 1000);
+
+        if (expiresIn < 0) {
+          // If the expiration date is in the past, set expiresIn to 0
+          expiresIn = 0;
+        }
+      } else {
+        expiresIn = 24 * 60 * 60; // Default: 1 day (in seconds)
       }
+      console.log("Expires in type: ", typeof (expiresIn));
+      console.log(`Expires in ${expiresIn} seconds`);
+      const signedUrl = await getSignedUrl(r2, getObjectCommand, { expiresIn: expiresIn });
+      if (!signedUrl) throw new Error('Failed to generate download link. Please try again later.');
 
       const linkInfo: LinkInfo = {
-        downloadLinks: downloadLinks,
+        downloadLink: signedUrl,
         isPublic: true,
         neverExpires: data.neverExpires,
-        expiresAt: data.expiresAt
-      }
+        expiresAt: data.expiresAt,
+      };
+
       const downloadId = await addLinkToDB(context.auth.uid, data.fileId, linkInfo);
       const shareLink = `${WEBSITE_URL}/${context.auth.uid}/${data.fileId}/${downloadId}/view`;
-      return { link: shareLink };
 
+      return { link: shareLink };
     } catch (error: any) {
       console.error('Error:', error.message);
-      throw new functions.https.HttpsError("internal", "Internal Server Error", { message: error.message });
+      throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
   }
 );
+

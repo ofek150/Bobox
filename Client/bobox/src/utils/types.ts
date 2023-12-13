@@ -38,7 +38,7 @@ export interface SharedFile {
     fileType: string;
     fileSize: number;
     uploadedAt: Date;
-    downloadLinks: string[];
+    downloadLink: string;
 }
 
 export interface DownloadInfoParams {
