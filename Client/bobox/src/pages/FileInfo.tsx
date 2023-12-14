@@ -6,6 +6,8 @@ import { useParams } from 'react-router-dom';
 import { Alert, Box, Button, Container, Paper, Typography } from '@mui/material';
 import Loading from '../components/Loading';
 import FileNotFound from '../components/FileNotFound';
+import axios from 'axios';
+import { createWriteStream } from "streamsaver"
 
 const FileInfo: React.FC = () => {
   const { ownerUid, fileId, downloadId } = useParams();
@@ -15,19 +17,14 @@ const FileInfo: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [fileNotFound, setFileNotFound] = useState<boolean>(false);
 
-  if (!ownerUid || !fileId || !downloadId) {
-    return <FileNotFound />;
-  }
-
   useEffect(() => {
     const fetchFileInfo = async () => {
       console.log("Retrieving file info...");
       const downloadInfoParams: DownloadInfoParams = {
-        ownerUid: ownerUid,
-        fileId: fileId,
-        downloadId: downloadId,
+        ownerUid: ownerUid!,
+        fileId: fileId!,
+        downloadId: downloadId!,
       };
-
       try {
         const { fileInfo } = await getFileInfo(downloadInfoParams);
         console.log(fileInfo);
@@ -45,16 +42,19 @@ const FileInfo: React.FC = () => {
   const handleError = (error: string | null = null) => {
     setError(error);
   };
+  const downloadFile = async (url: string, fileName: string) => {
+    try {
+      const response = await axios({
+        url: url,
+        method: 'GET',
+        responseType: 'arraybuffer',
+      });
 
-  const handleDownload = async () => {
-    if (fileInfo && fileInfo.downloadLink) {
-      const response = await fetch(fileInfo.downloadLink);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
 
       const downloadLink = document.createElement('a');
       downloadLink.href = blobUrl;
-      downloadLink.download = fileInfo.fileName || 'downloaded-file';
+      downloadLink.download = fileName || 'downloaded-file';
 
       document.body.appendChild(downloadLink);
       downloadLink.click();
@@ -62,15 +62,28 @@ const FileInfo: React.FC = () => {
 
       // Revoke the Blob URL to free up resources
       window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Error downloading file:', error);
     }
   };
+
+  const handleDownload = async () => {
+    if (fileInfo && fileInfo.downloadLink) {
+      try {
+        await downloadFile(fileInfo.downloadLink, fileInfo.fileName);
+      } catch (error) {
+        console.error('Error downloading file:', error);
+      }
+    }
+  };
+
 
   if (loading) {
     return <Loading />;
   }
 
-  if (!fileInfo || fileNotFound) {
-    //handleError("File information not available. Please try again later.");
+  if (!fileInfo && !loading) {
+    handleError("File information not available. Please try again later.");
     return <FileNotFound />;
   }
 
