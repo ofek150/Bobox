@@ -6,8 +6,7 @@ import { useParams } from 'react-router-dom';
 import { Alert, Box, Button, Container, Paper, Typography } from '@mui/material';
 import Loading from '../components/Loading';
 import FileNotFound from '../components/FileNotFound';
-import axios from 'axios';
-import { createWriteStream } from "streamsaver"
+import streamSaver from 'streamsaver'
 
 const FileInfo: React.FC = () => {
   const { ownerUid, fileId, downloadId } = useParams();
@@ -42,40 +41,39 @@ const FileInfo: React.FC = () => {
   const handleError = (error: string | null = null) => {
     setError(error);
   };
-  const downloadFile = async (url: string, fileName: string) => {
-    try {
-      const response = await axios({
-        url: url,
-        method: 'GET',
-        responseType: 'arraybuffer',
-      });
 
-      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
 
-      const downloadLink = document.createElement('a');
-      downloadLink.href = blobUrl;
-      downloadLink.download = fileName || 'downloaded-file';
-
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-
-      // Revoke the Blob URL to free up resources
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-      console.error('Error downloading file:', error);
-    }
-  };
 
   const handleDownload = async () => {
     if (fileInfo && fileInfo.downloadLink) {
       try {
-        await downloadFile(fileInfo.downloadLink, fileInfo.fileName);
+        const res = await fetch(fileInfo.downloadLink);
+        if (!res || !res.body) throw new Error("download failed");
+
+        const fileStream = streamSaver.createWriteStream(fileInfo.fileName);
+        const writer = fileStream.getWriter();
+
+        const reader = res.body.getReader();
+
+        const pump: any = () => reader.read()
+          .then(({ value, done }) => {
+            if (done) writer.close();
+            else {
+              writer.write(value);
+              return writer.ready.then(pump);
+            }
+          });
+
+        await pump()
+          .then(() => console.log('Closed the stream, Done writing'))
+          .catch(err => console.log(err));
+
       } catch (error) {
-        console.error('Error downloading file:', error);
+        handleError("An error occurred during the download.");
       }
     }
   };
+
 
 
   if (loading) {

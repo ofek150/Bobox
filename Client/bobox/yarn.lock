@@ -1237,6 +1237,11 @@
   resolved "https://registry.yarnpkg.com/@types/spark-md5/-/spark-md5-3.0.4.tgz#c1221d63c069d95aba0c06a765b80661cacc12bf"
   integrity sha512-qtOaDz+IXiNndPgYb6t1YoutnGvFRtWSNzpVjkAPCfB2UzTyybuD4Tjgs7VgRawum3JnJNRwNQd4N//SvrHg1Q==
 
+"@types/streamsaver@^2.0.4":
+  version "2.0.4"
+  resolved "https://registry.yarnpkg.com/@types/streamsaver/-/streamsaver-2.0.4.tgz#b57e47f9246dc0ed69378f7d1387857c94043ecf"
+  integrity sha512-XxpGYIaBP+2NgZ5+4YeG7hI3wYAyOX8QB92xlPpNvStIAvlniml1th+D0bes1lUZz52IWkPlXMf88wy8NzFkbA==
+
 "@typescript-eslint/eslint-plugin@^6.0.0":
   version "6.14.0"
   resolved "https://registry.yarnpkg.com/@typescript-eslint/eslint-plugin/-/eslint-plugin-6.14.0.tgz#fc1ab5f23618ba590c87e8226ff07a760be3dd7b"
