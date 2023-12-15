@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton, FormControlLabel, Checkbox, Alert, Paper, Container, Select, MenuItem } from "@mui/material";
+import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton, FormControlLabel, Checkbox, Alert, Paper, Container, Select, MenuItem, CircularProgress } from "@mui/material"
 import { MIN_MULTIPART_UPLOAD_SIZE, MAX_UPLOAD_RETRIES, LARGE_FILE_MAX_SIZE } from "../utils/constants";
 import { initiateSmallFileUpload, completeSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, abortMultipartUpload, generateDownloadLink, } from "../services/firebase";
 import { UploadFileParams, UploadPartParams, CompleteMultiPartParams, GenerateDownloadLinkParams } from "../utils/types";
@@ -27,6 +27,7 @@ const UploadFile: React.FC = () => {
     const fileIdRef = useRef("");
 
     const [neverExpires, setNeverExpires] = useState(false);
+    const [generatingLink, setGeneratingLink] = useState(false);
     const [expiryDate, setExpiryDate] = useState<Date | null>(null);
 
     const [shareLink, setShareLink] = useState<string | null>(null);
@@ -318,6 +319,7 @@ const UploadFile: React.FC = () => {
 
     const handleGenerateDownloadLink = async () => {
         if (uploaded) {
+            setGeneratingLink(true); // Set generatingLink to true when starting to generate the link
             console.log("Expires at: ", expiryDate);
             const generateDownloadLinkParams: GenerateDownloadLinkParams = {
                 fileId: fileIdRef.current,
@@ -327,11 +329,13 @@ const UploadFile: React.FC = () => {
             const { link, error } = await generateDownloadLink(generateDownloadLinkParams);
             if (error) {
                 handleGenerateShareLinkError(error);
+                setGeneratingLink(false); // Set generatingLink to false if there's an error
                 return;
             }
             setShareLink(link);
             setError(null);
             console.log('shareLink:', link);
+            setGeneratingLink(false); // Set generatingLink to false after the link is generated
         }
     };
 
@@ -400,7 +404,7 @@ const UploadFile: React.FC = () => {
                         />
                     </div>
                     {uploading && <CircularProgressWithLabel value={progress} sx={{ mt: 1, mb: 2 }} />}
-                    {!uploaded && !uploading &&
+                    {!uploaded && !uploading && !generatingLink && // Hide the upload button if the link is being generated
                         (
                             <Button
                                 variant="contained"
@@ -413,6 +417,7 @@ const UploadFile: React.FC = () => {
                             </Button>
                         )
                     }
+                    {generatingLink && <Typography variant="subtitle1">Generating link...</Typography>}
                     {uploading && multiPartUploading && (
                         <IconButton
                             color="secondary"
