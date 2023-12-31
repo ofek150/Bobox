@@ -97,13 +97,10 @@ const FileInfo: React.FC = () => {
     <Box style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
       <Container maxWidth="xs">
         <Paper elevation={3} sx={{ py: 2, px: 1, borderRadius: 5, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-          <Typography variant="h4" gutterBottom sx={{ mb: 2, fontWeight: "bold" }}>
-            Shared File
-          </Typography>
           <ShowFileInfo {...fileInfo!} />
           {fileInfo?.fileType && fileInfo.fileType.startsWith('image/') && (
             <>
-              <Button variant="outlined" color="primary" onClick={openPreviewModal} sx={{ my: 2 }}>
+              <Button variant="outlined" color="primary" onClick={openPreviewModal} sx={{ mt: 4, mb: 1 }}>
                 View Image
               </Button>
               <Modal open={showPreviewModal} onClose={closePreviewModal}>
@@ -114,7 +111,7 @@ const FileInfo: React.FC = () => {
             </>
           )}
           {!error && (
-            <Button variant="contained" color="primary" onClick={handleDownload} sx={{ mt: 3, mb: 1 }}>
+            <Button variant="contained" color="primary" onClick={handleDownload} sx={{ my: 1 }}>
               Download
             </Button>
           )}
