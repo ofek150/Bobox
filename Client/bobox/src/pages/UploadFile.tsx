@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton, FormControlLabel, Checkbox, Alert, Paper, Container, Select, MenuItem, CircularProgress } from "@mui/material"
 import { MIN_MULTIPART_UPLOAD_SIZE, MAX_UPLOAD_RETRIES, LARGE_FILE_MAX_SIZE } from "../utils/constants";
-import { initiateSmallFileUpload, completeSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, abortMultipartUpload, generateDownloadLink, } from "../services/firebase";
+import { initiateSmallFileUpload, completeSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, abortMultipartUpload, generatePublicDownloadLink } from "../services/firebase";
 import { UploadFileParams, UploadPartParams, CompleteMultiPartParams, GenerateDownloadLinkParams } from "../utils/types";
 import axios, { AxiosProgressEvent, AxiosRequestConfig } from "axios";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -293,7 +293,7 @@ const UploadFile: React.FC = () => {
         setIsCancelled(true);
         isCancelledRef.current = true;
         fileIdRef.current = "";
-        await abortMultipartUpload(abortUploadData);
+        if (multiPartUploading) await abortMultipartUpload(abortUploadData);
         setAbortUploadData({
             uploadId: '',
             fileId: '',
@@ -326,7 +326,7 @@ const UploadFile: React.FC = () => {
                 neverExpires: neverExpires,
                 expiresAt: neverExpires ? null : expiryDate ? expiryDate : getNextWeekDate(),
             };
-            const { link, error } = await generateDownloadLink(generateDownloadLinkParams);
+            const { link, error } = await generatePublicDownloadLink(generateDownloadLinkParams);
             if (error) {
                 handleGenerateShareLinkError(error);
                 setGeneratingLink(false); // Set generatingLink to false if there's an error
@@ -366,8 +366,8 @@ const UploadFile: React.FC = () => {
         setMultiPartUploading(false);
         setProgress(0);
         setUploaded(false);
-        handleCancel()
-        handleError(error)
+        //handleCancel();
+        handleError(error);
     }
 
     const copyLink = () => {

@@ -94,9 +94,9 @@ export const getUserData = async (uid: string) => {
 
 export const initiateSmallFileUpload = async (parameters: UploadFileParams) => {
   try {
-    const getUploadFileURL = httpsCallable(functions, "initiateSmallFileUpload");
+    const initiateSmallFileUpload = httpsCallable(functions, "initiateSmallFileUpload");
     console.log("Parameters: ", parameters);
-    const result: any = (await getUploadFileURL(parameters)).data;
+    const result: any = (await initiateSmallFileUpload(parameters)).data;
     return result;
   } catch (error: any) {
     console.error(error);
@@ -106,10 +106,10 @@ export const initiateSmallFileUpload = async (parameters: UploadFileParams) => {
 
 export const completeSmallFileUpload = async (fileId: string) => {
   try {
-    const finishSmallFileUpload = httpsCallable(functions, "completeSmallFileUpload");
+    const completeSmallFileUpload = httpsCallable(functions, "completeSmallFileUpload");
     console.log("Parameters: ", fileId);
-    const result: any = (await finishSmallFileUpload(fileId)).data
-    return { success: result.toString() === "SUCCESS" ? true : false };
+    const result: any = (await completeSmallFileUpload(fileId)).data
+    return result;
   } catch (error: any) {
     console.error(error);
     return { error: error.message };
@@ -118,9 +118,9 @@ export const completeSmallFileUpload = async (fileId: string) => {
 
 export const initiateMultipartUpload = async (parameters: UploadFileParams) => {
   try {
-    const startMultipartUpload = httpsCallable(functions, "initiateMultipartUpload");
+    const initiateMultipartUpload = httpsCallable(functions, "initiateMultipartUpload");
     console.log("Parameters: ", parameters);
-    const result: any = (await startMultipartUpload(parameters)).data;
+    const result: any = (await initiateMultipartUpload(parameters)).data;
     console.log("Result: ", result);
     return result;
   } catch (error: any) {
@@ -131,9 +131,9 @@ export const initiateMultipartUpload = async (parameters: UploadFileParams) => {
 
 export const generateUploadPartURL = async (parameters: UploadPartParams) => {
   try {
-    const getUploadPartURL = httpsCallable(functions, "generateUploadPartURL");
+    const generateUploadPartURL = httpsCallable(functions, "generateUploadPartURL");
     console.log("Parameters: ", parameters);
-    const result: any = (await getUploadPartURL(parameters)).data;
+    const result: any = (await generateUploadPartURL(parameters)).data;
     return result;
   } catch (error: any) {
     console.error(error);
@@ -143,9 +143,9 @@ export const generateUploadPartURL = async (parameters: UploadPartParams) => {
 
 export const completeMultipartUpload = async (parameters: CompleteMultiPartParams) => {
   try {
-    const endMultipartUpload = httpsCallable(functions, "completeMultipartUpload");
+    const completeMultipartUpload = httpsCallable(functions, "completeMultipartUpload");
     console.log("Parameters: ", parameters);
-    const result: any = (await endMultipartUpload(parameters)).data;
+    const result: any = (await completeMultipartUpload(parameters)).data;
     return result;
   } catch (error: any) {
     console.error(error);
@@ -156,9 +156,9 @@ export const completeMultipartUpload = async (parameters: CompleteMultiPartParam
 export const abortMultipartUpload = async (parameters: AbortMultiPartUploadParams) => {
   try {
     console.log("Trying to abort");
-    const cancelMultipartUpload = httpsCallable(functions, "abortMultipartUpload");
+    const abortMultipartUpload = httpsCallable(functions, "abortMultipartUpload");
     console.log("Parameters: ", parameters);
-    const result: any = (await cancelMultipartUpload(parameters)).data;
+    const result: any = (await abortMultipartUpload(parameters)).data;
     return result;
   } catch (error: any) {
     console.error(error);
@@ -168,21 +168,46 @@ export const abortMultipartUpload = async (parameters: AbortMultiPartUploadParam
 export const getFileInfo = async (parameters: DownloadInfoParams) => {
   try {
     console.log("Trying to get file information");
-    const getFileInformation = httpsCallable(functions, "getFileDownloadInfo");
+    const getFileInfo = httpsCallable(functions, "getFileDownloadInfo");
     console.log("Parameters: ", parameters);
-    const result: any = (await getFileInformation(parameters)).data;
+    const result: any = (await getFileInfo(parameters)).data;
     return result;
   } catch (error: any) {
     console.error(error);
     return { error: error.message };
   }
 }
-export const generateDownloadLink = async (parameters: GenerateDownloadLinkParams) => {
+export const generatePublicDownloadLink = async (parameters: GenerateDownloadLinkParams) => {
   try {
     console.log("Generating download link for file");
-    const genDownloadLink = httpsCallable(functions, "generateDownloadLink");
+    const generatePublicDownloadLink = httpsCallable(functions, "generatePublicDownloadLink");
     console.log("Parameters: ", parameters);
-    const result: any = (await genDownloadLink(parameters)).data;
+    const result: any = (await generatePublicDownloadLink(parameters)).data;
+    console.log(result)
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.message };
+  }
+}
+
+export const generatePrivateDownloadLink = async (fileId: string) => {
+  try {
+    console.log("Generating download link for file");
+    const generatePrivateDownloadLink = httpsCallable(functions, "generatePrivateDownloadLink");
+    const result: any = (await generatePrivateDownloadLink(fileId)).data;
+    console.log(result)
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.message };
+  }
+}
+
+export const getPrivateDownloadId = async (fileId: string) => {
+  try {
+    const getPrivateDownloadId = httpsCallable(functions, "getPrivateDownloadId");
+    const result: any = (await getPrivateDownloadId(fileId)).data;
     console.log(result)
     return result;
   } catch (error: any) {
@@ -202,3 +227,5 @@ export const getFilesOfUser = async () => {
     return { error: error.message };
   }
 }
+
+

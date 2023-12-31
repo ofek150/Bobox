@@ -8,6 +8,7 @@ const ShowFileInfo: React.FC<SharedFile> = ({ fileName, fileType, fileSize, uplo
 
   return (
     <Box >
+      <Typography variant='h4' sx={{ mb: 4, textAlign: 'center' }}><b>File Info</b></Typography>
       <Typography variant='body2'><b>File Name:</b> {fileName}</Typography>
       <Typography variant='body2'><b>File Size:</b> {formatFileSize(fileSize)}</Typography>
       {/* <Typography variant='body2'><b>File Type:</b> {fileType}</Typography> */}
