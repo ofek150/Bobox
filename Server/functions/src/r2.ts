@@ -2,9 +2,9 @@ import * as functions from "firebase-functions";
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types";
-import { addFileToDB, setFileUploaded, deleteAbortedFileFromDB, doesFileExist, getFileInfo, addLinkToDB } from "./db";
+import { addFileToDB, setFileUploaded, deleteAbortedFileFromDB, doesFileExist, getFileInfo, addLinkToDB, updatePrivateLinkDownloadId } from "./db";
 import { FileEntry } from "./utils/types";
-import { MAX_FILE_SIZE, WEBSITE_URL } from "./utils/constants";
+import { MAX_FILE_SIZE, SEVEN_DAYS_SECONDS, WEBSITE_URL } from "./utils/constants";
 
 export const r2 = new S3Client({
   region: "auto",
@@ -97,8 +97,11 @@ export const completeSmallFileUpload = functions.https.onCall(
       );
     }
     try {
-      setFileUploaded(context.auth.uid, fileId, 1);
-      return 'SUCCESS';
+      await setFileUploaded(context.auth.uid, fileId, 1);
+
+      await addPrivateDownloadLink(context.auth.uid, fileId);
+
+      return { success: true };
     } catch (error: any) {
       if (error && error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
@@ -255,6 +258,7 @@ export const completeMultipartUpload = functions.https.onCall(
       console.log("Complete multipart upload result: ", result);
       if (result.$metadata.httpStatusCode === 200) {
         setFileUploaded(context.auth.uid, data.fileId, data.uploadResults.length);
+        await addPrivateDownloadLink(context.auth.uid, data.fileId);
         return { success: true };
       }
       throw new Error("request failed");
@@ -321,7 +325,7 @@ export const abortMultipartUpload = functions.https.onCall(
   }
 );
 
-export const generateDownloadLink = functions.https.onCall(
+export const generatePublicDownloadLink = functions.https.onCall(
   async (data: GenerateDownloadLinkParams, context) => {
     // Ensure the user is authenticated
     if (!context.auth) {
@@ -337,41 +341,37 @@ export const generateDownloadLink = functions.https.onCall(
 
     try {
       const fileInfo = await getFileInfo(context.auth.uid, data.fileId);
-      const getObjectCommand = new GetObjectCommand({
-        Bucket: process.env.R2_BUCKET_NAME,
-        Key: fileInfo.fileKey,
-      });
 
       let expiresIn: number | null = null;
+      const currentDate = new Date();
+      const expirationDate = new Date(currentDate);
 
       if (data.neverExpires) {
-        // Set expiresIn to 100 years (in seconds)
-        expiresIn = 100 * 365 * 24 * 60 * 60;
+        // Set expiresIn to 7 days (max)
+        expiresIn = SEVEN_DAYS_SECONDS;
+        expirationDate.setDate(currentDate.getDate() + 7);
       } else if (data.expiresAt) {
         const now = new Date();
-        const expirationDate = new Date(data.expiresAt);
-        //const expirationDate = new Date(data.expiresAt["$y"], data.expiresAt["$M"], data.expiresAt["$D"], data.expiresAt["$H"], data.expiresAt["$m"], data.expiresAt["$s"], data.expiresAt["$ms"]);
-        // Calculate the number of seconds until expiresAt from now
-        console.log("Expires at: ", expirationDate);
-        console.log("Expires at type: ", typeof (expirationDate));
+        expirationDate.setTime(new Date(data.expiresAt).getTime()); // Reassign without const
         expiresIn = Math.floor((expirationDate.getTime() - now.getTime()) / 1000);
 
+        if (expiresIn > SEVEN_DAYS_SECONDS) {
+          throw new Error('The expiration date has to be 7 days at max');
+        }
+
         if (expiresIn < 0) {
-          // If the expiration date is in the past, set expiresIn to 0
-          expiresIn = 0;
+          throw new Error('Expiration date is in the past');
         }
       } else {
-        expiresIn = 24 * 60 * 60; // Default: 1 day (in seconds)
+        throw new Error('Invalid arguments');
       }
-      console.log("Expires in type: ", typeof (expiresIn));
-      console.log(`Expires in ${expiresIn} seconds`);
-      const signedUrl = await getSignedUrl(r2, getObjectCommand, { expiresIn: expiresIn });
-      if (!signedUrl) throw new Error('Failed to generate download link. Please try again later.');
+
+      const signedUrl = await generatePrivateDownloadLink(fileInfo.fileKey, expiresIn);
 
       const linkInfo: LinkInfo = {
         downloadLink: signedUrl,
         isPublic: true,
-        neverExpires: data.neverExpires,
+        neverExpires: false,
         expiresAt: data.expiresAt,
       };
 
@@ -386,3 +386,34 @@ export const generateDownloadLink = functions.https.onCall(
   }
 );
 
+export const addPrivateDownloadLink = async (userId: string, fileId: string) => {
+  const fileInfo = await getFileInfo(userId, fileId);
+
+  const currentDate = new Date();
+  const expirationDate = new Date(currentDate);
+  expirationDate.setDate(currentDate.getDate() + 7);
+
+  const signedUrl = await generatePrivateDownloadLink(fileInfo.fileKey, SEVEN_DAYS_SECONDS);
+
+  const linkInfo: LinkInfo = {
+    downloadLink: signedUrl,
+    isPublic: false,
+    neverExpires: false,
+    expiresAt: expirationDate,
+  };
+
+
+  const downloadId = await addLinkToDB(userId, fileId, linkInfo);
+  await updatePrivateLinkDownloadId(userId, fileId, downloadId);
+};
+
+export const generatePrivateDownloadLink = async (fileKey: string, expiresIn: number) => {
+  const getObjectCommand = new GetObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key: fileKey,
+  });
+  const signedUrl = await getSignedUrl(r2, getObjectCommand, { expiresIn: expiresIn });
+  if (!signedUrl) throw new Error('Failed to generate download link. Please try again later.');
+
+  return signedUrl;
+};

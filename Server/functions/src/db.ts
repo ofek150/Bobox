@@ -2,6 +2,11 @@ import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
 import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File } from "./utils/types";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+<<<<<<< Updated upstream
+=======
+import { formatDateToDDMMYYYY } from "./utils/helpers";
+import { addPrivateDownloadLink } from "./r2";
+>>>>>>> Stashed changes
 
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
     const db = admin.firestore();
@@ -45,7 +50,7 @@ export const getFileInfo = async (uid: string, fileId: string) => {
         return data;
     }
 
-    throw new Error("File not found")
+    throw new Error("Requested file not found");
 }
 
 export const setFileUploaded = async (uid: string, fileId: string, numOfParts: number) => {
@@ -56,6 +61,17 @@ export const setFileUploaded = async (uid: string, fileId: string, numOfParts: n
         await docRef.update({
             status: 'Uploaded',
             numOfParts: numOfParts
+        });
+    }
+}
+
+export const updatePrivateLinkDownloadId = async (uid: string, fileId: string, downloadId: string) => {
+    const db = admin.firestore();
+    const docRef = db.collection('users').doc(uid).collection('files').doc(fileId);
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+        await docRef.update({
+            privateLinkDownloadId: downloadId,
         });
     }
 }
@@ -92,10 +108,12 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
     const fileInfo = fileDocSnap.data();
     const linkInfo = linkDocSnap.data();
 
-    if (!fileInfo || !linkInfo) return null;
+    if (!fileInfo || !linkInfo) throw new Error('File or link does not exist');
     //Later will check if that specific user is authorized but for now unless its public only the owner can download the file
     if (!linkInfo.isPublic && downloaderUid != ownerUid) throw new Error('Unauthorized');
     if (linkInfo.expiresAt && linkInfo.expiresAt.toDate() < new Date()) throw new Error('Download link has expired');
+
+
     console.log("Shared file expired at: ", fileInfo.uploadedAt.toDate().toString());
     const sharedFileInfo: SharedFile = {
         fileName: fileInfo.fileName,
@@ -175,4 +193,32 @@ export const getAllFileOfUser = functions.https.onCall(async (data: any, context
         throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
+
+
+export const getPrivateDownloadLink = functions.https.onCall(async (fileId: string, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+        const fileInfo: any = await getFileInfo(context.auth.uid, fileId);
+        try {
+            const result = await getFileDownloadInfoFromDB(context.auth.uid, context.auth.uid, fileId, fileInfo.privateLinkDownloadId);
+            return { fileInfo: result };
+
+        } catch (error: any) {
+            if (error.message === "Download link has expired") {
+                // Generate new link to download
+                await addPrivateDownloadLink(context.auth.uid, fileId);
+                const result = await getFileDownloadInfoFromDB(context.auth.uid, context.auth.uid, fileId, fileInfo.privateLinkDownloadId);
+                return { fileInfo: result };
+            }
+        }
+
+        return await getAllFilesOfUserFromDB(context.auth.uid);
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
+
 
