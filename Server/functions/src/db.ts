@@ -2,6 +2,7 @@ import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
 import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File } from "./utils/types";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { formatDateToDDMMYYYY } from "./utils/helpers";
 
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
     const db = admin.firestore();
@@ -141,14 +142,17 @@ export const getAllFilesOfUserFromDB = async (userId: string) => {
 
         const filesData: File[] = [];
 
+
         snapshot.forEach((doc) => {
             const data = doc.data();
+            const uploadedAtDate: Date = data.uploadedAt.toDate();
+
             const file: File = {
                 fileId: doc.id,
                 fileName: data.fileName,
                 fileType: data.fileType,
                 fileSize: data.fileSize,
-                uploadedAt: data.uploadedAt.toDate(),
+                uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
             };
 
             filesData.push(file);

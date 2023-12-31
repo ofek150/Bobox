@@ -52,7 +52,7 @@ export interface File {
     fileName: string;
     fileType: string;
     fileSize: number;
-    uploadedAt: Date;
+    uploadedAt: string;
 }
 
 export interface Files {

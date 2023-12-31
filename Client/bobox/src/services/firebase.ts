@@ -172,7 +172,7 @@ export const getFileInfo = async (parameters: DownloadInfoParams) => {
     console.log("Parameters: ", parameters);
     const result: any = (await getFileInformation(parameters)).data;
     return result;
-  }catch (error: any) {
+  } catch (error: any) {
     console.error(error);
     return { error: error.message };
   }
@@ -194,10 +194,10 @@ export const generateDownloadLink = async (parameters: GenerateDownloadLinkParam
 export const getFilesOfUser = async () => {
   try {
     console.log("Trying to get all files of user");
-    const getAllFiles = httpsCallable(functions, "getAllFileOfUser");
+    const getAllFiles = httpsCallable(functions, "getAllFilesOfUser");
     const result: any = (await getAllFiles()).data;
     return result;
-  }catch (error: any) {
+  } catch (error: any) {
     console.error(error);
     return { error: error.message };
   }
