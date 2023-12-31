@@ -404,7 +404,7 @@ const UploadFile: React.FC = () => {
                         />
                     </div>
                     {uploading && <CircularProgressWithLabel value={progress} sx={{ mt: 1, mb: 2 }} />}
-                    {!uploaded && !uploading && !generatingLink && // Hide the upload button if the link is being generated
+                    {!uploaded && !uploading && !generatingLink &&
                         (
                             <Button
                                 variant="contained"
@@ -417,7 +417,7 @@ const UploadFile: React.FC = () => {
                             </Button>
                         )
                     }
-                    {generatingLink && <Typography variant="subtitle1">Generating link...</Typography>}
+                    {generatingLink && <Typography variant="subtitle1">Generating link... <br /><CircularProgress /></Typography>}
                     {uploading && multiPartUploading && (
                         <IconButton
                             color="secondary"
@@ -428,7 +428,7 @@ const UploadFile: React.FC = () => {
                         </IconButton>
                     )}
                     {/* Generate Download Link Button */}
-                    {uploaded && (
+                    {uploaded && !shareLink && (
                         <Button
                             variant="contained"
                             color="primary"
@@ -457,7 +457,7 @@ const UploadFile: React.FC = () => {
                         />
                     )} */}
                     {/* Expiry Date Input */}
-                    {!neverExpires && uploaded && (
+                    {!neverExpires && uploaded && !shareLink && (
                         <Box sx={{ mb: 1 }}>
                             <Typography variant="subtitle2" sx={{ mb: 1 }}>
                                 Link expiry days

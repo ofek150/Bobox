@@ -136,7 +136,6 @@ export const getAllFilesOfUserFromDB = async (userId: string) => {
         const snapshot = await fileDocRef.get();
 
         if (snapshot.empty) {
-            console.log('No matching documents.');
             return { files: [] };
         }
 
