@@ -124,6 +124,20 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
     return sharedFileInfo;
 }
 
+export const getFilePrivateDownloadIdFromDB = async (userId: string, fileId: string) => {
+    const db = admin.firestore();
+    const fileDocRef = db.collection('users').doc(userId).collection('files').doc(fileId);
+    const fileDocSnap = await fileDocRef.get();
+
+
+    if (!fileDocSnap.exists) throw new Error('File does not exist');
+    const fileInfo = fileDocSnap.data();
+
+    if (!fileInfo) throw new Error('File does not exist');
+    console.log("File info: ", fileInfo);
+    return fileInfo.privateLinkDownloadId;
+}
+
 export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadInfoParams, context) => {
     try {
         if (!context.auth) {
@@ -166,7 +180,7 @@ export const getAllFilesOfUserFromDB = async (userId: string) => {
                 fileName: data.fileName,
                 fileType: data.fileType,
                 fileSize: data.fileSize,
-                uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
+                uploadedAt: formatDateToDDMMYYYY(uploadedAtDate)
             };
 
             filesData.push(file);
@@ -195,7 +209,7 @@ export const getAllFilesOfUser = functions.https.onCall(async (data: any, contex
 });
 
 
-export const getPrivateDownloadLink = functions.https.onCall(async (fileId: string, context) => {
+export const generatePrivateDownloadLink = functions.https.onCall(async (fileId: string, context) => {
     try {
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
@@ -203,22 +217,46 @@ export const getPrivateDownloadLink = functions.https.onCall(async (fileId: stri
         const fileInfo: any = await getFileInfo(context.auth.uid, fileId);
         try {
             const result = await getFileDownloadInfoFromDB(context.auth.uid, context.auth.uid, fileId, fileInfo.privateLinkDownloadId);
-            return { fileInfo: result };
+            return { downloadLink: result.downloadLink };
 
         } catch (error: any) {
             if (error.message === "Download link has expired") {
                 // Generate new link to download
                 await addPrivateDownloadLink(context.auth.uid, fileId);
                 const result = await getFileDownloadInfoFromDB(context.auth.uid, context.auth.uid, fileId, fileInfo.privateLinkDownloadId);
-                return { fileInfo: result };
+                return { downloadLink: result.downloadLink };
             }
         }
-
-        return await getAllFilesOfUserFromDB(context.auth.uid);
+        throw new Error("Failed generating download link");
     } catch (error: any) {
         console.error('Error:', error.message);
         throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
+
+export const getPrivateDownloadId = functions.https.onCall(async (fileId: string, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+        try {
+            const downloadId = await getFilePrivateDownloadIdFromDB(context.auth.uid, fileId);
+            return { downloadId: downloadId };
+
+        } catch (error: any) {
+            if (error.message === "Download link has expired") {
+                // Generate new link to download
+                await addPrivateDownloadLink(context.auth.uid, fileId);
+                const downloadId = await getFilePrivateDownloadIdFromDB(context.auth.uid, fileId);
+                return { downloadId: downloadId };
+            }
+        }
+        throw new Error("Failed generating download link");
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
+
 
 
