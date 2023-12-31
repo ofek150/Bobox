@@ -10,6 +10,7 @@ import ResetPassword from './pages/ResetPassword';
 import FirebaseActionHandler from './components/FirebaseActionHandler';
 import UploadFile from './pages/UploadFile';
 import FileInfo from './pages/FileInfo';
+import MyFiles from './pages/MyFiles';
 
 
 const App: React.FC = () => {
@@ -20,7 +21,7 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/" element={<Layout />}>
 
-            <Route path="/" element={<Navigate to='/upload-file' replace={true} />} />
+            {/* <Route path="/" element={<Navigate to='/upload-file' replace={true} />} /> */}
 
             {/* Public routes */}
             <Route path="/login" element={<AuthPage initialTab={0} />} />
@@ -30,6 +31,7 @@ const App: React.FC = () => {
 
             {/* Protected routes */}
             <Route path="/" element={<RequireAuth />}>
+              <Route path="/" element={<MyFiles />} />
               <Route path="/account-info" element={<AccountInformation />} />
               <Route path="/upload-file" element={<UploadFile />} />
               <Route path="/:ownerUid/:fileId/:downloadId/view" element={<FileInfo />} />

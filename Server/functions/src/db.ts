@@ -2,11 +2,9 @@ import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
 import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File } from "./utils/types";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-<<<<<<< Updated upstream
-=======
+
 import { formatDateToDDMMYYYY } from "./utils/helpers";
 import { addPrivateDownloadLink } from "./r2";
->>>>>>> Stashed changes
 
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
     const db = admin.firestore();
@@ -145,7 +143,7 @@ export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadI
     }
 });
 
-export const getAllFileOfUserFromDB = async (userId: string) => {
+export const getAllFilesOfUserFromDB = async (userId: string) => {
     const db = admin.firestore();
     const fileDocRef = db.collection('users').doc(userId).collection('files');
 
@@ -153,20 +151,22 @@ export const getAllFileOfUserFromDB = async (userId: string) => {
         const snapshot = await fileDocRef.get();
 
         if (snapshot.empty) {
-            console.log('No matching documents.');
             return { files: [] };
         }
 
         const filesData: File[] = [];
 
+
         snapshot.forEach((doc) => {
             const data = doc.data();
+            const uploadedAtDate: Date = data.uploadedAt.toDate();
+
             const file: File = {
                 fileId: doc.id,
                 fileName: data.fileName,
                 fileType: data.fileType,
                 fileSize: data.fileSize,
-                uploadedAt: data.uploadedAt.toDate(),
+                uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
             };
 
             filesData.push(file);
@@ -181,13 +181,13 @@ export const getAllFileOfUserFromDB = async (userId: string) => {
     }
 }
 
-export const getAllFileOfUser = functions.https.onCall(async (data: any, context) => {
+export const getAllFilesOfUser = functions.https.onCall(async (data: any, context) => {
     try {
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
         }
 
-        return await getAllFileOfUserFromDB(context.auth.uid);
+        return await getAllFilesOfUserFromDB(context.auth.uid);
     } catch (error: any) {
         console.error('Error:', error.message);
         throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
