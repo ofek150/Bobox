@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
-import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams } from "./utils/types";
+import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File } from "./utils/types";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
@@ -126,3 +126,53 @@ export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadI
         throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
+
+export const getAllFileOfUserFromDB = async (userId: string) => {
+    const db = admin.firestore();
+    const fileDocRef = db.collection('users').doc(userId).collection('files');
+
+    try {
+        const snapshot = await fileDocRef.get();
+
+        if (snapshot.empty) {
+            console.log('No matching documents.');
+            return { files: [] };
+        }
+
+        const filesData: File[] = [];
+
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            const file: File = {
+                fileId: doc.id,
+                fileName: data.fileName,
+                fileType: data.fileType,
+                fileSize: data.fileSize,
+                uploadedAt: data.uploadedAt.toDate(),
+            };
+
+            filesData.push(file);
+        });
+
+        const files: Files = { files: filesData };
+
+        return files;
+    } catch (error) {
+        console.error('Error getting documents', error);
+        throw new Error('Failed to fetch files from the db');
+    }
+}
+
+export const getAllFileOfUser = functions.https.onCall(async (data: any, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+
+        return await getAllFileOfUserFromDB(context.auth.uid);
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
+

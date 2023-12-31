@@ -60,3 +60,15 @@ export interface DownloadInfoParams {
     fileId: string;
     downloadId: string;
 }
+
+export interface File {
+    fileId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+    uploadedAt: Date;
+}
+
+export interface Files {
+    files: File[];
+}
