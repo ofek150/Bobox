@@ -127,7 +127,7 @@ export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadI
     }
 });
 
-export const getAllFileOfUserFromDB = async (userId: string) => {
+export const getAllFilesOfUserFromDB = async (userId: string) => {
     const db = admin.firestore();
     const fileDocRef = db.collection('users').doc(userId).collection('files');
 
@@ -163,13 +163,13 @@ export const getAllFileOfUserFromDB = async (userId: string) => {
     }
 }
 
-export const getAllFileOfUser = functions.https.onCall(async (data: any, context) => {
+export const getAllFilesOfUser = functions.https.onCall(async (data: any, context) => {
     try {
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
         }
 
-        return await getAllFileOfUserFromDB(context.auth.uid);
+        return await getAllFilesOfUserFromDB(context.auth.uid);
     } catch (error: any) {
         console.error('Error:', error.message);
         throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });

@@ -190,3 +190,15 @@ export const generateDownloadLink = async (parameters: GenerateDownloadLinkParam
     return { error: error.message };
   }
 }
+
+export const getFilesOfUser = async () => {
+  try {
+    console.log("Trying to get all files of user");
+    const getAllFiles = httpsCallable(functions, "getAllFileOfUser");
+    const result: any = (await getAllFiles()).data;
+    return result;
+  }catch (error: any) {
+    console.error(error);
+    return { error: error.message };
+  }
+}
