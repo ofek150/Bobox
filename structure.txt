@@ -1,0 +1,15 @@
+users:
+	user doc (userId):
+		info
+		folders:
+			folder doc(folderId):
+				inFolder: <id of the folder its in or "root">
+				files: string[] (ids)
+				
+		files:
+			file doc(fileId):
+				info
+				folderId: string
+		
+		
+fileKey: <userId>/<fileId>
