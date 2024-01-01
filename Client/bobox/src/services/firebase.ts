@@ -109,7 +109,7 @@ export const completeSmallFileUpload = async (fileId: string) => {
     const finishSmallFileUpload = httpsCallable(functions, "completeSmallFileUpload");
     console.log("Parameters: ", fileId);
     const result: any = (await finishSmallFileUpload(fileId)).data
-    return { success: result.toString() === "SUCCESS" ? true : false };
+    return result;
   } catch (error: any) {
     console.error(error);
     return { error: error.message };

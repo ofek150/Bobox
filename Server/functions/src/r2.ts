@@ -5,6 +5,7 @@ import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLi
 import { addFileToDB, setFileUploaded, deleteAbortedFileFromDB, doesFileExist, getFileInfo, addLinkToDB } from "./db";
 import { FileEntry } from "./utils/types";
 import { MAX_FILE_SIZE, WEBSITE_URL } from "./utils/constants";
+import { v4 as uuidv4 } from 'uuid';
 
 export const r2 = new S3Client({
   region: "auto",
@@ -15,6 +16,29 @@ export const r2 = new S3Client({
   },
 });
 
+const addFileToDatabase = async (userId: string, data: any) => {
+  //console.log("Data: ", data);
+  const fileId: string = uuidv4();
+  console.log("File id: ", fileId);
+  const fileExtension = data.fileName.split('.').pop();
+  const fileKey: string = fileExtension ? `${userId}/${fileId}.${fileExtension}` : `${userId}/${fileId}`;
+  const fileToAdd: FileEntry = {
+    fileId: fileId,
+    folderId: data.folderId,
+    fileKey: fileKey,
+    fileName: data.fileName,
+    fileType: data.fileType,
+    fileSize: data.fileSize
+  }
+  console.log("File to add: ", fileToAdd);
+  try{
+    await addFileToDB(userId, fileToAdd);
+  } catch {
+    throw new Error("Failed to upload file");
+  }
+  return { fileKey: fileKey, fileId: fileId };
+}
+
 export const initiateSmallFileUpload = functions.https.onCall(
   async (data: UploadFileParams, context) => {
     // Ensure the user is authenticated
@@ -24,25 +48,23 @@ export const initiateSmallFileUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-
-    if (!data || !data.fileName || !data.fileSize || !data.fileType) {
+    const { fileName, folderId, fileType, fileSize } = data || {};
+    //console.log("Data: ", data);
+    if (!folderId || !fileName || !fileSize || !fileType) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
       );
     }
-    if (data.fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
-    try {
-      const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
-      if (await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same name already exists");
 
-      const fileToAdd: FileEntry = {
-        fileKey: fileKey,
-        fileName: data.fileName,
-        fileType: data.fileType,
-        fileSize: data.fileSize
-      }
-      const fileId: string = await addFileToDB(context.auth.uid, fileToAdd);
+    console.log("File name: ", fileName, " Folder id: ", folderId, " fileSize: ", fileSize, " fileType: ", fileType);
+    if (fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
+    try {
+      
+      if (await doesFileExist(context.auth.uid, fileName, folderId)) throw new Error("File with the same name already exists");
+
+      const { fileKey, fileId } = await addFileToDatabase(context.auth.uid, data);
+      console.log("File key: ", fileKey, " File id: ", fileId);
 
       const signedUrl = await getSignedUrl(
         r2,
@@ -53,29 +75,16 @@ export const initiateSmallFileUpload = functions.https.onCall(
         })
       );
 
-      if (!signedUrl) throw new Error("signedUrl is empty or undefined");
+      if (!signedUrl) throw new Error("Failed to generate upload url");
 
       return { uploadUrl: signedUrl, fileId: fileId };
     } catch (error: any) {
-      if (error && error.code && error.code.startsWith("auth/")) {
-        throw new functions.https.HttpsError("invalid-argument", error.message);
-      } else if (error && error.message === "File with the same key already exists") {
-        throw new functions.https.HttpsError(
-          "internal",
-          error.message
-        );
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
       }
-      else if (error && error.message === ("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString())) {
-        throw new functions.https.HttpsError(
-          "internal",
-          error.message
-        );
+      else {
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
       }
-      console.log("Failed to generate upload file url: ", error.message);
-      throw new functions.https.HttpsError(
-        "internal",
-        "Failed to generate upload file url"
-      );
     }
   }
 );
@@ -97,8 +106,8 @@ export const completeSmallFileUpload = functions.https.onCall(
       );
     }
     try {
-      setFileUploaded(context.auth.uid, fileId, 1);
-      return 'SUCCESS';
+      await setFileUploaded(context.auth.uid, fileId, 1);
+      return { success: true };
     } catch (error: any) {
       if (error && error.code && error.code.startsWith("auth/")) {
         throw new functions.https.HttpsError("invalid-argument", error.message);
@@ -121,16 +130,19 @@ export const initiateMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if (!data || !data.fileName || !data.fileSize || !data.fileType) {
+    const { fileName, folderId, fileType, fileSize } = data || {};
+    if (!folderId || !fileName || !fileSize || !fileType) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
       );
     }
-    if (data.fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
+    if (fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
     try {
-      const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
-      if (await doesFileExist(context.auth.uid, fileKey)) throw new Error("File with the same name already exists");
+      if (await doesFileExist(context.auth.uid, fileName, folderId)) throw new Error("File with the same name already exists");
+
+      const { fileKey, fileId } = await addFileToDatabase(context.auth.uid, data);
+      
       const createMultiPartUploadCommand = new CreateMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileKey,
@@ -138,14 +150,6 @@ export const initiateMultipartUpload = functions.https.onCall(
       const result = await r2.send(createMultiPartUploadCommand);
       const uploadId: string | undefined = result.UploadId;
       if (!uploadId) throw new Error("uploadId is empty or undefined");
-
-      const fileToAdd: FileEntry = {
-        fileKey: fileKey,
-        fileName: data.fileName,
-        fileType: data.fileType,
-        fileSize: data.fileSize
-      }
-      const fileId: string = await addFileToDB(context.auth.uid, fileToAdd);
 
       return { uploadId: uploadId, fileId: fileId };
     } catch (error: any) {
@@ -181,20 +185,22 @@ export const generateUploadPartURL = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if (!data || !data.fileName || !data.partNumber || !data.uploadId) {
+    const { fileId, partNumber, uploadId } = data || {}; 
+    if (fileId || partNumber || uploadId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
       );
     }
     try {
-      const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`;
+      const fileInfo = await getFileInfo(context.auth.uid, fileId);
+      
 
       const uploadPartCommand = new UploadPartCommand({
         Bucket: process.env.R2_BUCKET_NAME,
-        Key: fileKey,
-        UploadId: data.uploadId,
-        PartNumber: data.partNumber,
+        Key: fileInfo.fileKey,
+        UploadId: uploadId,
+        PartNumber: partNumber,
       })
 
       const signedUrl = await getSignedUrl(r2, uploadPartCommand);
@@ -226,21 +232,21 @@ export const completeMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if (!data || !data.fileName || !data.uploadId || !data.uploadResults || !data.fileId) {
+    const { uploadId, fileId, uploadResults } = data || {};
+    if (!fileId || !uploadId || !uploadResults || !fileId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
       );
     }
     try {
-      const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`;
-      //console.log("Upload results: ", data.uploadResults);
+      const fileInfo = await getFileInfo(context.auth.uid, fileId);
       const completeCommand = new CompleteMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
-        Key: fileKey,
-        UploadId: data.uploadId,
+        Key: fileInfo.fileKey,
+        UploadId: uploadId,
         MultipartUpload: {
-          Parts: data.uploadResults.map(({ ETag, partNumber }) => {
+          Parts: uploadResults.map(({ ETag, partNumber }) => {
             console.log("Part number: ", partNumber, " ETag: ", ETag);
             return ({
               ETag,
@@ -252,7 +258,6 @@ export const completeMultipartUpload = functions.https.onCall(
 
       const result = await r2.send(completeCommand);
 
-      console.log("Complete multipart upload result: ", result);
       if (result.$metadata.httpStatusCode === 200) {
         setFileUploaded(context.auth.uid, data.fileId, data.uploadResults.length);
         return { success: true };
@@ -281,26 +286,26 @@ export const abortMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    if (!data || !data.fileName || !data.fileId || !data.uploadId) {
+    const { uploadId, fileId} = data || {};
+    if (!fileId || !uploadId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"
       );
     }
     try {
-      const fileKey: string = `${context.auth.uid}/${data.fileDirectory}${data.fileName}`
+      const fileInfo = await getFileInfo(context.auth.uid, fileId);
 
 
       const abortCommand = new AbortMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
-        Key: fileKey,
-        UploadId: data.uploadId,
+        Key: fileInfo.fileKey,
+        UploadId: uploadId,
       });
 
       const result = await r2.send(abortCommand);
-      console.log("Abort multipart upload result: ", result);
       if (result.$metadata.httpStatusCode === 204) {
-        deleteAbortedFileFromDB(context.auth.uid, data.fileId);
+        await deleteAbortedFileFromDB(context.auth.uid, fileId);
         return { success: true };
       }
 
@@ -330,13 +335,13 @@ export const generateDownloadLink = functions.https.onCall(
         'The function must be called while authenticated.'
       );
     }
-
-    if (!data || !data.fileId) {
+    const { fileId, neverExpires, expiresAt } = data || {};
+    if (!fileId) {
       throw new functions.https.HttpsError('invalid-argument', 'Missing arguments');
     }
 
     try {
-      const fileInfo = await getFileInfo(context.auth.uid, data.fileId);
+      const fileInfo = await getFileInfo(context.auth.uid, fileId);
       const getObjectCommand = new GetObjectCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileInfo.fileKey,
@@ -344,12 +349,12 @@ export const generateDownloadLink = functions.https.onCall(
 
       let expiresIn: number | null = null;
 
-      if (data.neverExpires) {
+      if (neverExpires) {
         // Set expiresIn to 100 years (in seconds)
         expiresIn = 100 * 365 * 24 * 60 * 60;
-      } else if (data.expiresAt) {
+      } else if (expiresAt) {
         const now = new Date();
-        const expirationDate = new Date(data.expiresAt);
+        const expirationDate = new Date(expiresAt);
         //const expirationDate = new Date(data.expiresAt["$y"], data.expiresAt["$M"], data.expiresAt["$D"], data.expiresAt["$H"], data.expiresAt["$m"], data.expiresAt["$s"], data.expiresAt["$ms"]);
         // Calculate the number of seconds until expiresAt from now
         console.log("Expires at: ", expirationDate);
@@ -371,12 +376,12 @@ export const generateDownloadLink = functions.https.onCall(
       const linkInfo: LinkInfo = {
         downloadLink: signedUrl,
         isPublic: true,
-        neverExpires: data.neverExpires,
-        expiresAt: data.expiresAt,
+        neverExpires: neverExpires,
+        expiresAt: expiresAt,
       };
 
-      const downloadId = await addLinkToDB(context.auth.uid, data.fileId, linkInfo);
-      const shareLink = `${WEBSITE_URL}/${context.auth.uid}/${data.fileId}/${downloadId}/view`;
+      const downloadId = await addLinkToDB(context.auth.uid, fileId, linkInfo);
+      const shareLink = `${WEBSITE_URL}/${context.auth.uid}/${fileId}/${downloadId}/view`;
 
       return { link: shareLink };
     } catch (error: any) {
