@@ -112,7 +112,6 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
     if (linkInfo.expiresAt && linkInfo.expiresAt.toDate() < new Date()) throw new Error('Download link has expired');
 
 
-    console.log("Shared file expired at: ", fileInfo.uploadedAt.toDate().toString());
     const sharedFileInfo: SharedFile = {
         fileName: fileInfo.fileName,
         fileType: fileInfo.fileType,
