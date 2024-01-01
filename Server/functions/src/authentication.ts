@@ -6,7 +6,9 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
         const db = admin.firestore();
         const docRef = db.collection('users').doc(user.uid);
         const docSnap = await docRef.get();
+        
         if (!docSnap.exists) {
+            // Create the user document
             await docRef.set({
                 uid: user.uid,
                 name: user.displayName,
@@ -14,11 +16,17 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
                 email: user.email,
                 agreeMailToPromotions: false
             });
+
+            const folderRef = docRef.collection('folders').doc('root');
+            await folderRef.set({
+                isRootFolder: true
+            });
         }
     } catch (error) {
         throw new functions.https.HttpsError('internal', 'An error occurred while signing in with Google.');
     }
 });
+
 
 interface RegistrationData {
     name: string;

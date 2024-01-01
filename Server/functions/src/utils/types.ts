@@ -1,30 +1,25 @@
 export interface UploadFileParams {
     fileName: string;
-    fileDirectory: string;
+    folderId: string;
     fileType: string;
     fileSize: number;
 }
 
 export interface UploadPartParams {
     uploadId: string;
-    fileName: string;
-    fileDirectory: string;
+    fileId: string;
     partNumber: number;
 }
 
 export interface CompleteMultiPartParams {
     uploadId: string;
     fileId: string
-    fileName: string;
-    fileDirectory: string;
     uploadResults: any[];
 }
 
 export interface AbortMultiPartUploadParams {
     uploadId: string;
     fileId: string;
-    fileName: string;
-    fileDirectory: string;
 }
 
 export interface GenerateDownloadLinkParams {
@@ -34,6 +29,8 @@ export interface GenerateDownloadLinkParams {
 }
 
 export interface FileEntry {
+    fileId: string;
+    folderId: string;
     fileKey: string;
     fileName: string;
     fileType: string;
@@ -71,4 +68,9 @@ export interface File {
 
 export interface Files {
     files: File[];
+}
+
+export interface RenameFileParams {
+    fileId: string;
+    newFileName: string;
 }

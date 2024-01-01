@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
-import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File } from "./utils/types";
+import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File, RenameFileParams } from "./utils/types";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { formatDateToDDMMYYYY } from "./utils/helpers";
@@ -20,21 +20,25 @@ export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInf
     });
 
     return linkDocRef.id;
-};
+}
 
 export const addFileToDB = async (uid: string, file: FileEntry) => {
     const db = admin.firestore();
-    const fileDocRef = await db.collection('users').doc(uid).collection('files').add(
+    await db.collection('users').doc(uid).collection('files').doc(file.fileId).set(
         {
             fileKey: file.fileKey,
             fileName: file.fileName,
             fileType: file.fileType,
             fileSize: file.fileSize,
             uploadedAt: FieldValue.serverTimestamp(),
+            folderId: file.folderId,
             status: 'In Progress'
         }
     );
-    return fileDocRef.id;
+
+    await db.collection('users').doc(uid).collection('folders').doc(file.folderId).update({
+        files: FieldValue.arrayUnion(file.fileId)
+    });
 }
 
 export const getFileInfo = async (uid: string, fileId: string) => {
@@ -44,11 +48,11 @@ export const getFileInfo = async (uid: string, fileId: string) => {
     const docSnap = await docRef.get();
     if (docSnap.exists) {
         const data = docSnap.data();
-        if (!data) throw new Error("File not found");
+        if (!data) throw new Error("Requested file doesn't exist");;
         return data;
     }
 
-    throw new Error("Requested file not found");
+    throw new Error("Requested file doesn't exist");
 }
 
 export const setFileUploaded = async (uid: string, fileId: string, numOfParts: number) => {
@@ -63,22 +67,28 @@ export const setFileUploaded = async (uid: string, fileId: string, numOfParts: n
     }
 }
 
-export const updatePrivateLinkDownloadId = async (uid: string, fileId: string, downloadId: string) => {
+export const doesFileExist = async (uid: string, fileName: string, folderId: string) => {
     const db = admin.firestore();
-    const docRef = db.collection('users').doc(uid).collection('files').doc(fileId);
-    const docSnap = await docRef.get();
-    if (docSnap.exists) {
-        await docRef.update({
-            privateLinkDownloadId: downloadId,
-        });
+    const folderDocRef = db.collection('users').doc(uid).collection('folders').doc(folderId);
+    const folderDoc = await folderDocRef.get();
+
+    if (!folderDoc.exists) {
+      throw new Error('Folder not found');
     }
-}
 
-export const doesFileExist = async (uid: string, fileKey: string) => {
-    const db = admin.firestore();
+    const folderData = folderDoc.data();
+    const filesInFolder = folderData!.files || [];
 
-    const querySnap = await db.collection('users').doc(uid).collection('files').where('fileKey', '==', fileKey).get();
-    return !querySnap.empty;
+    for (const fileId of filesInFolder) {
+      const fileDocRef = db.collection('users').doc(uid).collection('files').doc(fileId);
+      const fileDoc = await fileDocRef.get();
+
+      if (fileDoc.exists && fileDoc.data()?.fileName === fileName) {
+        return true;
+      }
+    }
+
+    return false;
 }
 
 export const deleteAbortedFileFromDB = async (uid: string, fileId: string) => {
@@ -142,7 +152,7 @@ export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadI
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
         }
-        const { ownerUid, fileId, downloadId } = data;
+        const { ownerUid, fileId, downloadId } = data || {};
 
         if (!ownerUid || !fileId || !downloadId) {
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
@@ -207,6 +217,45 @@ export const getAllFilesOfUser = functions.https.onCall(async (data: any, contex
     }
 });
 
+export const renameFile = functions.https.onCall(async (data: RenameFileParams, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+
+        const { fileId, newFileName } = data || {};
+
+        if (!fileId || !newFileName) {
+            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+        }
+
+        const db = admin.firestore();
+        const fileDoc = await db.collection('users').doc(context.auth.uid).collection('files').doc(fileId).get();
+
+        if (!fileDoc.exists) {
+            throw new Error("Requested file does not exist");
+        }
+
+        const fileData = fileDoc.data();
+        const oldFileName = fileData!.fileName;
+
+        // Extract the file extension from the old file name
+        const oldFileExtension = oldFileName.includes('.') ? oldFileName.split('.').pop() : '';
+
+        // Create the new file name with the same extension
+        const newFileNameWithExtension = newFileName + (oldFileExtension ? `.${oldFileExtension}` : '');
+
+        // Update the file name in the database
+        await db.collection('users').doc(context.auth.uid).collection('files').doc(fileId).update({
+            fileName: newFileNameWithExtension,
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
 
 export const generatePrivateDownloadLink = functions.https.onCall(async (fileId: string, context) => {
     try {
@@ -257,5 +306,13 @@ export const getPrivateDownloadId = functions.https.onCall(async (fileId: string
     }
 });
 
-
-
+export const updatePrivateLinkDownloadId = async (uid: string, fileId: string, downloadId: string) => {
+    const db = admin.firestore();
+    const docRef = db.collection('users').doc(uid).collection('files').doc(fileId);
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+        await docRef.update({
+            privateLinkDownloadId: downloadId,
+        });
+    }
+}

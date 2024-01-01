@@ -174,9 +174,7 @@ const UploadFile: React.FC = () => {
 
         setAbortUploadData({
             uploadId: uploadId,
-            fileId: fileId,
-            fileName: selectedFile.name,
-            fileDirectory: ''
+            fileId: fileId
         })
         const parts: any = [];
         const uploadPromises = [];
@@ -192,8 +190,7 @@ const UploadFile: React.FC = () => {
 
             const uploadPartParameters: UploadPartParams = {
                 uploadId: uploadId,
-                fileName: fileParameters.fileName,
-                fileDirectory: fileParameters.fileDirectory,
+                fileId: fileId,
                 partNumber: i
             };
             const { uploadUrl, error } = await generateUploadPartURL(uploadPartParameters);
@@ -237,8 +234,6 @@ const UploadFile: React.FC = () => {
         const completeMultipartUploadParameters: CompleteMultiPartParams = {
             uploadId: uploadId,
             fileId: fileId,
-            fileName: fileParameters.fileName,
-            fileDirectory: fileParameters.fileDirectory,
             uploadResults: parts
         }
         if (isCancelledRef.current) {
@@ -267,7 +262,7 @@ const UploadFile: React.FC = () => {
 
             const fileParameters: UploadFileParams = {
                 fileName: selectedFile.name,
-                fileDirectory: "",
+                folderId: "root",
                 fileType: selectedFile.type,
                 fileSize: selectedFile.size
             };
@@ -293,12 +288,11 @@ const UploadFile: React.FC = () => {
         setIsCancelled(true);
         isCancelledRef.current = true;
         fileIdRef.current = "";
-        if (multiPartUploading) await abortMultipartUpload(abortUploadData);
+        if(multiPartUploading) await abortMultipartUpload(abortUploadData);
+        setMultiPartUploading(false);
         setAbortUploadData({
             uploadId: '',
-            fileId: '',
-            fileName: '',
-            fileDirectory: ''
+            fileId: ''
         });
     }
 
@@ -309,9 +303,7 @@ const UploadFile: React.FC = () => {
         setUploaded(true);
         setAbortUploadData({
             uploadId: '',
-            fileId: '',
-            fileName: '',
-            fileDirectory: ''
+            fileId: ''
         })
         setSelectedFile(null);
         setError(null);
