@@ -1,5 +1,5 @@
 import * as functions from "firebase-functions";
-import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types";
 import { addFileToDB, setFileUploaded, deleteFileFromDB, doesFileExist, getFileInfo, addLinkToDB, updatePrivateLinkDownloadId } from "./db";
@@ -422,3 +422,29 @@ export const generatePrivateDownloadLink = async (fileKey: string, expiresIn: nu
 
   return signedUrl;
 };
+
+export const deleteFile = functions.https.onCall(async (fileId: string, context) => {
+  try {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+    }
+
+    const fileInfo = await getFileInfo(context.auth.uid, fileId);
+    const deleteCommand = new DeleteObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: fileInfo.fileKey
+    })
+
+    const result = await r2.send(deleteCommand);
+
+    if (result.$metadata.httpStatusCode === 200) {
+      await deleteFileFromDB(context.auth.uid, fileId);
+      return { success: true };
+    }
+
+    throw new Error("Failed deleting file, please try again later!");
+  } catch (error: any) {
+    console.error('Error:', error.message);
+    throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+  }
+});
