@@ -73,36 +73,52 @@ export const doesFileExist = async (uid: string, fileName: string, folderId: str
     const folderDoc = await folderDocRef.get();
 
     if (!folderDoc.exists) {
-      throw new Error('Folder not found');
+        throw new Error('Folder not found');
     }
 
     const folderData = folderDoc.data();
     const filesInFolder = folderData!.files || [];
 
     for (const fileId of filesInFolder) {
-      const fileDocRef = db.collection('users').doc(uid).collection('files').doc(fileId);
-      const fileDoc = await fileDocRef.get();
+        const fileDocRef = db.collection('users').doc(uid).collection('files').doc(fileId);
+        const fileDoc = await fileDocRef.get();
 
-      if (fileDoc.exists && fileDoc.data()?.fileName === fileName) {
-        return true;
-      }
+        if (fileDoc.exists && fileDoc.data()?.fileName === fileName) {
+            return true;
+        }
     }
 
     return false;
 }
 
-export const deleteAbortedFileFromDB = async (uid: string, fileId: string) => {
-    console.log("Deleting aborted file with fileId ", fileId, " of user with uid ", uid);
+export const deleteFileFromDB = async (uid: string, fileId: string) => {
+    console.log("Deleting file with fileId ", fileId, " of user with uid ", uid);
     const db = admin.firestore();
 
-    const docRef = db.collection('users').doc(uid).collection('files').doc(fileId);
-    const docSnap = await docRef.get();
-    if (docSnap.exists) {
-        await docRef.delete();
+    // Delete the file from the 'files' collection
+    const fileDocRef = db.collection('users').doc(uid).collection('files').doc(fileId);
+    const fileDocSnap = await fileDocRef.get();
+    if (fileDocSnap.exists) {
+        await fileDocRef.delete();
     }
 
-    console.log("Deleted aborted file's entry with file id " + fileId, " of user with uid " + uid);
+    const foldersRef = db.collection('users').doc(uid).collection('folders');
+    const foldersQuery = foldersRef.where('files', 'array-contains', fileId);
+
+    const foldersSnapshot = await foldersQuery.get();
+
+    if (!foldersSnapshot.empty) {
+        const folderDoc = foldersSnapshot.docs[0];
+        const updatedFilesArray = folderDoc.data().files.filter((file: string) => file !== fileId);
+
+        await folderDoc.ref.update({ files: updatedFilesArray });
+
+        console.log("Deleted file with fileId ", fileId, " from user with uid ", uid);
+    } else {
+        console.log("File with fileId ", fileId, " not found in any folders of user with uid ", uid);
+    }
 }
+
 
 export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid: string, fileId: string, downloadId: string) => {
     const db = admin.firestore();

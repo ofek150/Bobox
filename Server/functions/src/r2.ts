@@ -2,7 +2,7 @@ import * as functions from "firebase-functions";
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types";
-import { addFileToDB, setFileUploaded, deleteAbortedFileFromDB, doesFileExist, getFileInfo, addLinkToDB, updatePrivateLinkDownloadId } from "./db";
+import { addFileToDB, setFileUploaded, deleteFileFromDB, doesFileExist, getFileInfo, addLinkToDB, updatePrivateLinkDownloadId } from "./db";
 import { FileEntry } from "./utils/types";
 import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS } from "./utils/constants";
 import { v4 as uuidv4 } from 'uuid';
@@ -31,7 +31,7 @@ const addFileToDatabase = async (userId: string, data: any) => {
     fileSize: data.fileSize
   }
   console.log("File to add: ", fileToAdd);
-  try{
+  try {
     await addFileToDB(userId, fileToAdd);
   } catch {
     throw new Error("Failed to upload file");
@@ -60,7 +60,7 @@ export const initiateSmallFileUpload = functions.https.onCall(
     console.log("File name: ", fileName, " Folder id: ", folderId, " fileSize: ", fileSize, " fileType: ", fileType);
     if (fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
     try {
-      
+
       if (await doesFileExist(context.auth.uid, fileName, folderId)) throw new Error("File with the same name already exists");
 
       const { fileKey, fileId } = await addFileToDatabase(context.auth.uid, data);
@@ -145,7 +145,7 @@ export const initiateMultipartUpload = functions.https.onCall(
       if (await doesFileExist(context.auth.uid, fileName, folderId)) throw new Error("File with the same name already exists");
 
       const { fileKey, fileId } = await addFileToDatabase(context.auth.uid, data);
-      
+
       const createMultiPartUploadCommand = new CreateMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileKey,
@@ -188,7 +188,7 @@ export const generateUploadPartURL = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    const { fileId, partNumber, uploadId } = data || {}; 
+    const { fileId, partNumber, uploadId } = data || {};
     if (fileId || partNumber || uploadId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
@@ -197,7 +197,7 @@ export const generateUploadPartURL = functions.https.onCall(
     }
     try {
       const fileInfo = await getFileInfo(context.auth.uid, fileId);
-      
+
 
       const uploadPartCommand = new UploadPartCommand({
         Bucket: process.env.R2_BUCKET_NAME,
@@ -290,7 +290,7 @@ export const abortMultipartUpload = functions.https.onCall(
         "The function must be called while authenticated."
       );
     }
-    const { uploadId, fileId} = data || {};
+    const { uploadId, fileId } = data || {};
     if (!fileId || !uploadId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
@@ -309,7 +309,7 @@ export const abortMultipartUpload = functions.https.onCall(
 
       const result = await r2.send(abortCommand);
       if (result.$metadata.httpStatusCode === 204) {
-        await deleteAbortedFileFromDB(context.auth.uid, fileId);
+        await deleteFileFromDB(context.auth.uid, fileId);
         return { success: true };
       }
 
