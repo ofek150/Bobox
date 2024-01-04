@@ -4,7 +4,7 @@ import { connectFirestoreEmulator, doc, getDoc, getFirestore } from "firebase/fi
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 //import { getAnalytics } from "firebase/analytics";
 import { isValidEmail, isValidName, isValidPassword } from "../utils/validations";
-import { AbortMultiPartUploadParams, CompleteMultiPartParams, UploadFileParams, UploadPartParams, DownloadInfoParams, GenerateDownloadLinkParams } from "../utils/types";
+import { AbortMultiPartUploadParams, CompleteMultiPartParams, UploadFileParams, UploadPartParams, DownloadInfoParams, GenerateDownloadLinkParams, RenameFileParams } from "../utils/types";
 //import useAbortUploadData from "../hooks/useAbortUploadData";
 
 const firebaseConfig = {
@@ -216,11 +216,22 @@ export const getPrivateDownloadId = async (fileId: string) => {
   }
 }
 
-export const getFilesOfUser = async () => {
+export const getAllFilesOfUser = async () => {
   try {
     console.log("Trying to get all files of user");
-    const getAllFiles = httpsCallable(functions, "getAllFilesOfUser");
-    const result: any = (await getAllFiles()).data;
+    const getAllFilesOfUser = httpsCallable(functions, "getAllFilesOfUser");
+    const result: any = (await getAllFilesOfUser()).data;
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.message };
+  }
+}
+
+export const renameFile = async (parameters: RenameFileParams) => {
+  try {
+    const renameFile = httpsCallable(functions, "renameFile");
+    const result: any = (await renameFile(parameters)).data;
     return result;
   } catch (error: any) {
     console.error(error);

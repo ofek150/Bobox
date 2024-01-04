@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { auth, generatePrivateDownloadLink, getFilesOfUser } from '../services/firebase';
-import { File, SharedFile } from '../utils/types';
-import { Typography, Grid, Card, CardContent, Alert, Container, Button } from '@mui/material';
-import { formatFileSize } from '../utils/helpers';
+import { auth, getAllFilesOfUser, renameFile } from '../services/firebase';
+import { File } from '../utils/types';
+import { Typography, Grid, Alert, Container } from '@mui/material';
 import Loading from '../components/Loading';
-import streamSaver from 'streamsaver';
 import { getPrivateDownloadId } from '../services/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -21,7 +19,7 @@ const MyFiles: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { files, error } = await getFilesOfUser();
+        const { files, error } = await getAllFilesOfUser();
         setFiles(files);
         if (error) {
           console.error(error);
@@ -37,6 +35,26 @@ const MyFiles: React.FC = () => {
 
     fetchData();
   }, []);
+
+  const handleEditFileName = async (fileId: string, newFileName: string) => {
+    if (!files) return;
+    console.log("Renaming file with fileId: " + fileId + " to " + newFileName);
+
+    const { success, error } = await renameFile({ fileId, newFileName });
+    if (error || !success) {
+      console.error(error);
+      setError(error);
+      return;
+    }
+
+    setFiles((files) =>
+      files!.map((file) =>
+        file.fileId === fileId ? { ...file, fileName: newFileName } : file
+      )
+    );
+
+
+  };
 
   const handleError = (error: string | null = null) => {
     setError(error);
@@ -109,7 +127,7 @@ const MyFiles: React.FC = () => {
         <Grid container spacing={2}>
           {files.map((file) => (
             <Grid item xs={12} sm={6} md={4} key={file.fileId}>
-              <FileComponent file={file} navigateToFileInfo={navigateToFileInfo} />
+              <FileComponent file={file} navigateToFileInfo={navigateToFileInfo} onEditFileName={handleEditFileName} />
             </Grid>
           ))}
         </Grid>

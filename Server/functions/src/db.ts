@@ -239,7 +239,10 @@ export const renameFile = functions.https.onCall(async (data: RenameFileParams, 
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
         }
 
+        console.log(data);
         const { fileId, newFileName } = data || {};
+
+        console.log("FileId: ", fileId, " New file name: ", newFileName);
 
         if (!fileId || !newFileName) {
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
@@ -255,13 +258,13 @@ export const renameFile = functions.https.onCall(async (data: RenameFileParams, 
         const fileData = fileDoc.data();
         const oldFileName = fileData!.fileName;
 
-        // Extract the file extension from the old file name
         const oldFileExtension = oldFileName.includes('.') ? oldFileName.split('.').pop() : '';
 
-        // Create the new file name with the same extension
-        const newFileNameWithExtension = newFileName + (oldFileExtension ? `.${oldFileExtension}` : '');
+        console.log("old file extension: ", oldFileExtension);
 
-        // Update the file name in the database
+        const newFileNameWithExtension = newFileName + (oldFileExtension ? `.${oldFileExtension}` : '');
+        console.log("New file name with extension: ", newFileNameWithExtension);
+
         await db.collection('users').doc(context.auth.uid).collection('files').doc(fileId).update({
             fileName: newFileNameWithExtension,
         });
