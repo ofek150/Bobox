@@ -48,7 +48,7 @@ export const getFileInfo = async (uid: string, fileId: string) => {
     const docSnap = await docRef.get();
     if (docSnap.exists) {
         const data = docSnap.data();
-        if (!data) throw new Error("Requested file doesn't exist");;
+        if (!data) throw new Error("Requested file doesn't exist");
         return data;
     }
 

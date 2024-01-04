@@ -8,6 +8,7 @@ import streamSaver from 'streamsaver';
 import { getPrivateDownloadId } from '../services/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import FileComponent from '../components/FileComponent';
 
 const MyFiles: React.FC = () => {
   const [user, loadingAuthState] = useAuthState(auth);
@@ -90,7 +91,7 @@ const MyFiles: React.FC = () => {
       handleError("Couldn't fetch file information");
       return;
     }
-    const link = `/${user?.uid}/${fileId}/${downloadId}/view`
+    const link = `/${user?.uid}/${fileId}/${downloadId}/view`;
     navigate(link);
   }
 
@@ -108,19 +109,7 @@ const MyFiles: React.FC = () => {
         <Grid container spacing={2}>
           {files.map((file) => (
             <Grid item xs={12} sm={6} md={4} key={file.fileId}>
-              <Card sx={{ marginBottom: '15px', width: '100%' }}>
-                <CardContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <Typography variant="h6">{file.fileName}</Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    Type: {file.fileType}<br />
-                    Size: {formatFileSize(file.fileSize)}<br />
-                    Uploaded At: {file.uploadedAt}
-                  </Typography>
-                  <Button variant="contained" color="primary" onClick={() => navigateToFileInfo(file.fileId)} sx={{ mt: 3, mb: 1 }}>
-                    Go To File Info
-                  </Button>
-                </CardContent>
-              </Card>
+              <FileComponent file={file} navigateToFileInfo={navigateToFileInfo} />
             </Grid>
           ))}
         </Grid>
