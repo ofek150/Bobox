@@ -239,4 +239,15 @@ export const renameFile = async (parameters: RenameFileParams) => {
   }
 }
 
+export const deleteFile = async (fileId: string) => {
+  try {
+    const deleteFile = httpsCallable(functions, "deleteFile");
+    const result: any = (await deleteFile(fileId)).data;
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.message };
+  }
+}
+
 

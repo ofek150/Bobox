@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { auth, getAllFilesOfUser, renameFile } from '../services/firebase';
+import { auth, deleteFile, getAllFilesOfUser, renameFile } from '../services/firebase';
 import { File } from '../utils/types';
 import { Typography, Grid, Alert, Container } from '@mui/material';
 import Loading from '../components/Loading';
@@ -47,12 +47,27 @@ const MyFiles: React.FC = () => {
       return;
     }
 
-    setFiles((files) =>
-      files!.map((file) =>
+    setFiles((prevFiles) =>
+      prevFiles!.map((file) =>
         file.fileId === fileId ? { ...file, fileName: newFileName } : file
       )
     );
 
+
+  };
+
+  const handleDeleteFile = async (fileId: string) => {
+    if (!files) return;
+    console.log("Deleting file with fileId: " + fileId);
+
+    const { success, error } = await deleteFile(fileId);
+    if (error || !success) {
+      console.error(error);
+      setError(error);
+      return;
+    }
+
+    setFiles((prevFiles) => prevFiles!.filter((file) => file.fileId !== fileId));
 
   };
 
@@ -127,7 +142,7 @@ const MyFiles: React.FC = () => {
         <Grid container spacing={2}>
           {files.map((file) => (
             <Grid item xs={12} sm={6} md={4} key={file.fileId}>
-              <FileComponent file={file} navigateToFileInfo={navigateToFileInfo} onEditFileName={handleEditFileName} />
+              <FileComponent file={file} navigateToFileInfo={navigateToFileInfo} onEditFileName={handleEditFileName} onDeleteFile={handleDeleteFile} />
             </Grid>
           ))}
         </Grid>

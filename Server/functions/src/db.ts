@@ -6,6 +6,44 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { formatDateToDDMMYYYY } from "./utils/helpers";
 import { addPrivateDownloadLink } from "./r2";
 
+
+const deleteCollection = async (db: any, collectionPath: string, batchSize: number) => {
+    const collectionRef = db.collection(collectionPath);
+    const query = collectionRef.orderBy('__name__').limit(batchSize);
+
+    return new Promise((resolve, reject) => {
+        deleteQueryBatch(db, query, batchSize, resolve, reject);
+    });
+};
+
+const deleteQueryBatch = async (db: any, query: any, batchSize: number, resolve: any, reject: any) => {
+    try {
+        const snapshot = await query.get();
+
+        if (snapshot.size === 0) {
+            // All documents in the collection have been deleted
+            return resolve();
+        }
+
+        // Delete documents in a batch
+        const batch = db.batch();
+        snapshot.docs.forEach((doc: any) => {
+            batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+
+        // Recursively delete the next batch
+        process.nextTick(() => {
+            deleteQueryBatch(db, query, batchSize, resolve, reject);
+        });
+    } catch (error) {
+        return reject(error);
+    }
+};
+
+
+
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
     const db = admin.firestore();
 
@@ -94,17 +132,24 @@ export const doesFileExist = async (uid: string, fileName: string, folderId: str
 export const deleteFileFromDB = async (uid: string, fileId: string) => {
     console.log("Deleting file with fileId ", fileId, " of user with uid ", uid);
     const db = admin.firestore();
-
     // Delete the file from the 'files' collection
     const fileDocRef = db.collection('users').doc(uid).collection('files').doc(fileId);
     const fileDocSnap = await fileDocRef.get();
+
+    const collectionPath = `users/${uid}/files/${fileId}/links`;
+    const batchSize = 500;
+
     if (fileDocSnap.exists) {
         await fileDocRef.delete();
+        console.log("Deleted file document with fileId ", fileId, " from 'files' collection.");
+        await deleteCollection(db, collectionPath, batchSize);
+    } else {
+        console.log("File document with fileId ", fileId, " not found in 'files' collection.");
     }
 
+    // Update the 'files' array in the 'folders' collection
     const foldersRef = db.collection('users').doc(uid).collection('folders');
     const foldersQuery = foldersRef.where('files', 'array-contains', fileId);
-
     const foldersSnapshot = await foldersQuery.get();
 
     if (!foldersSnapshot.empty) {
@@ -112,12 +157,12 @@ export const deleteFileFromDB = async (uid: string, fileId: string) => {
         const updatedFilesArray = folderDoc.data().files.filter((file: string) => file !== fileId);
 
         await folderDoc.ref.update({ files: updatedFilesArray });
-
-        console.log("Deleted file with fileId ", fileId, " from user with uid ", uid);
+        console.log("Updated 'files' array in folder document.");
     } else {
         console.log("File with fileId ", fileId, " not found in any folders of user with uid ", uid);
     }
-}
+};
+
 
 
 export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid: string, fileId: string, downloadId: string) => {
@@ -198,6 +243,7 @@ export const getAllFilesOfUserFromDB = async (userId: string) => {
 
         snapshot.forEach((doc) => {
             const data = doc.data();
+            if (!data) return;
             const uploadedAtDate: Date = data.uploadedAt.toDate();
 
             const file: File = {

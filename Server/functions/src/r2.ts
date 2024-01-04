@@ -6,6 +6,7 @@ import { addFileToDB, setFileUploaded, deleteFileFromDB, doesFileExist, getFileI
 import { FileEntry } from "./utils/types";
 import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS } from "./utils/constants";
 import { v4 as uuidv4 } from 'uuid';
+import { log } from "firebase-functions/logger";
 
 export const r2 = new S3Client({
   region: "auto",
@@ -436,8 +437,9 @@ export const deleteFile = functions.https.onCall(async (fileId: string, context)
     })
 
     const result = await r2.send(deleteCommand);
+    console.log("Result: ", result);
 
-    if (result.$metadata.httpStatusCode === 200) {
+    if (result.$metadata.httpStatusCode === 204) {
       await deleteFileFromDB(context.auth.uid, fileId);
       return { success: true };
     }
@@ -448,3 +450,4 @@ export const deleteFile = functions.https.onCall(async (fileId: string, context)
     throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
   }
 });
+
