@@ -3,6 +3,7 @@ users:
 		info
 		folders:
 			folder doc(folderId):
+				folderName: string
 				inFolder: <id of the folder its in or "root">
 				files: string[] (ids)
 				
