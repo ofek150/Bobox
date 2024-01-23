@@ -19,7 +19,9 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
 
             const folderRef = docRef.collection('folders').doc('root');
             await folderRef.set({
-                isRootFolder: true
+                isRootFolder: true, 
+                inFolder: "", 
+                files: []
             });
         }
     } catch (error) {

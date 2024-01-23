@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
-import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File, RenameFileParams } from "./utils/types";
+import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File, RenameFileParams, CreateFolderParams } from "./utils/types";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { formatDateToDDMMYYYY } from "./utils/helpers";
@@ -162,8 +162,6 @@ export const deleteFileFromDB = async (uid: string, fileId: string) => {
         console.log("File with fileId ", fileId, " not found in any folders of user with uid ", uid);
     }
 };
-
-
 
 export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid: string, fileId: string, downloadId: string) => {
     const db = admin.firestore();
@@ -381,3 +379,51 @@ export const updatePrivateLinkDownloadId = async (uid: string, fileId: string, d
         });
     }
 }
+
+export const doesFolderExist = async (uid: string, folderId: string) => {
+    const db = admin.firestore();
+    const folderDocRef = db.collection('users').doc(uid).collection('folders').doc(folderId);
+    const folderDoc = await folderDocRef.get();
+
+    return folderDoc.exists;
+}
+
+export const doesFolderNameExistInFolder = async (uid: string, inFolder: string, folderName: string) => {
+    const db = admin.firestore();
+
+      const folderDocRef = db.collection('users').doc(uid).collection('folders').where('inFolder', '==', inFolder).where('folderName', '==', folderName);
+      const folderDocs = await folderDocRef.get();
+      return !folderDocs.empty;
+  };
+
+export const createFolder = functions.https.onCall(async (data: CreateFolderParams, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+        const { folderName, inFolder } = data || {};
+        
+        if (!folderName || !inFolder) {
+            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+        }
+
+        if(!(await doesFolderExist(context.auth.uid, inFolder))) throw new Error("Invalid inFolder id");
+
+        if(await doesFolderNameExistInFolder(context.auth.uid, inFolder, folderName)) throw new Error("Folder with the same name already exist in the current folder!");
+
+        const db = admin.firestore();
+        const folderDoc = await db.collection('users').doc(context.auth.uid).collection("folders").doc();
+        await folderDoc.set({
+            inFolder: inFolder,
+            folderName: folderName,
+            files: []
+        });
+         
+        return { success: true };
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+
+});
+

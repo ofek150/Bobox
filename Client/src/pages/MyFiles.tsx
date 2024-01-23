@@ -1,18 +1,58 @@
 import React, { useEffect, useState } from 'react';
-import { auth, deleteFile, getAllFilesOfUser, renameFile } from '../services/firebase';
+import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder } from '../services/firebase';
 import { File } from '../utils/types';
-import { Typography, Grid, Alert, Container } from '@mui/material';
+import { Typography, Grid, Alert, Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab } from '@mui/material';
 import Loading from '../components/Loading';
 import { getPrivateDownloadId } from '../services/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import FileComponent from '../components/FileComponent';
+import AddIcon from '@mui/icons-material/Add';
+
+interface CreateFolderDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onCreateFolder: (folderName: string) => void;
+}
+
+const CreateFolderDialog: React.FC<CreateFolderDialogProps> = ({ open, onClose, onCreateFolder }) => {
+  const [folderName, setFolderName] = useState('');
+
+  const handleCreateFolder = () => {
+    onCreateFolder(folderName);
+    setFolderName('');
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose}>
+      <DialogTitle>Create Folder</DialogTitle>
+      <DialogContent>
+        <TextField
+          autoFocus
+          margin="dense"
+          id="folderName"
+          label="Folder Name"
+          fullWidth
+          value={folderName}
+          onChange={(e) => setFolderName(e.target.value)}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={handleCreateFolder}>Create</Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
 
 const MyFiles: React.FC = () => {
   const [user, loadingAuthState] = useAuthState(auth);
   const [files, setFiles] = useState<File[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCreateFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const navigate = useNavigate();
 
 
@@ -52,7 +92,7 @@ const MyFiles: React.FC = () => {
         file.fileId === fileId ? { ...file, fileName: newFileName } : file
       )
     );
-
+    setError(null);
 
   };
 
@@ -68,7 +108,7 @@ const MyFiles: React.FC = () => {
     }
 
     setFiles((prevFiles) => prevFiles!.filter((file) => file.fileId !== fileId));
-
+    setError(null);
   };
 
   const handleError = (error: string | null = null) => {
@@ -78,44 +118,6 @@ const MyFiles: React.FC = () => {
   if (loading || loadingAuthState) {
     return <Loading />;
   }
-
-  // const handleDownload = async (fileInfo: File) => {
-  //   try {
-  //     const { downloadLink, error } = await generatePrivateDownloadLink(fileInfo.fileId);
-  //     if (error) {
-  //       handleError(error);
-  //       return;
-  //     }
-  //     console.log("Download link: " + downloadLink);
-  //     const res = await fetch(downloadLink);
-  //     if (!res || !res.body) throw new Error("download failed");
-
-  //     const fileStream = streamSaver.createWriteStream(fileInfo.fileName);
-  //     const writer = fileStream.getWriter();
-
-  //     const reader = res.body.getReader();
-
-  //     const pump: any = () => reader.read()
-  //       .then(({ value, done }) => {
-  //         if (done) writer.close();
-  //         else {
-  //           writer.write(value);
-  //           return writer.ready.then(pump);
-  //         }
-  //       });
-
-  //     await pump()
-  //       .then(() => console.log('Closed the stream, Done writing'))
-  //       .catch((err: any) => {
-  //         handleError("An error occurred during the download.");
-  //         console.error(err);
-  //       });
-
-  //   } catch (error: any) {
-  //     handleError("An error occurred during the download.");
-  //     console.error(error.message);
-  //   }
-  // }
 
   const navigateToFileInfo = async (fileId: string) => {
     const { downloadId, error } = await getPrivateDownloadId(fileId);
@@ -128,6 +130,15 @@ const MyFiles: React.FC = () => {
     navigate(link);
   }
 
+  const handleCreateFolder = async (folderName: string) => {
+    const { success, error } = await createFolder({ folderName, inFolder: "root" });
+    if (error || !success) {
+      handleError(error);
+      return;
+    }
+    setError(null);
+  };
+
   return (
     <Container maxWidth="md" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px' }}>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mb: 8 }}>
@@ -138,6 +149,9 @@ const MyFiles: React.FC = () => {
           {error}
         </Alert>
       )}
+      {/* <Button variant="contained" onClick={() => setCreateFolderDialogOpen(true)}>
+        Create Folder
+      </Button> */}
       {files && (
         <Grid container spacing={2}>
           {files.map((file) => (
@@ -147,6 +161,18 @@ const MyFiles: React.FC = () => {
           ))}
         </Grid>
       )}
+      <Fab
+        color="primary"
+        style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', marginBottom: '16px' }}
+        onClick={() => setCreateFolderDialogOpen(true)}
+      >
+        <AddIcon />
+      </Fab>
+      <CreateFolderDialog
+        open={isCreateFolderDialogOpen}
+        onClose={() => setCreateFolderDialogOpen(false)}
+        onCreateFolder={handleCreateFolder}
+      />
     </Container>
   );
 };

@@ -58,3 +58,8 @@ export interface RenameFileParams {
     fileId: string;
     newFileName: string;
 }
+
+export interface CreateFolderParams {
+    folderName : string;
+    inFolder: string;
+}
