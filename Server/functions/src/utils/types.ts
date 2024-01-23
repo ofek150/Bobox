@@ -66,7 +66,16 @@ export interface File {
     uploadedAt: string;
 }
 
+export interface Folder {
+    folderId: string;
+    folderName: string;
+    inFolder: string;
+    createdAt: string | null;
+    files: string[];
+}
+
 export interface Files {
+    folders: Folder[];
     files: File[];
 }
 
@@ -76,6 +85,6 @@ export interface RenameFileParams {
 }
 
 export interface CreateFolderParams {
-    folderName : string;
+    folderName: string;
     inFolder: string;
 }

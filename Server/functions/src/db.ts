@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
-import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File, RenameFileParams, CreateFolderParams } from "./utils/types";
+import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File, RenameFileParams, CreateFolderParams, Folder } from "./utils/types";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { formatDateToDDMMYYYY } from "./utils/helpers";
@@ -227,21 +227,23 @@ export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadI
 
 export const getAllFilesOfUserFromDB = async (userId: string) => {
     const db = admin.firestore();
-    const fileDocRef = db.collection('users').doc(userId).collection('files');
+    const filesCollectionRef = db.collection('users').doc(userId).collection('files');
+    const foldersCollectionRef = db.collection('users').doc(userId).collection('folders');
 
     try {
-        const snapshot = await fileDocRef.get();
+        const filesSnapshot = await filesCollectionRef.get();
+        const foldersSnapshot = await foldersCollectionRef.get();
 
-        if (snapshot.empty) {
-            return { files: [] };
+        if (foldersSnapshot.empty) {
+            return { files: [], folders: [] };
         }
 
         const filesData: File[] = [];
 
-
-        snapshot.forEach((doc) => {
+        filesSnapshot.forEach((doc) => {
             const data = doc.data();
             if (!data) return;
+            console.log("File data: ", data);
             const uploadedAtDate: Date = data.uploadedAt.toDate();
 
             const file: File = {
@@ -255,7 +257,28 @@ export const getAllFilesOfUserFromDB = async (userId: string) => {
             filesData.push(file);
         });
 
-        const files: Files = { files: filesData };
+        const foldersData: Folder[] = [];
+
+        foldersSnapshot.forEach((doc) => {
+            const data = doc.data();
+            if (!data) return;
+            console.log("Folder data: ", data);
+            let createdAtDate: Date | null = null;
+            if (data.createdAt) createdAtDate = data.createdAt.toDate();
+
+            const folder: Folder = {
+                folderId: doc.id,
+                folderName: data.folderName,
+                inFolder: data.inFolder,
+                createdAt: createdAtDate ? formatDateToDDMMYYYY(createdAtDate) : null,
+                files: data.files
+            };
+
+            foldersData.push(folder);
+        });
+
+        console.log("Folders: ", foldersData);
+        const files: Files = { folders: foldersData, files: filesData };
 
         return files;
     } catch (error) {
@@ -263,6 +286,7 @@ export const getAllFilesOfUserFromDB = async (userId: string) => {
         throw new Error('Failed to fetch files from the db');
     }
 }
+
 
 export const getAllFilesOfUser = functions.https.onCall(async (data: any, context) => {
     try {
@@ -391,10 +415,10 @@ export const doesFolderExist = async (uid: string, folderId: string) => {
 export const doesFolderNameExistInFolder = async (uid: string, inFolder: string, folderName: string) => {
     const db = admin.firestore();
 
-      const folderDocRef = db.collection('users').doc(uid).collection('folders').where('inFolder', '==', inFolder).where('folderName', '==', folderName);
-      const folderDocs = await folderDocRef.get();
-      return !folderDocs.empty;
-  };
+    const folderDocRef = db.collection('users').doc(uid).collection('folders').where('inFolder', '==', inFolder).where('folderName', '==', folderName);
+    const folderDocs = await folderDocRef.get();
+    return !folderDocs.empty;
+};
 
 export const createFolder = functions.https.onCall(async (data: CreateFolderParams, context) => {
     try {
@@ -402,23 +426,24 @@ export const createFolder = functions.https.onCall(async (data: CreateFolderPara
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
         }
         const { folderName, inFolder } = data || {};
-        
+
         if (!folderName || !inFolder) {
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        if(!(await doesFolderExist(context.auth.uid, inFolder))) throw new Error("Invalid inFolder id");
+        if (!(await doesFolderExist(context.auth.uid, inFolder))) throw new Error("Invalid inFolder id");
 
-        if(await doesFolderNameExistInFolder(context.auth.uid, inFolder, folderName)) throw new Error("Folder with the same name already exist in the current folder!");
+        if (await doesFolderNameExistInFolder(context.auth.uid, inFolder, folderName)) throw new Error("Folder with the same name already exist in the current folder!");
 
         const db = admin.firestore();
         const folderDoc = await db.collection('users').doc(context.auth.uid).collection("folders").doc();
         await folderDoc.set({
             inFolder: inFolder,
             folderName: folderName,
+            createdAt: FieldValue.serverTimestamp(),
             files: []
         });
-         
+
         return { success: true };
     } catch (error: any) {
         console.error('Error:', error.message);

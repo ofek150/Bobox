@@ -6,7 +6,7 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
         const db = admin.firestore();
         const docRef = db.collection('users').doc(user.uid);
         const docSnap = await docRef.get();
-        
+
         if (!docSnap.exists) {
             // Create the user document
             await docRef.set({
@@ -19,8 +19,9 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
 
             const folderRef = docRef.collection('folders').doc('root');
             await folderRef.set({
-                isRootFolder: true, 
-                inFolder: "", 
+                isRootFolder: true,
+                inFolder: "",
+                folderName: "root",
                 files: []
             });
         }

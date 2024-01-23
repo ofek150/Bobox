@@ -6,7 +6,6 @@ import { addFileToDB, setFileUploaded, deleteFileFromDB, doesFileExist, getFileI
 import { FileEntry } from "./utils/types";
 import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS } from "./utils/constants";
 import { v4 as uuidv4 } from 'uuid';
-import { log } from "firebase-functions/logger";
 
 export const r2 = new S3Client({
   region: "auto",
