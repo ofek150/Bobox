@@ -73,3 +73,8 @@ export interface CreateFolderParams {
     folderName: string;
     inFolder: string;
 }
+
+export interface RenameFolderParams {
+    folderId: string;
+    newFolderName: string;
+}
