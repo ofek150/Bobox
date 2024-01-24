@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Button, Card, CardContent, Typography, IconButton, TextField, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
+import React, { useEffect, useState } from 'react';
+import { ListItem, ListItemText, ListItemSecondaryAction, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField } from "@mui/material";
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { formatFileSize } from "../utils/helpers";
@@ -14,106 +14,117 @@ interface FileComponentProps {
 
 const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo, onEditFileName, onDeleteFile }: FileComponentProps) => {
     const [isEditing, setEditing] = useState(false);
-    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-    const fileExtension = useRef(file.fileName.includes('.') ? `.${file.fileName.split('.').pop()}` : '');
-    const [fileNameWithoutExtension, setFileNameWithoutExtension] = useState(file.fileName.replace(fileExtension.current, ''));
+    const [fileNameWithoutExtension, setFileNameWithoutExtension] = useState("");
+    const [openEditDialog, setOpenEditDialog] = useState(false);
+    const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+
+    const fileExtension = file.fileName.split('.').pop();
+    console.log("file extension: ", fileExtension);
+    console.log("File name: ", file.fileName);
+
+    useEffect(() => {
+        const parts = file.fileName.split('.');
+        // Remove the last element (file extension)
+        parts.pop();
+        setFileNameWithoutExtension(parts.join('.'));
+    }, [file]);
+
+    useEffect(() => {
+        console.log("File name without extension: ", fileNameWithoutExtension);
+    }, [fileNameWithoutExtension]);
+
+
+
 
     const handleEditClick = () => {
-        setEditing(true);
+        setOpenEditDialog(true);
     };
 
     const handleSaveClick = () => {
         setEditing(false);
-        onEditFileName(file.fileId, fileNameWithoutExtension);
+        const updatedFileName = fileNameWithoutExtension + (fileExtension ? '.' + fileExtension : "");
+        console.log("Updated file name: ", updatedFileName);
+        onEditFileName(file.fileId, updatedFileName);
+        setOpenEditDialog(false);
     };
+
 
     const handleCancelClick = () => {
         setEditing(false);
-        setFileNameWithoutExtension(file.fileName.replace(fileExtension.current, ''));
+        setFileNameWithoutExtension(file.fileName);
+        setOpenEditDialog(false);
     };
 
     const handleDeleteClick = () => {
-        setShowDeleteDialog(true);
+        setOpenDeleteDialog(true);
     };
 
-    const handleDeleteConfirm = () => {
-        setShowDeleteDialog(false);
+    const handleDeleteConfirmation = () => {
         onDeleteFile(file.fileId);
+        setOpenDeleteDialog(false);
     };
 
-    const handleDeleteCancel = () => {
-        setShowDeleteDialog(false);
+    const handleCancelDelete = () => {
+        setOpenDeleteDialog(false);
+    };
+
+    const handleItemClick = () => {
+        navigateToFileInfo(file.fileId);
+    };
+
+    const handleDialogInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFileNameWithoutExtension(e.target.value);
     };
 
     return (
-        <Card sx={{ marginBottom: '15px', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-            <CardContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                <IconButton
-                    aria-label="Delete"
-                    onClick={handleDeleteClick}
-                    sx={{ position: 'absolute', top: 0, right: 0 }}
-                >
-                    <DeleteIcon />
-                </IconButton>
+        <>
+            <ListItem button onClick={handleItemClick}>
+                <ListItemText primary={file.fileName} secondary={`Size: ${formatFileSize(file.fileSize)} | Uploaded At: ${file.uploadedAt}`} sx={{ mr: 4 }} />
+                <ListItemSecondaryAction>
+                    <IconButton edge="end" aria-label="Edit" onClick={handleEditClick}>
+                        <EditIcon />
+                    </IconButton>
+                    <IconButton edge="end" aria-label="Delete" onClick={handleDeleteClick} sx={{ ml: 0.8 }}>
+                        <DeleteIcon />
+                    </IconButton>
+                </ListItemSecondaryAction>
+            </ListItem>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-                    {isEditing ? (
-                        <TextField
-                            value={fileNameWithoutExtension}
-                            onChange={(e) => setFileNameWithoutExtension(e.target.value)}
-                            autoFocus
-                        />
-                    ) : (
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                            <Typography variant="h6" sx={{ mb: 1, marginRight: 1 }}>{fileNameWithoutExtension}</Typography>
-                            <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-                                {fileExtension.current}
-                            </Typography>
-                            <IconButton onClick={handleEditClick} sx={{ ml: 1, mb: 1 }}>
-                                <EditIcon />
-                            </IconButton>
-                        </div>
-                    )}
-                </div>
-                <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-                    Size: {formatFileSize(file.fileSize)}<br />
-                    Uploaded At: {file.uploadedAt}
-                </Typography>
-                <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-                    {!isEditing && (
-                        <Button variant="contained" color="primary" onClick={() => navigateToFileInfo(file.fileId)} sx={{ mb: 1 }}>
-                            Go To File Info
-                        </Button>
-                    )}
-                    {isEditing && (
-                        <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginTop: '10px' }}>
-                            <Button variant="contained" color="primary" onClick={handleSaveClick} sx={{ mr: 2 }}>
-                                Save
-                            </Button>
-                            <Button variant="outlined" color="secondary" onClick={handleCancelClick} sx={{ ml: 2 }}>
-                                Cancel
-                            </Button>
-                        </div>
-                    )}
-                </div>
-            </CardContent>
-
-            {/* Delete Confirmation Dialog */}
-            <Dialog open={showDeleteDialog} onClose={handleDeleteCancel}>
-                <DialogTitle>Delete File</DialogTitle>
+            <Dialog open={openEditDialog} onClose={handleCancelClick}>
+                <DialogTitle>Edit File Name</DialogTitle>
                 <DialogContent>
-                    <Typography>Are you sure you want to delete the file with the name "{file.fileName}"?</Typography>
+                    <TextField
+                        value={fileNameWithoutExtension}
+                        onChange={handleDialogInputChange}
+                        autoFocus
+                        fullWidth
+                    />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleDeleteCancel} color="primary">
-                        Cancel
+                    <Button onClick={handleSaveClick} color="primary">
+                        Save
                     </Button>
-                    <Button onClick={handleDeleteConfirm} color="secondary">
-                        Delete
+                    <Button onClick={handleCancelClick} color="secondary">
+                        Cancel
                     </Button>
                 </DialogActions>
             </Dialog>
-        </Card>
+
+            <Dialog open={openDeleteDialog} onClose={handleCancelDelete}>
+                <DialogTitle>Confirm Deletion</DialogTitle>
+                <DialogContent>
+                    <p>Are you sure you want to delete this file?</p>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleDeleteConfirmation} color="primary">
+                        Delete
+                    </Button>
+                    <Button onClick={handleCancelDelete} color="secondary">
+                        Cancel
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </>
     );
 };
 

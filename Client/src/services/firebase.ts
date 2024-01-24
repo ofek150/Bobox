@@ -257,6 +257,6 @@ export const createFolder = async (parameters: CreateFolderParams) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.details.message };
+    return { error: error.message };
   }
 }

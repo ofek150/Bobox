@@ -42,8 +42,6 @@ const deleteQueryBatch = async (db: any, query: any, batchSize: number, resolve:
     }
 };
 
-
-
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
     const db = admin.firestore();
 
@@ -243,6 +241,7 @@ export const getAllFilesOfUserFromDB = async (userId: string) => {
         filesSnapshot.forEach((doc) => {
             const data = doc.data();
             if (!data) return;
+            if (data.status != "Uploaded") return;
             console.log("File data: ", data);
             const uploadedAtDate: Date = data.uploadedAt.toDate();
 
@@ -251,7 +250,8 @@ export const getAllFilesOfUserFromDB = async (userId: string) => {
                 fileName: data.fileName,
                 fileType: data.fileType,
                 fileSize: data.fileSize,
-                uploadedAt: formatDateToDDMMYYYY(uploadedAtDate)
+                uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
+                folderId: data.folderId
             };
 
             filesData.push(file);

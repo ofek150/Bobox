@@ -10,8 +10,11 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import CircularProgressWithLabel from "../components/UI/CircularProgressWithLabel";
 import { determinePartSize } from "../utils/helpers";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { useParams } from "react-router-dom";
+import NotFoundPage from "./NotFoundPage";
 
 const UploadFile: React.FC = () => {
+    const { folderId } = useParams();
     const [progress, setProgress] = useState<number>(0);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
@@ -31,6 +34,8 @@ const UploadFile: React.FC = () => {
     const [expiryDate, setExpiryDate] = useState<Date | null>(null);
 
     const [shareLink, setShareLink] = useState<string | null>(null);
+
+    if (!folderId) return <NotFoundPage />;
 
     // useEffect(() => {
     //     const today = new Date();
@@ -262,7 +267,7 @@ const UploadFile: React.FC = () => {
 
             const fileParameters: UploadFileParams = {
                 fileName: selectedFile.name,
-                folderId: "root",
+                folderId: folderId,
                 fileType: selectedFile.type,
                 fileSize: selectedFile.size
             };
@@ -288,7 +293,7 @@ const UploadFile: React.FC = () => {
         setIsCancelled(true);
         isCancelledRef.current = true;
         fileIdRef.current = "";
-        if(multiPartUploading) await abortMultipartUpload(abortUploadData);
+        if (multiPartUploading) await abortMultipartUpload(abortUploadData);
         setMultiPartUploading(false);
         setAbortUploadData({
             uploadId: '',

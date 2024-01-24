@@ -64,6 +64,7 @@ export interface File {
     fileType: string;
     fileSize: number;
     uploadedAt: string;
+    folderId: string;
 }
 
 export interface Folder {

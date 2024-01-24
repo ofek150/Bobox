@@ -11,6 +11,7 @@ import FirebaseActionHandler from './components/FirebaseActionHandler';
 import UploadFile from './pages/UploadFile';
 import FileInfo from './pages/FileInfo';
 import MyFiles from './pages/MyFiles';
+import { FolderStructureProvider } from './contexts/FolderStructureContext';
 
 
 const App: React.FC = () => {
@@ -31,9 +32,12 @@ const App: React.FC = () => {
 
             {/* Protected routes */}
             <Route path="/" element={<RequireAuth />}>
-              <Route path="/" element={<MyFiles />} />
+              <Route path="/" element={<Navigate to={"/user/folders/root"} replace={true} />} />
+              <Route path="/upload" element={<Navigate to={"/user/folders/root/upload"} replace={true} />} />
+              <Route path="/user/folders/:folderId" element={<MyFiles />} />
               <Route path="/account-info" element={<AccountInformation />} />
-              <Route path="/upload-file" element={<UploadFile />} />
+              <Route path="/user/folders/:folderId/upload" element={<UploadFile />} />
+              <Route path="/user/folders/:folderId/upload" element={<UploadFile />} />
               <Route path="/:ownerUid/:fileId/:downloadId/view" element={<FileInfo />} />
             </Route>
 

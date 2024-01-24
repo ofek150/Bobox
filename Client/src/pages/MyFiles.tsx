@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder } from '../services/firebase';
-import { File } from '../utils/types';
-import { Typography, Grid, Alert, Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab } from '@mui/material';
+import { File, Folder } from '../utils/types';
+import { Typography, Alert, Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab, List } from '@mui/material';
 import Loading from '../components/Loading';
 import { getPrivateDownloadId } from '../services/firebase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import FileComponent from '../components/FileComponent';
 import AddIcon from '@mui/icons-material/Add';
+import PublishIcon from '@mui/icons-material/Publish';
+import FolderComponent from '../components/FolderComponent';
+import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 
 interface CreateFolderDialogProps {
   open: boolean;
@@ -46,35 +48,44 @@ const CreateFolderDialog: React.FC<CreateFolderDialogProps> = ({ open, onClose, 
   );
 };
 
-
 const MyFiles: React.FC = () => {
   const [user, loadingAuthState] = useAuthState(auth);
+  const { folderId } = useParams();
   const [files, setFiles] = useState<File[] | null>(null);
+  const [folders, setFolders] = useState<Folder[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const navigate = useNavigate();
+  const { folderStructure, updateFolderStructure } = useFolderStructureContext();
 
+  const fetchFiles = async () => {
+    try {
+      const { folders, files, error } = await getAllFilesOfUser();
+      setFiles(files);
+      setFolders(folders);
+      if (error) {
+        console.error(error);
+        setError(error);
+      }
+    } catch (error: any) {
+      console.error('Error fetching files:', error.message);
+      setError('Failed to fetch files.');
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { files, error } = await getAllFilesOfUser();
-        setFiles(files);
-        if (error) {
-          console.error(error);
-          setError(error);
-        }
-      } catch (error: any) {
-        console.error('Error fetching files:', error.message);
-        setError('Failed to fetch files.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+    fetchFiles();
   }, []);
+
+  useEffect(() => {
+    if (folders) {
+      // console.log("Updating folder structure, ", folders);
+      updateFolderStructure(folders, files);
+      setLoading(false);
+    }
+  }, [files, folders]);
 
   const handleEditFileName = async (fileId: string, newFileName: string) => {
     if (!files) return;
@@ -93,7 +104,6 @@ const MyFiles: React.FC = () => {
       )
     );
     setError(null);
-
   };
 
   const handleDeleteFile = async (fileId: string) => {
@@ -131,18 +141,23 @@ const MyFiles: React.FC = () => {
   }
 
   const handleCreateFolder = async (folderName: string) => {
-    const { success, error } = await createFolder({ folderName, inFolder: "root" });
+    const { success, error } = await createFolder({ folderName, inFolder: folderId ? folderId : "" });
     if (error || !success) {
       handleError(error);
       return;
     }
     setError(null);
+    await fetchFiles();
+  };
+
+  const handleUploadClick = () => {
+    navigate(`/user/folders/${folderId}/upload`);
   };
 
   return (
     <Container maxWidth="md" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px' }}>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mb: 8 }}>
-        Files List
+        My Files
       </Typography>
       {error && (
         <Alert severity="error" sx={{ mb: 2, mt: 2, pl: 1, pr: 1, width: '100%' }}>
@@ -152,22 +167,27 @@ const MyFiles: React.FC = () => {
       {/* <Button variant="contained" onClick={() => setCreateFolderDialogOpen(true)}>
         Create Folder
       </Button> */}
-      {files && (
-        <Grid container spacing={2}>
-          {files.map((file) => (
-            <Grid item xs={12} sm={6} md={4} key={file.fileId}>
-              <FileComponent file={file} navigateToFileInfo={navigateToFileInfo} onEditFileName={handleEditFileName} onDeleteFile={handleDeleteFile} />
-            </Grid>
-          ))}
-        </Grid>
-      )}
-      <Fab
-        color="primary"
-        style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', marginBottom: '16px' }}
-        onClick={() => setCreateFolderDialogOpen(true)}
-      >
-        <AddIcon />
-      </Fab>
+      {
+        folderStructure && folderId &&
+        <FolderComponent folderId={folderId} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} />
+      }
+      <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', width: '100%', textAlign: 'center' }}>
+        <Fab
+          color="primary"
+          style={{ marginBottom: '16px', marginRight: '8px' }}
+          onClick={() => setCreateFolderDialogOpen(true)}
+        >
+          <AddIcon />
+        </Fab>
+
+        <Fab
+          color="primary"
+          style={{ marginBottom: '16px' }}
+          onClick={handleUploadClick}
+        >
+          <PublishIcon />
+        </Fab>
+      </div>
       <CreateFolderDialog
         open={isCreateFolderDialogOpen}
         onClose={() => setCreateFolderDialogOpen(false)}
