@@ -11,7 +11,6 @@ import FirebaseActionHandler from './components/FirebaseActionHandler';
 import UploadFile from './pages/UploadFile';
 import FileInfo from './pages/FileInfo';
 import MyFiles from './pages/MyFiles';
-import { FolderStructureProvider } from './contexts/FolderStructureContext';
 
 
 const App: React.FC = () => {
@@ -21,8 +20,6 @@ const App: React.FC = () => {
       <Router>
         <Routes>
           <Route path="/" element={<Layout />}>
-
-            {/* <Route path="/" element={<Navigate to='/upload-file' replace={true} />} /> */}
 
             {/* Public routes */}
             <Route path="/login" element={<AuthPage initialTab={0} />} />
@@ -37,10 +34,8 @@ const App: React.FC = () => {
               <Route path="/user/folders/:folderId" element={<MyFiles />} />
               <Route path="/account-info" element={<AccountInformation />} />
               <Route path="/user/folders/:folderId/upload" element={<UploadFile />} />
-              <Route path="/user/folders/:folderId/upload" element={<UploadFile />} />
               <Route path="/:ownerUid/:fileId/:downloadId/view" element={<FileInfo />} />
             </Route>
-
 
             {/* Catch all non existent routes */}
             <Route path="*" element={<NotFoundPage />} />
