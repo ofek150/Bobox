@@ -81,7 +81,6 @@ const MyFiles: React.FC = () => {
 
   useEffect(() => {
     if (folders) {
-      // console.log("Updating folder structure, ", folders);
       updateFolderStructure(folders, files);
       setLoading(false);
     }
@@ -164,9 +163,6 @@ const MyFiles: React.FC = () => {
           {error}
         </Alert>
       )}
-      {/* <Button variant="contained" onClick={() => setCreateFolderDialogOpen(true)}>
-        Create Folder
-      </Button> */}
       {
         folderStructure && folderId &&
         <FolderComponent folderId={folderId} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} />

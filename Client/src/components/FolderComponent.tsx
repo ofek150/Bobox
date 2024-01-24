@@ -54,10 +54,6 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
         sortedFiles.forEach((file: File) => {
             items.push(
                 <FileComponent key={file.fileId} file={file} navigateToFileInfo={navigateToFileInfo} onEditFileName={handleEditFileName} onDeleteFile={handleDeleteFile} />
-
-                // <ListItem key={file.fileId} button onClick={() => navigateToFileInfo(file.fileId)}>
-                //     <ListItemText primary={file.fileName} secondary={`Uploaded at: ${file.uploadedAt}`} />
-                // </ListItem>
             );
         });
 
