@@ -2,25 +2,27 @@ import React, { useEffect, useState } from 'react';
 import { ListItem, ListItemText, ListItemSecondaryAction, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField } from "@mui/material";
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DriveFileMove from '@mui/icons-material/DriveFileMove';
 import { formatFileSize } from "../utils/helpers";
 import { File } from "../utils/types";
+import MoveToFileFolderDialog from './MoveFileOrFolderDialog';
 
 interface FileComponentProps {
     file: File;
     navigateToFileInfo: (fileId: string) => void;
     onEditFileName: (fileId: string, newFileName: string) => void;
     onDeleteFile: (fileId: string) => void;
+    onMoveFile: (fileId: string, currentFolderId: string, newFolderId: string) => void;
 }
 
-const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo, onEditFileName, onDeleteFile }: FileComponentProps) => {
+const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo, onEditFileName, onDeleteFile, onMoveFile }: FileComponentProps) => {
     const [isEditing, setEditing] = useState(false);
     const [fileNameWithoutExtension, setFileNameWithoutExtension] = useState("");
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+    const [openMoveToFolderDialog, setOpenMoveToFolderDialog] = useState(false);
 
     const fileExtension = file.fileName.split('.').pop();
-    console.log("file extension: ", fileExtension);
-    console.log("File name: ", file.fileName);
 
     useEffect(() => {
         const parts = file.fileName.split('.');
@@ -30,10 +32,7 @@ const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo,
     }, [file]);
 
     useEffect(() => {
-        console.log("File name without extension: ", fileNameWithoutExtension);
     }, [fileNameWithoutExtension]);
-
-
 
 
     const handleEditClick = () => {
@@ -87,6 +86,9 @@ const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo,
                     <IconButton edge="end" aria-label="Delete" onClick={handleDeleteClick} sx={{ ml: 0.8 }}>
                         <DeleteIcon />
                     </IconButton>
+                    <IconButton edge="end" aria-label="Move to Folder" onClick={() => setOpenMoveToFolderDialog(true)}>
+                        <DriveFileMove />
+                    </IconButton>
                 </ListItemSecondaryAction>
             </ListItem>
 
@@ -124,6 +126,13 @@ const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo,
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            <MoveToFileFolderDialog
+                open={openMoveToFolderDialog}
+                onClose={() => setOpenMoveToFolderDialog(false)}
+                onMoveFile={onMoveFile}
+                file={file}
+            />
         </>
     );
 };

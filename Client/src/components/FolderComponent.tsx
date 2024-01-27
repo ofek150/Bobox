@@ -8,16 +8,21 @@ import FileComponent from './FileComponent';
 
 interface FolderComponentProps {
     folderId: string;
-    navigateToFileInfo: (fileId: string) => void;
-    handleEditFileName: (fileId: string, newFileName: string) => void;
-    handleDeleteFile: (fileId: string) => void;
+    navigateToFileInfo?: (fileId: string) => void;
+    handleEditFileName?: (fileId: string, newFileName: string) => void;
+    handleDeleteFile?: (fileId: string) => void;
+    handleMoveFile?: (fileId: string, currentFolderId: string, newFolderId: string) => void;
+    onFolderClick?: (folderId: string) => void;
+    onFolderDoubleClick?: (folderId: string, folderName: string) => void;
+    selectFolder: boolean;
 }
 
-const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToFileInfo, handleEditFileName, handleDeleteFile }) => {
+const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToFileInfo, handleEditFileName, handleDeleteFile, selectFolder, handleMoveFile, onFolderClick, onFolderDoubleClick }: FolderComponentProps) => {
     const navigate = useNavigate();
     const { folderStructure, getFolderWithId } = useFolderStructureContext();
     const [loading, setLoading] = useState(true);
     const [folder, setFolder] = useState<any>(null);
+    const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
     useEffect(() => {
         if (folderId) setFolder(getFolderWithId(folderId));
@@ -26,6 +31,16 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
     useEffect(() => {
         if (folderId) setLoading(false);
     }, [folder]);
+
+    const handleFolderClick = (clickedFolderId: string) => {
+        setSelectedFolderId(clickedFolderId);
+        onFolderClick && onFolderClick(clickedFolderId);
+    };
+
+    const handleFolderDoubleClick = (doubleClickedFolderId: string, doubleClickedFolderName: string) => {
+        onFolderDoubleClick && onFolderDoubleClick(doubleClickedFolderId, doubleClickedFolderName);
+    };
+
 
     const renderFolderList = (head: { [key: string]: any }) => {
         const items: JSX.Element[] = [];
@@ -39,12 +54,27 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
 
         // Add folders to the list
         sortedFolders.forEach((folder: Folder) => {
-            items.push(
+            items.push(selectFolder ? (
+                <ListItem key={folder.folderId} selected={selectedFolderId === folder.folderId}
+                    onDoubleClick={() => handleFolderDoubleClick(folder.folderId, folder.folderName)}
+                    onClick={() => handleFolderClick(folder.folderId)}
+                    sx={{
+                        ':hover': {
+                            backgroundColor: '#e0e0e0', // Change the background color on hover
+                        },
+                    }}
+                >
+                    <ListItemText primary={folder.folderName} />
+                </ListItem>
+            ) : (
                 <ListItem key={folder.folderId} button onClick={() => navigate(`/user/folders/${folder.folderId}`)}>
                     <ListItemText primary={folder.folderName} secondary={`Created at: ${folder.createdAt}`} />
                 </ListItem>
-            );
+            ));
         });
+
+        //If in folder selection mode there's no need to render the filess
+        if (selectFolder) return items;
 
         // Sort files by uploadedAt
         const sortedFiles = files.filter((file: File) => file.uploadedAt)
@@ -53,7 +83,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
         // Add files to the list
         sortedFiles.forEach((file: File) => {
             items.push(
-                <FileComponent key={file.fileId} file={file} navigateToFileInfo={navigateToFileInfo} onEditFileName={handleEditFileName} onDeleteFile={handleDeleteFile} />
+                <FileComponent key={file.fileId} file={file} navigateToFileInfo={navigateToFileInfo || (() => { })} onEditFileName={handleEditFileName || (() => { })} onDeleteFile={handleDeleteFile || (() => { })} onMoveFile={handleMoveFile || (() => { })} />
             );
         });
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder } from '../services/firebase';
+import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFileToFolder } from '../services/firebase';
 import { File, Folder } from '../utils/types';
 import { Typography, Alert, Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab, List } from '@mui/material';
 import Loading from '../components/Loading';
@@ -149,6 +149,16 @@ const MyFiles: React.FC = () => {
     await fetchFiles();
   };
 
+  const handleMoveFile = async (fileId: string, currentFolderId: string, newFolderId: string) => {
+    const { success, error } = await moveFileToFolder({ fileId: fileId, currentFolderId: currentFolderId, newFolderId: newFolderId });
+    if (error || !success) {
+      handleError(error);
+      return;
+    }
+    setError(null);
+    await fetchFiles();
+  };
+
   const handleUploadClick = () => {
     navigate(`/user/folders/${folderId}/upload`);
   };
@@ -156,7 +166,7 @@ const MyFiles: React.FC = () => {
   return (
     <Container maxWidth="md" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px' }}>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mb: 8 }}>
-        My Files
+        My Storage
       </Typography>
       {error && (
         <Alert severity="error" sx={{ mb: 2, mt: 2, pl: 1, pr: 1, width: '100%' }}>
@@ -165,7 +175,7 @@ const MyFiles: React.FC = () => {
       )}
       {
         folderStructure && folderId &&
-        <FolderComponent folderId={folderId} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} />
+        <FolderComponent folderId={folderId} selectFolder={false} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleMoveFile={handleMoveFile} />
       }
       <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', width: '100%', textAlign: 'center' }}>
         <Fab
