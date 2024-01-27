@@ -78,7 +78,7 @@ const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo,
     return (
         <>
             <ListItem button onClick={handleItemClick}>
-                <ListItemText primary={file.fileName} secondary={`Size: ${formatFileSize(file.fileSize)} | Uploaded At: ${file.uploadedAt}`} sx={{ mr: 4 }} />
+                <ListItemText primary={file.fileName} secondary={`Size: ${formatFileSize(file.fileSize)} | Uploaded At: ${file.uploadedAt}`} sx={{ mr: 10 }} />
                 <ListItemSecondaryAction>
                     <IconButton edge="end" aria-label="Edit" onClick={handleEditClick}>
                         <EditIcon />
@@ -86,7 +86,7 @@ const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo,
                     <IconButton edge="end" aria-label="Delete" onClick={handleDeleteClick} sx={{ ml: 0.8 }}>
                         <DeleteIcon />
                     </IconButton>
-                    <IconButton edge="end" aria-label="Move to Folder" onClick={() => setOpenMoveToFolderDialog(true)}>
+                    <IconButton edge="end" aria-label="Move to Folder" onClick={() => setOpenMoveToFolderDialog(true)} sx={{ ml: 0.8 }}>
                         <DriveFileMove />
                     </IconButton>
                 </ListItemSecondaryAction>
