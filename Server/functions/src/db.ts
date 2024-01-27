@@ -452,3 +452,61 @@ export const createFolder = functions.https.onCall(async (data: CreateFolderPara
 
 });
 
+export const moveFileToFolder = functions.https.onCall(async (data: { fileId: string, currentFolderId: string, newFolderId: string }, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+
+        const { fileId, currentFolderId, newFolderId } = data || {};
+
+        if (!fileId || !currentFolderId || !newFolderId) {
+            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+        }
+
+        const db = admin.firestore();
+
+        // Check if the file exists in the current folder
+        const currentFolderRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(currentFolderId);
+        const currentFolderDoc = await currentFolderRef.get();
+
+        if (!currentFolderDoc.exists) {
+            throw new Error("Current folder not found");
+        }
+
+        const currentFolderData = currentFolderDoc.data();
+        const currentFilesArray: string[] = currentFolderData!.files || [];
+
+        if (!currentFilesArray.includes(fileId)) {
+            throw new Error("File not found in the current folder");
+        }
+
+        // Remove file from the current folder's files array
+        const updatedCurrentFilesArray = currentFilesArray.filter(file => file !== fileId);
+        await currentFolderRef.update({ files: updatedCurrentFilesArray });
+
+        // Add the file to the files array of the new folder
+        const newFolderRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(newFolderId);
+        const newFolderDoc = await newFolderRef.get();
+
+        if (!newFolderDoc.exists) {
+            throw new Error("New folder not found");
+        }
+
+        const newFolderData = newFolderDoc.data();
+        const newFilesArray: string[] = newFolderData!.files || [];
+
+        await newFolderRef.update({ files: [...newFilesArray, fileId] });
+
+        // Update the file document with the new folderId
+        const fileDocRef = db.collection('users').doc(context.auth.uid).collection('files').doc(fileId);
+        await fileDocRef.update({ folderId: newFolderId });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
+
+
