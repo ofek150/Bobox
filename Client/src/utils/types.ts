@@ -79,3 +79,7 @@ export interface MoveFileToFolderParams {
     currentFolderId: string;
     newFolderId: string;
 }
+export interface RenameFolderParams {
+    folderId: string;
+    newFolderName: string;
+}

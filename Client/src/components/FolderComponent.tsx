@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import { Folder, File } from '../utils/types';
-import { List, ListItem, ListItemText } from '@mui/material';
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItem, ListItemSecondaryAction, ListItemText, TextField } from '@mui/material';
 import Loading from './Loading';
 import FileComponent from './FileComponent';
+import EditIcon from '@mui/icons-material/Edit';
 
 interface FolderComponentProps {
     folderId: string;
@@ -12,17 +13,21 @@ interface FolderComponentProps {
     handleEditFileName?: (fileId: string, newFileName: string) => void;
     handleDeleteFile?: (fileId: string) => void;
     handleMoveFile?: (fileId: string, currentFolderId: string, newFolderId: string) => void;
+    handleEditFolderName: (folderId: string, newFolderName: string) => void;
     onFolderClick?: (folderId: string) => void;
     onFolderDoubleClick?: (folderId: string, folderName: string) => void;
     selectFolder: boolean;
 }
 
-const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToFileInfo, handleEditFileName, handleDeleteFile, selectFolder, handleMoveFile, onFolderClick, onFolderDoubleClick }: FolderComponentProps) => {
+const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToFileInfo, handleEditFileName, handleEditFolderName, handleDeleteFile, selectFolder, handleMoveFile, onFolderClick, onFolderDoubleClick }: FolderComponentProps) => {
     const navigate = useNavigate();
     const { folderStructure, getFolderWithId } = useFolderStructureContext();
     const [loading, setLoading] = useState(true);
     const [folder, setFolder] = useState<any>(null);
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+    const [openEditDialog, setOpenEditDialog] = useState(false);
+    const [currFolderName, setCurrFolderName] = useState("");
+    const [isEditing, setEditing] = useState(false);
 
     useEffect(() => {
         if (folderId) setFolder(getFolderWithId(folderId));
@@ -31,6 +36,36 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
     useEffect(() => {
         if (folderId) setLoading(false);
     }, [folder]);
+
+    const handleEditClick = (folderId: string) => {
+        console.log("Folder id: ", folderId);
+        const selectedFolder: Folder = getFolderWithId(folderId);
+        if (!selectedFolder) return;
+        setCurrFolderName(selectedFolder.folderName);
+        setSelectedFolderId(folderId);
+        setOpenEditDialog(true);
+    };
+
+    const handleSaveClick = () => {
+        setEditing(false);
+        if (!selectedFolderId) return;
+        handleEditFolderName(selectedFolderId, currFolderName);
+        setOpenEditDialog(false);
+        setCurrFolderName("");
+        setSelectedFolderId("");
+    };
+
+
+    const handleCancelClick = () => {
+        setEditing(false);
+        setOpenEditDialog(false);
+        setCurrFolderName("");
+        setSelectedFolderId("");
+    };
+
+    const handleDialogInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setCurrFolderName(e.target.value);
+    };
 
     const handleFolderClick = (clickedFolderId: string) => {
         setSelectedFolderId(clickedFolderId);
@@ -68,7 +103,12 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
                 </ListItem>
             ) : (
                 <ListItem key={folder.folderId} button onClick={() => navigate(`/user/folders/${folder.folderId}`)}>
-                    <ListItemText primary={folder.folderName} secondary={`Created at: ${folder.createdAt}`} />
+                    <ListItemText primary={folder.folderName} secondary={`Created at: ${folder.createdAt}`} sx={{ mr: 10 }} />
+                    <ListItemSecondaryAction>
+                        <IconButton edge="end" aria-label="Edit" onClick={() => handleEditClick(folder.folderId)}>
+                            <EditIcon />
+                        </IconButton>
+                    </ListItemSecondaryAction>
                 </ListItem>
             ));
         });
@@ -99,6 +139,25 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
             <List>
                 {renderFolderList(folder)}
             </List>
+            <Dialog open={openEditDialog} onClose={handleCancelClick}>
+                <DialogTitle>Edit Folder Name</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        value={currFolderName}
+                        onChange={handleDialogInputChange}
+                        autoFocus
+                        fullWidth
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleSaveClick} color="primary">
+                        Save
+                    </Button>
+                    <Button onClick={handleCancelClick} color="secondary">
+                        Cancel
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </>
     );
 };

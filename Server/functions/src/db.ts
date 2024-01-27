@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
-import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File, RenameFileParams, CreateFolderParams, Folder, MoveFileToFolderParams } from "./utils/types";
+import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File, RenameFileParams, CreateFolderParams, Folder, MoveFileToFolderParams, RenameFolderParams } from "./utils/types";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { formatDateToDDMMYYYY } from "./utils/helpers";
@@ -503,6 +503,33 @@ export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFo
         await fileDocRef.update({ folderId: newFolderId });
 
         return { success: true };
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
+export const renameFolder = functions.https.onCall(async (data: RenameFolderParams, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+        const { folderId, newFolderName } = data || {};
+        if (!folderId || !newFolderName) {
+            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+        }
+
+        if (folderId === "root") throw new Error("Cannot change name of root folder");
+        const db = admin.firestore();
+        const folderDocRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(folderId);
+        const folderDoc = await folderDocRef.get();
+        if (!folderDoc.exists) {
+            throw new functions.https.HttpsError('not-found', 'Folder not found');
+        }
+        await folderDocRef.update({
+            'folderName': newFolderName
+        });
+        return { success: true };
+
     } catch (error: any) {
         console.error('Error:', error.message);
         throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });

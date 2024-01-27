@@ -42,7 +42,6 @@ const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo,
     const handleSaveClick = () => {
         setEditing(false);
         const updatedFileName = fileNameWithoutExtension + (fileExtension ? '.' + fileExtension : "");
-        console.log("Updated file name: ", updatedFileName);
         onEditFileName(file.fileId, updatedFileName);
         setOpenEditDialog(false);
     };
