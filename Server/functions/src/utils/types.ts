@@ -89,3 +89,9 @@ export interface CreateFolderParams {
     folderName: string;
     inFolder: string;
 }
+
+export interface MoveFileToFolderParams {
+    fileId: string;
+    currentFolderId: string;
+    newFolderId: string;
+}

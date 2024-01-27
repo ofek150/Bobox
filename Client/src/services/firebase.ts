@@ -4,7 +4,7 @@ import { connectFirestoreEmulator, doc, getDoc, getFirestore } from "firebase/fi
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 //import { getAnalytics } from "firebase/analytics";
 import { isValidEmail, isValidName, isValidPassword } from "../utils/validations";
-import { AbortMultiPartUploadParams, CompleteMultiPartParams, UploadFileParams, UploadPartParams, DownloadInfoParams, GenerateDownloadLinkParams, RenameFileParams, CreateFolderParams } from "../utils/types";
+import { AbortMultiPartUploadParams, CompleteMultiPartParams, UploadFileParams, UploadPartParams, DownloadInfoParams, GenerateDownloadLinkParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams } from "../utils/types";
 //import useAbortUploadData from "../hooks/useAbortUploadData";
 
 const firebaseConfig = {
@@ -254,6 +254,17 @@ export const createFolder = async (parameters: CreateFolderParams) => {
   try {
     const createFolder = httpsCallable(functions, "createFolder");
     const result: any = (await createFolder(parameters)).data;
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.message };
+  }
+}
+
+export const moveFileToFolder = async (parameters: MoveFileToFolderParams) => {
+  try {
+    const moveFileToFolder = httpsCallable(functions, "moveFileToFolder");
+    const result: any = (await moveFileToFolder(parameters)).data;
     return result;
   } catch (error: any) {
     console.error(error);

@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase-admin/app";
 import { registerWithEmailAndPassword, onUserCreated } from "./authentication";
 import { initiateSmallFileUpload, completeSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, abortMultipartUpload, generatePublicDownloadLink, deleteFile } from "./r2";
-import { getFileDownloadInfo, getAllFilesOfUser, generatePrivateDownloadLink, getPrivateDownloadId, renameFile, createFolder } from "./db"
+import { getFileDownloadInfo, getAllFilesOfUser, generatePrivateDownloadLink, getPrivateDownloadId, renameFile, createFolder, moveFileToFolder } from "./db"
 initializeApp();
 
 export {
@@ -19,6 +19,7 @@ export {
     generatePrivateDownloadLink,
     getPrivateDownloadId,
     renameFile,
-    deleteFile, 
-    createFolder
+    deleteFile,
+    createFolder,
+    moveFileToFolder
 };

@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
-import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File, RenameFileParams, CreateFolderParams, Folder } from "./utils/types";
+import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File, RenameFileParams, CreateFolderParams, Folder, MoveFileToFolderParams } from "./utils/types";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { formatDateToDDMMYYYY } from "./utils/helpers";
@@ -452,7 +452,7 @@ export const createFolder = functions.https.onCall(async (data: CreateFolderPara
 
 });
 
-export const moveFileToFolder = functions.https.onCall(async (data: { fileId: string, currentFolderId: string, newFolderId: string }, context) => {
+export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFolderParams, context) => {
     try {
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
@@ -508,5 +508,3 @@ export const moveFileToFolder = functions.https.onCall(async (data: { fileId: st
         throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
-
-
