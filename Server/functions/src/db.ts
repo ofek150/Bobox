@@ -453,7 +453,7 @@ export const createFolder = functions.https.onCall(async (data: CreateFolderPara
 });
 
 export const renameFolder = functions.https.onCall(async (data: RenameFolderParams, context) => {
-    try {
+    try { 
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
         }
@@ -462,6 +462,7 @@ export const renameFolder = functions.https.onCall(async (data: RenameFolderPara
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
   
+        if(folderId === "root") throw new Error("Cannot change name of root folder");
         const db = admin.firestore();
         const folderDocRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(folderId);
         const folderDoc = await folderDocRef.get();

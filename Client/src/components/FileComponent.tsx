@@ -19,8 +19,6 @@ const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo,
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
     const fileExtension = file.fileName.split('.').pop();
-    console.log("file extension: ", fileExtension);
-    console.log("File name: ", file.fileName);
 
     useEffect(() => {
         const parts = file.fileName.split('.');
@@ -30,7 +28,6 @@ const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo,
     }, [file]);
 
     useEffect(() => {
-        console.log("File name without extension: ", fileNameWithoutExtension);
     }, [fileNameWithoutExtension]);
 
 
@@ -43,7 +40,6 @@ const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo,
     const handleSaveClick = () => {
         setEditing(false);
         const updatedFileName = fileNameWithoutExtension + (fileExtension ? '.' + fileExtension : "");
-        console.log("Updated file name: ", updatedFileName);
         onEditFileName(file.fileId, updatedFileName);
         setOpenEditDialog(false);
     };

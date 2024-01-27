@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder } from '../services/firebase';
+import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder, renameFolder } from '../services/firebase';
 import { File, Folder } from '../utils/types';
 import { Typography, Alert, Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab, List } from '@mui/material';
 import Loading from '../components/Loading';
@@ -105,6 +105,25 @@ const MyFiles: React.FC = () => {
     setError(null);
   };
 
+  const handleEditFolderName = async (folderId: string, newFolderName: string) => {
+    if (!folders) return;
+    console.log("Renaming folder with folderId: " + folderId + " to " + newFolderName);
+
+    const { success, error } = await renameFolder({ folderId, newFolderName });
+    if (error || !success) {
+      console.error(error);
+      setError(error);
+      return;
+    }
+
+    setFolders((prevFolders) =>
+    prevFolders!.map((folder) =>
+        folder.folderId === folderId ? { ...folder, folderName: newFolderName } : folder
+      )
+    );
+    setError(null);
+  };
+
   const handleDeleteFile = async (fileId: string) => {
     if (!files) return;
     console.log("Deleting file with fileId: " + fileId);
@@ -165,7 +184,7 @@ const MyFiles: React.FC = () => {
       )}
       {
         folderStructure && folderId &&
-        <FolderComponent folderId={folderId} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} />
+        <FolderComponent folderId={folderId} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleEditFolderName={handleEditFolderName} />
       }
       <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', width: '100%', textAlign: 'center' }}>
         <Fab
