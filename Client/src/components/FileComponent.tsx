@@ -102,11 +102,11 @@ const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo,
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleSaveClick} color="primary">
-                        Save
-                    </Button>
                     <Button onClick={handleCancelClick} color="secondary">
                         Cancel
+                    </Button>
+                    <Button onClick={handleSaveClick} color="primary">
+                        Save
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -117,11 +117,11 @@ const FileComponent: React.FC<FileComponentProps> = ({ file, navigateToFileInfo,
                     <p>Are you sure you want to delete this file?</p>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleDeleteConfirmation} color="primary">
-                        Delete
-                    </Button>
                     <Button onClick={handleCancelDelete} color="secondary">
                         Cancel
+                    </Button>
+                    <Button onClick={handleDeleteConfirmation} color="primary">
+                        Delete
                     </Button>
                 </DialogActions>
             </Dialog>

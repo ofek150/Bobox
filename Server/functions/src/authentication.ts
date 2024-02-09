@@ -1,5 +1,19 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { isValidEmail, isValidName, isValidPassword } from './utils/helpers';
+
+
+const createRootFolder = async (userId: string) => {
+    const db = admin.firestore();
+    const docRef = db.collection('users').doc(userId);
+    const folderRef = docRef.collection('folders').doc('root');
+    await folderRef.set({
+        isRootFolder: true,
+        inFolder: "",
+        folderName: "root",
+        files: []
+    });
+}
 
 export const onUserCreated = functions.auth.user().onCreate(async (user) => {
     try {
@@ -16,14 +30,7 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
                 email: user.email,
                 agreeMailToPromotions: false
             });
-
-            const folderRef = docRef.collection('folders').doc('root');
-            await folderRef.set({
-                isRootFolder: true,
-                inFolder: "",
-                folderName: "root",
-                files: []
-            });
+            createRootFolder(user.uid);
         }
     } catch (error) {
         throw new functions.https.HttpsError('internal', 'An error occurred while signing in with Google.');
@@ -38,24 +45,8 @@ interface RegistrationData {
     agreeMailPromotions: boolean;
 }
 
-const isValidEmail = (email: string): boolean => {
-    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return EMAIL_REGEX.test(email);
-};
-
-const isValidName = (name: string): boolean => {
-    const NAME_REGEX = /^[A-Za-z\s]{2,}$/;
-    return NAME_REGEX.test(name);
-};
-
-const isValidPassword = (password: string): boolean => {
-    const PASSWORD_REGEX = /^(?=.{8,4096})(?:(?=(?:[^[A-Z]*[A-Z]){1,})|(?=(?:[^[a-z]*[a-z]){1,})|(?=(?:[^[\d]*\d){1,})|(?=(?:[^[\W_]*[\W_]){1,})){2,}\S{8,4096}$/
-    return PASSWORD_REGEX.test(password);
-};
-
 export const registerWithEmailAndPassword = functions.https.onCall(async (data: RegistrationData) => {
     try {
-
         const { name, email, password, agreeMailPromotions } = data;
 
         if (!isValidEmail(email)) {
@@ -98,6 +89,8 @@ export const registerWithEmailAndPassword = functions.https.onCall(async (data: 
                     agreeMailToPromotions: agreeMailPromotions
                 });
 
+                createRootFolder(userRecord.uid);
+
                 return { message: 'User registered successfully' };
             } else {
                 console.error(getUserError);
@@ -105,10 +98,7 @@ export const registerWithEmailAndPassword = functions.https.onCall(async (data: 
             }
         }
     } catch (error: any) {
-        if (error & error.code && error.code.startsWith('auth/')) {
-            throw new functions.https.HttpsError('invalid-argument', error.message);
-        }
-        console.log("Error in user registration: ", error.message);
-        throw new functions.https.HttpsError('internal', 'Failed to register user');
+        console.error('Error in user registration:', error.message);
+        throw new functions.https.HttpsError('internal', 'Failed to register user', { message: error.message });
     }
 });

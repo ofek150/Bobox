@@ -150,11 +150,11 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleSaveClick} color="primary">
-                        Save
-                    </Button>
                     <Button onClick={handleCancelClick} color="secondary">
                         Cancel
+                    </Button>
+                    <Button onClick={handleSaveClick} color="primary">
+                        Save
                     </Button>
                 </DialogActions>
             </Dialog>

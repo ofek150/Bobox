@@ -1,14 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { auth } from '../services/firebase';
+import { auth, waitForRoot } from '../services/firebase';
 import Loading from './Loading';
 
 const RequireAuth: React.FC = () => {
     const [user, loading] = useAuthState(auth);
     const location = useLocation();
+    const [rootLoading, setRootLoading] = useState(true);
 
-    if (loading) {
+    useEffect(() => {
+        const waitForRootFolderCreation = async () => {
+            await waitForRoot();
+            console.log("Setting rootLoading to false");
+            setRootLoading(false);
+        }
+        if (user) waitForRootFolderCreation();
+    }, [user]);
+
+
+    if (loading || rootLoading && user) {
         return <Loading />; // Display a loading state while authentication state is being resolved
     }
 

@@ -121,10 +121,13 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
     }
   }, [location.state]);
 
-  const loginWithGoogle = () => {
-    signInWithGoogle().catch(() => {
-      setAuthError("Popup closed by user.");
-    });
+  const loginWithGoogle = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      setAuthError(error.code === "auth/popup-closed-by-user" ? "User closed popup." : error.message);
+      setIsLoading(false);
+    }
   };
 
 

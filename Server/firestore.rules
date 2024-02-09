@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Deny access to root-level collections and documents
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+
+      match /folders/{folderId} {
+        allow read: if isOwner(userId)
+      }
+
+      match /files/{fileId} {
+        allow read: if isOwner(userId);
+      }
+    }
+  }
+}

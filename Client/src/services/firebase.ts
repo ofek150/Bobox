@@ -1,10 +1,11 @@
 import { initializeApp } from "firebase/app";
 import { GoogleAuthProvider, connectAuthEmulator, getAuth, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth";
-import { connectFirestoreEmulator, doc, getDoc, getFirestore } from "firebase/firestore";
+import { connectFirestoreEmulator, onSnapshot, doc, getDoc, getFirestore, collection, getDocs } from "firebase/firestore";
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
 //import { getAnalytics } from "firebase/analytics";
 import { isValidEmail, isValidName, isValidPassword } from "../utils/validations";
-import { AbortMultiPartUploadParams, CompleteMultiPartParams, UploadFileParams, UploadPartParams, DownloadInfoParams, GenerateDownloadLinkParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams } from "../utils/types";
+import { formatDateToDDMMYYYY } from "../utils/helpers";
+import { File, Folder, AbortMultiPartUploadParams, CompleteMultiPartParams, UploadFileParams, UploadPartParams, DownloadInfoParams, GenerateDownloadLinkParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams } from "../utils/types";
 //import useAbortUploadData from "../hooks/useAbortUploadData";
 
 const firebaseConfig = {
@@ -33,8 +34,23 @@ if (process.env.NODE_ENV === 'development') {
 const googleProvider = new GoogleAuthProvider();
 
 
+export const waitForRoot = async () => {
+  const foldersRef = doc(db, `users/${auth.currentUser?.uid}/folders/root`);
+
+  return new Promise((resolve) => {
+    const unsubscribe = onSnapshot(foldersRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        unsubscribe();
+        resolve(true);
+      }
+    });
+  });
+}
+
+
 export const signInWithGoogle = async () => {
   await signInWithPopup(auth, googleProvider);
+
 };
 
 export const loginWithEmailAndPassword = async (email: string, password: string) => {
@@ -90,7 +106,6 @@ export const getUserData = async (uid: string) => {
     return null;
   }
 };
-
 
 export const initiateSmallFileUpload = async (parameters: UploadFileParams) => {
   try {
@@ -216,12 +231,72 @@ export const getPrivateDownloadId = async (fileId: string) => {
   }
 }
 
+const getAllFilesOfUserFromDB = async (userId: string) => {
+  try {
+    const filesCollectionRef = collection(db, `users/${userId}/files`);
+    const foldersCollectionRef = collection(db, `users/${userId}/folders`);
+
+    const [filesSnapshot, foldersSnapshot] = await Promise.all([
+      getDocs(filesCollectionRef),
+      getDocs(foldersCollectionRef)
+    ]);
+
+    if (foldersSnapshot.empty) {
+      return { files: [], folders: [] };
+    }
+
+    const filesData: File[] = [];
+    filesSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data && data.status === 'Uploaded') {
+        const uploadedAtDate = data.uploadedAt.toDate();
+        const file = {
+          fileId: doc.id,
+          fileName: data.fileName,
+          fileType: data.fileType,
+          fileSize: data.fileSize,
+          uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
+          folderId: data.folderId
+        };
+        filesData.push(file);
+      }
+    });
+
+    const foldersData: Folder[] = [];
+    foldersSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data) {
+        let createdAtDate = null;
+        if (data.createdAt) {
+          createdAtDate = data.createdAt.toDate();
+        }
+        const folder = {
+          folderId: doc.id,
+          folderName: data.folderName,
+          inFolder: data.inFolder,
+          createdAt: createdAtDate ? formatDateToDDMMYYYY(createdAtDate) : null,  // Adjust date formatting as needed
+          files: data.files
+        };
+        foldersData.push(folder);
+      }
+    });
+
+    const files = { folders: foldersData, files: filesData };
+    return files;
+  } catch (error) {
+    console.error('Error getting documents', error);
+    throw new Error('Failed to fetch files from the db');
+  }
+};
+
+
 export const getAllFilesOfUser = async () => {
   try {
-    console.log("Trying to get all files of user");
-    const getAllFilesOfUser = httpsCallable(functions, "getAllFilesOfUser");
-    const result: any = (await getAllFilesOfUser()).data;
-    return result;
+    if (!auth.currentUser?.uid) throw new Error("User must logged in to view files");
+    return getAllFilesOfUserFromDB(auth.currentUser?.uid);
+    // const getAllFilesOfUser = httpsCallable(functions, "getAllFilesOfUser");
+    // const result: any = (await getAllFilesOfUser()).data;
+    // return result;
   } catch (error: any) {
     console.error(error);
     return { error: error.message };
