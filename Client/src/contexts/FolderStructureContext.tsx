@@ -6,7 +6,9 @@ import { Folder, File } from '../utils/types';
 interface FolderStructureContextProps {
     folderStructure: Map<string, any>;
     updateFolderStructure: (folders: Folder[], files: File[] | null) => void;
-    getFolderWithId: (folderId: string) => any;
+    getFolderWithId: (folderId: string) => any
+    getAllFilesWithName: (fileName: string) => File[];
+    getAllFoldersWithName: (folderName: string) => Folder[];
 }
 
 const FolderStructureContext = createContext<FolderStructureContextProps | undefined>(undefined);
