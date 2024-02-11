@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ShowFileInfo from '../components/ShowFileInfo';
 import { DownloadInfoParams, SharedFile } from '../utils/types';
 import { getFileInfo } from '../services/firebase';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Alert, Box, Button, Container, Paper, Typography, CircularProgress, Modal } from '@mui/material';
 import Loading from '../components/Loading';
 import FileNotFound from '../components/FileNotFound';
@@ -11,6 +11,7 @@ import streamSaver from 'streamsaver';
 const FileInfo: React.FC = () => {
   const { ownerUid, fileId, downloadId } = useParams();
 
+  const navigate = useNavigate();
   const [fileInfo, setFileInfo] = useState<SharedFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +21,7 @@ const FileInfo: React.FC = () => {
   useEffect(() => {
     const fetchFileInfo = async () => {
       console.log("Retrieving file info...");
+      if (!ownerUid || !fileId || !downloadId) navigate("/user/folders/root");
       const downloadInfoParams: DownloadInfoParams = {
         ownerUid: ownerUid!,
         fileId: fileId!,

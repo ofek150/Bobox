@@ -1,10 +1,11 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
-import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, Files, File, RenameFileParams, CreateFolderParams, Folder, MoveFileToFolderParams, RenameFolderParams } from "./utils/types";
+import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams, ShareFileParams } from "./utils/types";
+import { ACCESS_LEVEL, WEBSITE_URL } from "./utils/constants";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-
-import { formatDateToDDMMYYYY } from "./utils/helpers";
 import { addPrivateDownloadLink } from "./r2";
+import * as nodemailer from 'nodemailer';
+
 
 
 const deleteCollection = async (db: any, collectionPath: string, batchSize: number) => {
@@ -58,9 +59,9 @@ export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInf
     return linkDocRef.id;
 }
 
-export const addFileToDB = async (uid: string, file: FileEntry) => {
+export const addFileToDB = async (userId: string, file: FileEntry) => {
     const db = admin.firestore();
-    await db.collection('users').doc(uid).collection('files').doc(file.fileId).set(
+    await db.collection('users').doc(userId).collection('files').doc(file.fileId).set(
         {
             fileKey: file.fileKey,
             fileName: file.fileName,
@@ -68,11 +69,14 @@ export const addFileToDB = async (uid: string, file: FileEntry) => {
             fileSize: file.fileSize,
             uploadedAt: FieldValue.serverTimestamp(),
             folderId: file.folderId,
-            status: 'In Progress'
+            status: 'In Progress',
+            collaborators: {},
+            shared: false,
+            ownerUid: userId
         }
     );
 
-    await db.collection('users').doc(uid).collection('folders').doc(file.folderId).update({
+    await db.collection('users').doc(userId).collection('folders').doc(file.folderId).update({
         files: FieldValue.arrayUnion(file.fileId)
     });
 }
@@ -83,12 +87,19 @@ export const getFileInfo = async (uid: string, fileId: string) => {
     const docRef = await db.collection('users').doc(uid).collection('files').doc(fileId);
     const docSnap = await docRef.get();
     if (docSnap.exists) {
-        const data = docSnap.data();
+        let data = docSnap.data();
         if (!data) throw new Error("Requested file doesn't exist");
+        if (data.shared) {
+            const sharedFileDocRef = data.sharedFileRef;
+            const sharedFileDocSnap = await sharedFileDocRef.get();
+            if (sharedFileDocSnap.exists) {
+                data = sharedFileDocSnap.data();
+            }
+        }
         return data;
     }
 
-    throw new Error("Requested file doesn't exist");
+    return null;
 }
 
 export const setFileUploaded = async (uid: string, fileId: string, numOfParts: number) => {
@@ -165,6 +176,8 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
     const db = admin.firestore();
     const fileDocRef = db.collection('users').doc(ownerUid).collection('files').doc(fileId);
     const fileDocSnap = await fileDocRef.get();
+    const fileData = fileDocSnap.data();
+    console.log("File data: " + fileData);
 
     const linkDocRef = fileDocRef.collection('links').doc(downloadId);
     const linkDocSnap = await linkDocRef.get();
@@ -174,8 +187,13 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
     const linkInfo = linkDocSnap.data();
 
     if (!fileInfo || !linkInfo) throw new Error('File or link does not exist');
+    console.log("Collab: " + fileInfo.collaborators[downloaderUid]);
+    console.log("condition 1: ", downloaderUid != ownerUid);
+    console.log("condition 2: ", fileInfo.collaborators[downloaderUid] && true);
+    //if(true && (false || false))
     //Later will check if that specific user is authorized but for now unless its public only the owner can download the file
-    if (!linkInfo.isPublic && downloaderUid != ownerUid) throw new Error('Unauthorized');
+    if (!linkInfo.isPublic && (downloaderUid != ownerUid && !fileInfo.collaborators[downloaderUid])) throw new Error('Unauthorized');
+
     if (linkInfo.expiresAt && linkInfo.expiresAt.toDate() < new Date()) throw new Error('Download link has expired');
 
 
@@ -191,15 +209,9 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
 }
 
 export const getFilePrivateDownloadIdFromDB = async (userId: string, fileId: string) => {
-    const db = admin.firestore();
-    const fileDocRef = db.collection('users').doc(userId).collection('files').doc(fileId);
-    const fileDocSnap = await fileDocRef.get();
+    const fileInfo = await getFileInfo(userId, fileId);
 
-
-    if (!fileDocSnap.exists) throw new Error('File does not exist');
-    const fileInfo = fileDocSnap.data();
-
-    if (!fileInfo) throw new Error('File does not exist');
+    if (!fileInfo) throw new Error('File not found');
     console.log("File info: ", fileInfo);
     return fileInfo.privateLinkDownloadId;
 }
@@ -223,84 +235,6 @@ export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadI
     }
 });
 
-export const getAllFilesOfUserFromDB = async (userId: string) => {
-    const db = admin.firestore();
-    const filesCollectionRef = db.collection('users').doc(userId).collection('files');
-    const foldersCollectionRef = db.collection('users').doc(userId).collection('folders');
-
-    try {
-        const filesSnapshot = await filesCollectionRef.get();
-        const foldersSnapshot = await foldersCollectionRef.get();
-
-        if (foldersSnapshot.empty) {
-            return { files: [], folders: [] };
-        }
-
-        const filesData: File[] = [];
-
-        filesSnapshot.forEach((doc) => {
-            const data = doc.data();
-            if (!data) return;
-            if (data.status != "Uploaded") return;
-            console.log("File data: ", data);
-            const uploadedAtDate: Date = data.uploadedAt.toDate();
-
-            const file: File = {
-                fileId: doc.id,
-                fileName: data.fileName,
-                fileType: data.fileType,
-                fileSize: data.fileSize,
-                uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
-                folderId: data.folderId
-            };
-
-            filesData.push(file);
-        });
-
-        const foldersData: Folder[] = [];
-
-        foldersSnapshot.forEach((doc) => {
-            const data = doc.data();
-            if (!data) return;
-            console.log("Folder data: ", data);
-            let createdAtDate: Date | null = null;
-            if (data.createdAt) createdAtDate = data.createdAt.toDate();
-
-            const folder: Folder = {
-                folderId: doc.id,
-                folderName: data.folderName,
-                inFolder: data.inFolder,
-                createdAt: createdAtDate ? formatDateToDDMMYYYY(createdAtDate) : null,
-                files: data.files
-            };
-
-            foldersData.push(folder);
-        });
-
-        console.log("Folders: ", foldersData);
-        const files: Files = { folders: foldersData, files: filesData };
-
-        return files;
-    } catch (error) {
-        console.error('Error getting documents', error);
-        throw new Error('Failed to fetch files from the db');
-    }
-}
-
-
-export const getAllFilesOfUser = functions.https.onCall(async (data: any, context) => {
-    try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
-        }
-
-        return await getAllFilesOfUserFromDB(context.auth.uid);
-    } catch (error: any) {
-        console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
-    }
-});
-
 export const renameFile = functions.https.onCall(async (data: RenameFileParams, context) => {
     try {
         if (!context.auth) {
@@ -317,13 +251,14 @@ export const renameFile = functions.https.onCall(async (data: RenameFileParams, 
         }
 
         const db = admin.firestore();
-        const fileDoc = await db.collection('users').doc(context.auth.uid).collection('files').doc(fileId).get();
 
-        if (!fileDoc.exists) {
-            throw new Error("Requested file does not exist");
-        }
+        const fileDocRef = db.collection('users').doc(context.auth.uid).collection('files').doc(fileId);
+        const fileDoc = await fileDocRef.get();
+        if (!fileDoc.exists) throw new functions.https.HttpsError('not-found', 'File not found');
 
         const fileData = fileDoc.data();
+        if (fileData?.shared) throw new functions.https.HttpsError('permission-denied', 'Cannot rename shared file');
+
         const oldFileName = fileData!.fileName;
 
         const oldFileExtension = oldFileName.includes('.') ? oldFileName.split('.').pop() : '';
@@ -349,7 +284,8 @@ export const generatePrivateDownloadLink = functions.https.onCall(async (fileId:
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
         }
-        const fileInfo: any = await getFileInfo(context.auth.uid, fileId);
+        const fileInfo = await getFileInfo(context.auth.uid, fileId);
+        if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
         try {
             const result = await getFileDownloadInfoFromDB(context.auth.uid, context.auth.uid, fileId, fileInfo.privateLinkDownloadId);
             return { downloadLink: result.downloadLink };
@@ -464,15 +400,23 @@ export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFo
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
+        if (currentFolderId === newFolderId) throw new functions.https.HttpsError('already-exists', 'File already exists in that folder');
+
         const db = admin.firestore();
+
+        const fileDocRef = db.collection('users').doc(context.auth.uid).collection('files').doc(fileId);
+        const fileDoc = await fileDocRef.get();
+        if (!fileDoc.exists) throw new functions.https.HttpsError('not-found', 'File not found');
+
+        const fileData = fileDoc.data();
+        if (fileData?.shared) throw new functions.https.HttpsError('permission-denied', 'Cannot move shared file');
 
         // Check if the file exists in the current folder
         const currentFolderRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(currentFolderId);
         const currentFolderDoc = await currentFolderRef.get();
 
-        if (!currentFolderDoc.exists) {
-            throw new Error("Current folder not found");
-        }
+        if (!currentFolderDoc.exists) throw new functions.https.HttpsError('not-found', 'Current folder not found');
+
 
         const currentFolderData = currentFolderDoc.data();
         const currentFilesArray: string[] = currentFolderData!.files || [];
@@ -481,25 +425,18 @@ export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFo
             throw new Error("File not found in the current folder");
         }
 
-        // Remove file from the current folder's files array
-        const updatedCurrentFilesArray = currentFilesArray.filter(file => file !== fileId);
-        await currentFolderRef.update({ files: updatedCurrentFilesArray });
+        await currentFolderRef.update({ files: FieldValue.arrayRemove(fileId) });
 
         // Add the file to the files array of the new folder
         const newFolderRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(newFolderId);
         const newFolderDoc = await newFolderRef.get();
 
-        if (!newFolderDoc.exists) {
-            throw new Error("New folder not found");
-        }
+        if (!newFolderDoc.exists) throw new functions.https.HttpsError('not-found', 'New folder not found');
 
-        const newFolderData = newFolderDoc.data();
-        const newFilesArray: string[] = newFolderData!.files || [];
-
-        await newFolderRef.update({ files: [...newFilesArray, fileId] });
+        await newFolderRef.update({ files: FieldValue.arrayUnion(fileId) });
 
         // Update the file document with the new folderId
-        const fileDocRef = db.collection('users').doc(context.auth.uid).collection('files').doc(fileId);
+
         await fileDocRef.update({ folderId: newFolderId });
 
         return { success: true };
@@ -508,6 +445,7 @@ export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFo
         throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
+
 export const renameFolder = functions.https.onCall(async (data: RenameFolderParams, context) => {
     try {
         if (!context.auth) {
@@ -518,7 +456,9 @@ export const renameFolder = functions.https.onCall(async (data: RenameFolderPara
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        if (folderId === "root") throw new Error("Cannot change name of root folder");
+        if (folderId === "root") throw new functions.https.HttpsError('permission-denied', 'Cannot rename root folder');
+        if (folderId === "shared") throw new functions.https.HttpsError('permission-denied', 'Cannot rename shared folder');
+
         const db = admin.firestore();
         const folderDocRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(folderId);
         const folderDoc = await folderDocRef.get();
@@ -528,6 +468,199 @@ export const renameFolder = functions.https.onCall(async (data: RenameFolderPara
         await folderDocRef.update({
             'folderName': newFolderName
         });
+        return { success: true };
+
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
+
+const getUserByEmail = async (email: string) => {
+    const db = admin.firestore();
+    try {
+        const querySnapshot = await db.collection('users').where('email', '==', email).get();
+
+        if (querySnapshot.empty) return null;
+        else {
+            const user = querySnapshot.docs[0].data();
+            return user;
+        }
+    } catch (error) {
+        console.error('Error getting user by email:', error);
+        throw error;
+    }
+};
+
+const getUserById = async (userId: string) => {
+    const db = admin.firestore();
+    try {
+        const documentSnapshot = await db.collection('users').doc(userId).get();
+
+        if (!documentSnapshot.exists) return null;
+        else {
+            const user = documentSnapshot.data();
+            return user;
+        }
+    } catch (error) {
+        console.error('Error getting user by ID:', error);
+        throw error;
+    }
+};
+
+const getInvitationById = async (invitationId: string) => {
+    const db = admin.firestore();
+    try {
+        const documentSnapshot = await db.collection('invitations').doc(invitationId).get();
+
+        if (!documentSnapshot.exists) return null;
+        else {
+            const invitation = documentSnapshot.data();
+            return invitation;
+        }
+    } catch (error) {
+        console.error('Error getting invitation by ID:', error);
+        throw error;
+    }
+};
+
+export const shareFileWithUserByEmail = functions.https.onCall(async (data: ShareFileParams, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+        const { email, fileId, accessLevel } = data || {};
+        if (!email || !fileId || !accessLevel || accessLevel < ACCESS_LEVEL.ADMIN || accessLevel > ACCESS_LEVEL.VIEWER) {
+            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+        }
+
+        const fileInfo = await getFileInfo(context.auth.uid, fileId);
+        if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
+
+        const user = await getUserById(context.auth.uid);
+        const invitedUser = await getUserByEmail(email);
+
+        if (!invitedUser || !user) {
+            throw new functions.https.HttpsError('not-found', 'Invited user not found');
+        }
+
+        console.log("User: ", user);
+        console.log("Invited user: ", invitedUser);
+
+        const db = admin.firestore();
+        const invitationDocRef = await db.collection('invitations').add({
+            ownerId: context.auth.uid,
+            type: 'file',
+            accessLevel: accessLevel,
+            fileId,
+            invitedUserId: invitedUser.uid,
+            used: false,
+        });
+
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            secure: true,
+            auth: {
+                user: process.env.SENDER_EMAIL_ADDRESS || '',
+                pass: process.env.SENDER_EMAIL_PASSWORD || ''
+            }
+        });
+
+        const invitationURL = `${WEBSITE_URL}/accept_invitation?invitationId=${invitationDocRef.id}`;
+
+        const mailOptions = {
+            from: process.env.SENDER_EMAIL_ADDRESS || '',
+            to: invitedUser.email,
+            subject: `${user.name} invited you to collaborate on a file`, // Dynamic subject
+            html: `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>File Sharing Invitation</title>
+                </head>
+                <body>
+                    <h2>File Sharing Invitation from ${user.name}</h2> 
+                    <p>${user.name} (${user.email}) has invited you to collaborate on a file within your Bobox account.</p>
+                    <p>Click the link below to accept the invitation and access the file:</p>
+                    <a href="${invitationURL}">Accept Invitation</a>
+                    <p>If you have any questions, feel free to reach out to ${user.name} directly.</p>
+                </body>
+                </html> 
+            `
+        };
+
+        // Send Email
+        await transporter.sendMail(mailOptions);
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
+
+export const acceptFileShareInvitation = functions.https.onCall(async (data, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+        const invitationId = data || null;
+        if (!invitationId) {
+            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+        }
+
+        const db = admin.firestore();
+
+        const invitation = await getInvitationById(invitationId);
+
+        if (!invitation) {
+            throw new functions.https.HttpsError('not-found', 'Invitation not found');
+        }
+
+        if (invitation.used) throw new Error("Invitation already used");
+
+        const invitedUser = await getUserById(invitation.invitedUserId);
+
+        if (!invitedUser) throw new Error('Unexpected error occurred');
+        if (invitedUser.uid != context.auth.uid) {
+            console.log("Invited user id: ", invitedUser.uid);
+            console.log("User id: ", context.auth.uid);
+            throw new functions.https.HttpsError('permission-denied', 'You do not have permission to accept this invitation');
+        }
+        const docRef = await db.collection('users').doc(invitation.ownerId).collection('files').doc(invitation.fileId);
+
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+            // await docRef.update({
+            //     collaborators: FieldValue.arrayUnion({
+            //         id: invitedUser.uid,
+            //         name: invitedUser.name,
+            //         email: invitedUser.email,
+            //         accessLevel: invitation.accessLevel,
+            //     })
+            // });
+            await docRef.update({
+                [`collaborators.${invitedUser.uid}`]: {
+                    name: invitedUser.name,
+                    email: invitedUser.email,
+                    accessLevel: invitation.accessLevel,
+                }
+            });
+        }
+
+        const sharedDocRef = await db.collection('users').doc(invitedUser.uid).collection('files').doc(invitation.fileId);
+
+        const sharedDocSnap = await docRef.get();
+        if (sharedDocSnap) {
+            await sharedDocRef.set({
+                sharedFileRef: docRef,
+                shared: true
+            });
+        }
+
+        await db.collection('invitations').doc(invitationId).update({ used: true });
+
         return { success: true };
 
     } catch (error: any) {

@@ -197,7 +197,7 @@ export const generateUploadPartURL = functions.https.onCall(
     }
     try {
       const fileInfo = await getFileInfo(context.auth.uid, fileId);
-
+      if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
 
       const uploadPartCommand = new UploadPartCommand({
         Bucket: process.env.R2_BUCKET_NAME,
@@ -244,6 +244,7 @@ export const completeMultipartUpload = functions.https.onCall(
     }
     try {
       const fileInfo = await getFileInfo(context.auth.uid, fileId);
+      if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
       const completeCommand = new CompleteMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileInfo.fileKey,
@@ -299,7 +300,7 @@ export const abortMultipartUpload = functions.https.onCall(
     }
     try {
       const fileInfo = await getFileInfo(context.auth.uid, fileId);
-
+      if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
 
       const abortCommand = new AbortMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
@@ -346,6 +347,7 @@ export const generatePublicDownloadLink = functions.https.onCall(
 
     try {
       const fileInfo = await getFileInfo(context.auth.uid, fileId);
+      if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
 
       let expiresIn: number | null = null;
       const currentDate = new Date();
@@ -393,6 +395,7 @@ export const generatePublicDownloadLink = functions.https.onCall(
 
 export const addPrivateDownloadLink = async (userId: string, fileId: string) => {
   const fileInfo = await getFileInfo(userId, fileId);
+  if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
 
   const currentDate = new Date();
   const expirationDate = new Date(currentDate);
@@ -417,7 +420,7 @@ export const generatePrivateDownloadLink = async (fileKey: string, expiresIn: nu
     Bucket: process.env.R2_BUCKET_NAME,
     Key: fileKey,
   });
-  const signedUrl = await getSignedUrl(r2, getObjectCommand, { expiresIn: expiresIn });
+  const signedUrl = await getSignedUrl(r2, getObjectCommand, { expiresIn: expiresIn, });
   if (!signedUrl) throw new Error('Failed to generate download link. Please try again later.');
 
   return signedUrl;
@@ -430,6 +433,9 @@ export const deleteFile = functions.https.onCall(async (fileId: string, context)
     }
 
     const fileInfo = await getFileInfo(context.auth.uid, fileId);
+    if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
+
+    if (fileInfo.shared) throw new functions.https.HttpsError('permission-denied', 'Cannot delete shared file');
     const deleteCommand = new DeleteObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
       Key: fileInfo.fileKey

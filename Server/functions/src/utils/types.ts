@@ -1,3 +1,5 @@
+import { ACCESS_LEVEL } from "./constants";
+
 export interface UploadFileParams {
     fileName: string;
     folderId: string;
@@ -65,6 +67,8 @@ export interface File {
     fileSize: number;
     uploadedAt: string;
     folderId: string;
+    shared: boolean;
+    ownerUid: string;
 }
 
 export interface Folder {
@@ -99,4 +103,16 @@ export interface MoveFileToFolderParams {
 export interface RenameFolderParams {
     folderId: string;
     newFolderName: string;
+}
+
+export interface ShareFolderParams {
+    email: string;
+    folderId: string;
+    accessLevel: ACCESS_LEVEL;
+}
+
+export interface ShareFileParams {
+    email: string;
+    fileId: string;
+    accessLevel: ACCESS_LEVEL;
 }

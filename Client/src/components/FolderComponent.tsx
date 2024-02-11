@@ -1,15 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import { Folder, File } from '../utils/types';
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItem, ListItemSecondaryAction, ListItemText, TextField } from '@mui/material';
+import { Box, Button, Card, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItem, ListItemSecondaryAction, ListItemText, Menu, MenuItem, TextField, Typography } from '@mui/material';
 import Loading from './Loading';
 import FileComponent from './FileComponent';
 import EditIcon from '@mui/icons-material/Edit';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 
 interface FolderComponentProps {
     folderId: string;
-    navigateToFileInfo?: (fileId: string) => void;
+    navigateToFileInfo?: (ownerId: string, fileId: string) => void;
     handleEditFileName?: (fileId: string, newFileName: string) => void;
     handleDeleteFile?: (fileId: string) => void;
     handleMoveFile?: (fileId: string, currentFolderId: string, newFolderId: string) => void;
@@ -28,6 +29,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [currFolderName, setCurrFolderName] = useState("");
     const [isEditing, setEditing] = useState(false);
+    const [anchorPosition, setAnchorPosition] = useState<{ top: number; left: number } | null>(null);
 
     useEffect(() => {
         if (folderId) setFolder(getFolderWithId(folderId));
@@ -38,7 +40,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
     }, [folder]);
 
     const handleEditClick = (folderId: string) => {
-        console.log("Folder id: ", folderId);
+        handleCloseMenu();
         const selectedFolder: Folder = getFolderWithId(folderId);
         if (!selectedFolder) return;
         setCurrFolderName(selectedFolder.folderName);
@@ -76,6 +78,14 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
         onFolderDoubleClick && onFolderDoubleClick(doubleClickedFolderId, doubleClickedFolderName);
     };
 
+    const handleContextMenu = (e: MouseEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setAnchorPosition({ top: e.clientY, left: e.clientX });
+    };
+
+    const handleCloseMenu = () => {
+        setAnchorPosition(null);
+    };
 
     const renderFolderList = (head: { [key: string]: any }) => {
         const items: JSX.Element[] = [];
@@ -90,24 +100,41 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
         // Add folders to the list
         sortedFolders.forEach((folder: Folder) => {
             items.push(selectFolder ? (
-                <ListItem key={folder.folderId} selected={selectedFolderId === folder.folderId}
+                <ListItem
+                    key={folder.folderId}
+                    // selected={selectedFolderId === folder.folderId}
                     onDoubleClick={() => handleFolderDoubleClick(folder.folderId, folder.folderName)}
                     onClick={() => handleFolderClick(folder.folderId)}
                     sx={{
                         ':hover': {
-                            backgroundColor: '#e0e0e0', // Change the background color on hover
+                            backgroundColor: 'rgba(0, 0, 0, 0.08)', // Change the background color on hover
                         },
+                        backgroundColor: selectedFolderId === folder.folderId ? 'rgba(0, 0, 0, 0.25)' : 'inherit', // Change the background color when selected
                     }}
                 >
                     <ListItemText primary={folder.folderName} />
                 </ListItem>
+
             ) : (
-                <ListItem key={folder.folderId} button onClick={() => navigate(`/user/folders/${folder.folderId}`)}>
+                <ListItem button
+                    selected={Boolean(anchorPosition)}
+                    onContextMenu={handleContextMenu} key={folder.folderId} onClick={() => navigate(`/user/folders/${folder.folderId}`)}>
                     <ListItemText primary={folder.folderName} secondary={`Created at: ${folder.createdAt}`} sx={{ mr: 10 }} />
                     <ListItemSecondaryAction>
                         <IconButton edge="end" aria-label="Edit" onClick={() => handleEditClick(folder.folderId)}>
                             <EditIcon />
                         </IconButton>
+                        <div
+                            role="button"
+                            aria-label="More"
+                            onClick={(e: React.MouseEvent<HTMLDivElement>) => handleContextMenu(e)}
+                            onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => handleContextMenu(e)}
+                            style={{ display: 'inline' }}
+                        >
+                            <IconButton edge="end">
+                                <MoreVertIcon />
+                            </IconButton>
+                        </div>
                     </ListItemSecondaryAction>
                 </ListItem>
             ));
@@ -135,10 +162,37 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
     }
 
     return (
-        <>
+        <Box sx={{ width: '60%' }}>
+            {!selectFolder &&
+                < Typography variant="h4" gutterBottom sx={{ fontWeight: 700, my: 8, textAlign: 'center' }}>
+                    {
+                        folder
+                            ? folder.folderId === "root"
+                                ? "My Storage"
+                                : folder.folderId === "shared"
+                                    ? "Shared Storage"
+                                    : folder.folderName // Or folder.name if you prefer
+                            : null // Adjust this part based on how you want to handle the case when 'folder' is undefined or null
+                    }
+                </Typography>
+            }
+
+
             <List>
                 {renderFolderList(folder)}
             </List>
+
+            <Menu
+                open={Boolean(anchorPosition)}
+                onClose={handleCloseMenu}
+                anchorReference="anchorPosition"
+                anchorPosition={anchorPosition as { top: number; left: number }}
+            >
+                <MenuItem onClick={() => handleEditClick(folder.folderId)}>
+                    <EditIcon fontSize="small" sx={{ mr: 1 }} />
+                    Edit
+                </MenuItem>
+            </Menu>
             <Dialog open={openEditDialog} onClose={handleCancelClick}>
                 <DialogTitle>Edit Folder Name</DialogTitle>
                 <DialogContent>
@@ -158,7 +212,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
                     </Button>
                 </DialogActions>
             </Dialog>
-        </>
+        </Box >
     );
 };
 

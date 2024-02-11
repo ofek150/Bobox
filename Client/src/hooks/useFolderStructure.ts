@@ -15,7 +15,6 @@ const useFolderStructure = () => {
                 folderObjects: [] as Folder[],
             };
 
-            // Add files to the folderObject
             if (files) {
                 const folderFiles = files.filter((file) => file.folderId === folder.folderId);
                 folderFiles.forEach((file: File) => {
@@ -52,7 +51,6 @@ const useFolderStructure = () => {
     };
 
     useEffect(() => {
-        console.log("folderStructure updated");
         console.log("Folder structure after update: ", folderStructure);
     }, [folderStructure]);
 

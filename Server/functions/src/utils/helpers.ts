@@ -1,8 +1,8 @@
-import { format } from 'date-fns';
+// import { format } from 'date-fns';
 
-export const formatDateToDDMMYYYY = (date: Date): string => {
-    return format(date, 'dd/MM/yyyy');
-}
+// export const formatDateToDDMMYYYY = (date: Date): string => {
+//     return format(date, 'dd/MM/yyyy');
+// }
 
 export const isValidEmail = (email: string): boolean => {
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -61,7 +61,9 @@ const MyFiles: React.FC = () => {
 
   const fetchFiles = async () => {
     try {
-      const { folders, files, error } = await getAllFilesOfUser();
+      const result = await getAllFilesOfUser();
+      const { folders, files, error } = result;
+      updateFolderStructure(folders, files);
       setFiles(files);
       setFolders(folders);
       if (error) {
@@ -86,9 +88,22 @@ const MyFiles: React.FC = () => {
     }
   }, [files, folders]);
 
+  useEffect(() => {
+    if (folderStructure.size > 0) {
+      setLoading(false);
+    }
+  }, [folderStructure]);
+
   const handleEditFileName = async (fileId: string, newFileName: string) => {
     if (!files) return;
     console.log("Renaming file with fileId: " + fileId + " to " + newFileName);
+
+    const parts = newFileName.split('.');
+    const fileExtension = parts.pop();
+    const fileNameWithoutExtension = parts.join('.');
+    const updatedFileName = fileNameWithoutExtension + (fileExtension ? '.' + fileExtension : "");
+
+    newFileName = fileNameWithoutExtension;
 
     const { success, error } = await renameFile({ fileId, newFileName });
     if (error || !success) {
@@ -99,7 +114,7 @@ const MyFiles: React.FC = () => {
 
     setFiles((prevFiles) =>
       prevFiles!.map((file) =>
-        file.fileId === fileId ? { ...file, fileName: newFileName } : file
+        file.fileId === fileId ? { ...file, fileName: updatedFileName } : file
       )
     );
     setError(null);
@@ -140,6 +155,7 @@ const MyFiles: React.FC = () => {
   };
 
   const handleError = (error: string | null = null) => {
+    console.log(error);
     setError(error);
   };
 
@@ -147,14 +163,14 @@ const MyFiles: React.FC = () => {
     return <Loading />;
   }
 
-  const navigateToFileInfo = async (fileId: string) => {
+  const navigateToFileInfo = async (ownerId: string, fileId: string) => {
     const { downloadId, error } = await getPrivateDownloadId(fileId);
     console.log(downloadId);
     if (error) {
       handleError("Couldn't fetch file information");
       return;
     }
-    const link = `/${user?.uid}/${fileId}/${downloadId}/view`;
+    const link = `/${ownerId}/${fileId}/${downloadId}/view`;
     navigate(link);
   }
 
@@ -184,9 +200,6 @@ const MyFiles: React.FC = () => {
 
   return (
     <Container maxWidth="md" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px' }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mb: 8 }}>
-        My Storage
-      </Typography>
       {error && (
         <Alert severity="error" sx={{ mb: 2, mt: 2, pl: 1, pr: 1, width: '100%' }}>
           {error}

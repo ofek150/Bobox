@@ -12,7 +12,6 @@ const RequireAuth: React.FC = () => {
     useEffect(() => {
         const waitForRootFolderCreation = async () => {
             await waitForRoot();
-            console.log("Setting rootLoading to false");
             setRootLoading(false);
         }
         if (user) waitForRootFolderCreation();

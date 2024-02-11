@@ -5,7 +5,7 @@ import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/
 //import { getAnalytics } from "firebase/analytics";
 import { isValidEmail, isValidName, isValidPassword } from "../utils/validations";
 import { formatDateToDDMMYYYY } from "../utils/helpers";
-import { File, Folder, AbortMultiPartUploadParams, CompleteMultiPartParams, UploadFileParams, UploadPartParams, DownloadInfoParams, GenerateDownloadLinkParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams } from "../utils/types";
+import { File, Folder, AbortMultiPartUploadParams, CompleteMultiPartParams, UploadFileParams, UploadPartParams, DownloadInfoParams, GenerateDownloadLinkParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams, ShareFolderParams, ShareFileParams } from "../utils/types";
 //import useAbortUploadData from "../hooks/useAbortUploadData";
 
 const firebaseConfig = {
@@ -115,7 +115,7 @@ export const initiateSmallFileUpload = async (parameters: UploadFileParams) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 };
 
@@ -127,7 +127,7 @@ export const completeSmallFileUpload = async (fileId: string) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 };
 
@@ -140,7 +140,7 @@ export const initiateMultipartUpload = async (parameters: UploadFileParams) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 };
 
@@ -152,7 +152,7 @@ export const generateUploadPartURL = async (parameters: UploadPartParams) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 };
 
@@ -164,7 +164,7 @@ export const completeMultipartUpload = async (parameters: CompleteMultiPartParam
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 };
 
@@ -177,7 +177,7 @@ export const abortMultipartUpload = async (parameters: AbortMultiPartUploadParam
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 };
 export const getFileInfo = async (parameters: DownloadInfoParams) => {
@@ -189,7 +189,7 @@ export const getFileInfo = async (parameters: DownloadInfoParams) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 }
 export const generatePublicDownloadLink = async (parameters: GenerateDownloadLinkParams) => {
@@ -202,7 +202,7 @@ export const generatePublicDownloadLink = async (parameters: GenerateDownloadLin
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 }
 
@@ -215,7 +215,7 @@ export const generatePrivateDownloadLink = async (fileId: string) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 }
 
@@ -227,9 +227,92 @@ export const getPrivateDownloadId = async (fileId: string) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 }
+
+// const getAllFilesOfUserFromDB = async (userId: string) => {
+//   try {
+//     const filesCollectionRef = collection(db, `users/${userId}/files`);
+//     const foldersCollectionRef = collection(db, `users/${userId}/folders`);
+
+//     const [filesSnapshot, foldersSnapshot] = await Promise.all([
+//       getDocs(filesCollectionRef),
+//       getDocs(foldersCollectionRef)
+//     ]);
+
+//     if (foldersSnapshot.empty) {
+//       return { files: [], sharedFiles: [], folders: [] };
+//     }
+
+//     const filesData: File[] = [];
+//     //const sharedFilesData: File[] = [];
+//     const sharedFilesIds: string[] = [];
+//     filesSnapshot.forEach(async (doc) => {
+//       let data: any = doc.data();
+//       if (data) {
+//         let file: File;
+//         const shared = data.shared;
+//         if (!shared && data.status != 'Uploaded') return;
+//         if (shared) {
+//           const docRef = data.sharedFileRef;
+//           const sharedFileDoc = await getDoc(docRef);
+//           data = sharedFileDoc.data();
+//         }
+//         const uploadedAtDate = data.uploadedAt.toDate();
+//         file = {
+//           fileId: doc.id,
+//           fileName: data.fileName,
+//           fileType: data.fileType,
+//           fileSize: data.fileSize,
+//           uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
+//           folderId: shared ? "shared" : data.folderId,
+//           shared: shared
+//         };
+//         if (shared) sharedFilesIds.push(file.fileId);
+//         //console.log("file data: ", file);
+//         filesData.push(file);
+//         //shared ? sharedFilesData.push(file) : filesData.push(file);
+//       }
+//     });
+
+
+//     const foldersData: Folder[] = [];
+//     foldersSnapshot.forEach((doc) => {
+//       const data = doc.data();
+//       if (data) {
+//         let createdAtDate = null;
+//         if (data.createdAt) {
+//           createdAtDate = data.createdAt.toDate();
+//         }
+//         const folder = {
+//           folderId: doc.id,
+//           folderName: data.folderName,
+//           inFolder: data.inFolder,
+//           createdAt: createdAtDate ? formatDateToDDMMYYYY(createdAtDate) : null,  // Adjust date formatting as needed
+//           files: data.files
+//         };
+//         foldersData.push(folder);
+//       }
+//     });
+
+
+//     const sharedFolder: Folder = {
+//       folderId: "shared",
+//       folderName: "shared",
+//       inFolder: "",
+//       files: sharedFilesIds,
+//       createdAt: null
+//     };
+//     foldersData.push(sharedFolder);
+
+//     const files = { folders: foldersData, files: filesData };
+//     return files;
+//   } catch (error) {
+//     console.error('Error getting documents', error);
+//     throw new Error('Failed to fetch files from the db');
+//   }
+// };
 
 const getAllFilesOfUserFromDB = async (userId: string) => {
   try {
@@ -242,25 +325,38 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
     ]);
 
     if (foldersSnapshot.empty) {
-      return { files: [], folders: [] };
+      return { files: [], sharedFiles: [], folders: [] };
     }
 
-    const filesData: File[] = [];
-    filesSnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data && data.status === 'Uploaded') {
+    const sharedFilesIds: string[] = [];
+    const filesDataPromises: Promise<File | null | undefined>[] = filesSnapshot.docs.map(async (doc) => {
+      let data: any = doc.data();
+      if (data) {
+        let file: File;
+        const shared = data.shared;
+        if (!shared && data.status != 'Uploaded') return null;
+        if (shared) {
+          const docRef = data.sharedFileRef;
+          const sharedFileDoc = await getDoc(docRef);
+          data = sharedFileDoc.data();
+        }
         const uploadedAtDate = data.uploadedAt.toDate();
-        const file = {
+        file = {
           fileId: doc.id,
           fileName: data.fileName,
           fileType: data.fileType,
           fileSize: data.fileSize,
           uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
-          folderId: data.folderId
+          folderId: shared ? "shared" : data.folderId,
+          shared: shared,
+          ownerUid: data.ownerUid
         };
-        filesData.push(file);
+        if (shared) sharedFilesIds.push(file.fileId);
+        return file;
       }
     });
+
+    const filesData: File[] = (await Promise.all(filesDataPromises)).filter((file) => file !== null && file !== undefined) as File[];
 
     const foldersData: Folder[] = [];
     foldersSnapshot.forEach((doc) => {
@@ -274,15 +370,24 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
           folderId: doc.id,
           folderName: data.folderName,
           inFolder: data.inFolder,
-          createdAt: createdAtDate ? formatDateToDDMMYYYY(createdAtDate) : null,  // Adjust date formatting as needed
+          createdAt: createdAtDate ? formatDateToDDMMYYYY(createdAtDate) : null,
           files: data.files
         };
         foldersData.push(folder);
       }
     });
 
-    const files = { folders: foldersData, files: filesData };
-    return files;
+    const sharedFolder: Folder = {
+      folderId: "shared",
+      folderName: "shared",
+      inFolder: "",
+      files: sharedFilesIds,
+      createdAt: null
+    };
+    foldersData.push(sharedFolder);
+
+    const result = { folders: foldersData, files: filesData };
+    return result;
   } catch (error) {
     console.error('Error getting documents', error);
     throw new Error('Failed to fetch files from the db');
@@ -290,16 +395,18 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
 };
 
 
+
 export const getAllFilesOfUser = async () => {
   try {
     if (!auth.currentUser?.uid) throw new Error("User must logged in to view files");
-    return getAllFilesOfUserFromDB(auth.currentUser?.uid);
+    const result: any = await getAllFilesOfUserFromDB(auth.currentUser?.uid);
+    return result;
     // const getAllFilesOfUser = httpsCallable(functions, "getAllFilesOfUser");
     // const result: any = (await getAllFilesOfUser()).data;
     // return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 }
 
@@ -310,7 +417,7 @@ export const renameFile = async (parameters: RenameFileParams) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 }
 
@@ -321,7 +428,7 @@ export const deleteFile = async (fileId: string) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 }
 
@@ -332,7 +439,7 @@ export const createFolder = async (parameters: CreateFolderParams) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 }
 
@@ -343,7 +450,7 @@ export const moveFileToFolder = async (parameters: MoveFileToFolderParams) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 }
 
@@ -354,6 +461,31 @@ export const renameFolder = async (parameters: RenameFolderParams) => {
     return result;
   } catch (error: any) {
     console.error(error);
-    return { error: error.message };
+    return { error: error.details ? error.details.message : error.message };
   }
 }
+
+export const shareFileWithUserByEmail = async (parameters: ShareFileParams) => {
+  try {
+    const shareFileWithUserByEmail = httpsCallable(functions, "shareFileWithUserByEmail");
+    const result: any = (await shareFileWithUserByEmail(parameters)).data;
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.details ? error.details.message : error.message };
+  }
+}
+
+export const acceptFileShareInvitation = async (invitationId: string) => {
+  try {
+    console.log(invitationId);
+    const acceptFileShareInvitation = httpsCallable(functions, "acceptFileShareInvitation");
+    const result: any = (await acceptFileShareInvitation(invitationId)).data;
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.details ? error.details.message : error.message };
+  }
+}
+
+

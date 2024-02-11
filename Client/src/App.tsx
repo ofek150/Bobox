@@ -11,12 +11,16 @@ import FirebaseActionHandler from './components/FirebaseActionHandler';
 import UploadFile from './pages/UploadFile';
 import FileInfo from './pages/FileInfo';
 import MyFiles from './pages/MyFiles';
+import AcceptInvitation from './pages/AcceptInvitation';
+import { logout } from './services/firebase';
+import { Button } from '@mui/material';
 
 
 const App: React.FC = () => {
 
   return (
     <main className="App">
+      <Button onClick={logout}>Logout</Button>
       <Router>
         <Routes>
           <Route path="/" element={<Layout />}>
@@ -35,6 +39,7 @@ const App: React.FC = () => {
               <Route path="/account-info" element={<AccountInformation />} />
               <Route path="/user/folders/:folderId/upload" element={<UploadFile />} />
               <Route path="/:ownerUid/:fileId/:downloadId/view" element={<FileInfo />} />
+              <Route path="/accept_invitation" element={<AcceptInvitation />} />
             </Route>
 
             {/* Catch all non existent routes */}
