@@ -71,7 +71,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         placeholder={placeholder}
         variant="outlined"
         fullWidth
-        // Styling or other attributes  as needed
+      // Styling or other attributes  as needed
       />
       {/* Display results area - structure this based on desired UI */}
       {/* Example: */}
@@ -93,7 +93,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                   <FolderIcon style={{ marginRight: "8px" }} />
                   <ListItemText
                     primary={folder.folderName}
-                    secondary={`Created at: ${folder.createdAt}`}
+                    secondary={folder.folderId === "root" || folder.folderId === "shared" ? '' : `Created at: ${folder.createdAt}`}
                     sx={{ mr: 10 }}
                   />
                 </ListItem>

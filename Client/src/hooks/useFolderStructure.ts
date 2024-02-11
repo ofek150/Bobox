@@ -62,7 +62,7 @@ const useFolderStructure = () => {
   const getAllFilesWithName = (fileName: string) => {
     const filesList: File[] = [];
     files?.forEach((file) => {
-      if (file.fileName.startsWith(fileName)) {
+      if (file.fileName.toLowerCase().startsWith(fileName.toLowerCase())) {
         filesList?.push(file);
       }
     });
@@ -72,15 +72,15 @@ const useFolderStructure = () => {
   const getAllFoldersWithName = (folderName: string) => {
     const foldersList: Folder[] = [];
     folderStructure.forEach((folder) => {
-      if (folder.folderName.startsWith(folderName)) {
+      if (folder.folderName.toLowerCase().startsWith(folderName.toLowerCase())) {
         foldersList?.push(folder);
       }
     });
     return foldersList;
   };
 
+
   useEffect(() => {
-    console.log("folderStructure updated");
     console.log("Folder structure after update: ", folderStructure);
   }, [folderStructure]);
 
