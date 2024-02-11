@@ -10,6 +10,7 @@ import AddIcon from '@mui/icons-material/Add';
 import PublishIcon from '@mui/icons-material/Publish';
 import FolderComponent from '../components/FolderComponent';
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
+import SearchBox from '../components/UI/SearchBox';
 
 interface CreateFolderDialogProps {
   open: boolean;
@@ -200,6 +201,7 @@ const MyFiles: React.FC = () => {
 
   return (
     <Container maxWidth="md" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px' }}>
+      <SearchBox placeholder="Search files and folders" />
       {error && (
         <Alert severity="error" sx={{ mb: 2, mt: 2, pl: 1, pr: 1, width: '100%' }}>
           {error}
