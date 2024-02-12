@@ -12,18 +12,19 @@ import {
     DialogActions,
     Button,
     TextField,
-    ListItemButton,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DriveFileMove from '@mui/icons-material/DriveFileMove';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import ShareIcon from '@mui/icons-material/Share';
 import { formatFileSize } from '../utils/helpers';
 import { File, ShareFileParams, Variant } from '../utils/types';
 import MoveToFileFolderDialog from './MoveFileOrFolderDialog';
 import { shareFileWithUserByEmail } from '../services/firebase';
 import { ACCESS_LEVEL } from '../utils/constants';
-import Notification from '../components/UI/Notification';
+import { isValidEmail } from '../utils/validations';
+import { enqueueSnackbar } from 'notistack';
 
 
 interface FileComponentProps {
@@ -41,7 +42,6 @@ const FileComponent: React.FC<FileComponentProps> = ({
     onDeleteFile,
     onMoveFile,
 }: FileComponentProps) => {
-    const [isEditing, setEditing] = useState(false);
     const [fileNameWithoutExtension, setFileNameWithoutExtension] = useState('');
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -50,8 +50,6 @@ const FileComponent: React.FC<FileComponentProps> = ({
     const [openShareDialog, setOpenShareDialog] = useState(false);
     const [shareEmail, setShareEmail] = useState('');
     const [accessLevel, setAccessLevel] = useState(ACCESS_LEVEL.ADMIN);
-    const [notification, setNotification] = useState<string | null>(null);
-    const [notificationVariant, setNotificationVariant] = useState<Variant>(undefined);
 
     const fileExtension = file.fileName.split('.').pop();
 
@@ -80,14 +78,12 @@ const FileComponent: React.FC<FileComponentProps> = ({
     };
 
     const handleSaveClick = () => {
-        setEditing(false);
         const updatedFileName = fileNameWithoutExtension + (fileExtension ? '.' + fileExtension : '');
         onEditFileName(file.fileId, updatedFileName);
         setOpenEditDialog(false);
     };
 
     const handleCancelClick = () => {
-        setEditing(false);
         setOpenEditDialog(false);
     };
 
@@ -118,17 +114,19 @@ const FileComponent: React.FC<FileComponentProps> = ({
         };
         const { success, error } = await shareFileWithUserByEmail(params);
 
+        let message = "";
+        let variant: Variant = undefined;
         if (success) {
-            setNotification('User has been invited. Please check your email for the invitation.');
-            setNotificationVariant('success');
+            message = 'User has been invited. Please check your email for the invitation.';
+            variant = 'success';
         } else {
-            setNotification(`Error inviting user: ${error}`);
-            setNotificationVariant('error');
+            message = `Error inviting user: ${error}`
+            variant = 'error';
         }
-
-        setTimeout(() => {
-            setNotification(null);
-        }, 3000);
+        enqueueSnackbar(message, {
+            variant: variant,
+            preventDuplicate: true
+        });
     };
 
 
@@ -144,11 +142,19 @@ const FileComponent: React.FC<FileComponentProps> = ({
     const handleShareDialogClose = () => {
         setOpenShareDialog(false);
         setShareEmail('');
-        setAccessLevel(ACCESS_LEVEL.ADMIN); // Reset access level to default
+        setAccessLevel(ACCESS_LEVEL.ADMIN);
     };
 
     const handleShareInviteClick = () => {
-        // Validate email and other necessary checks before inviting
+        if (!isValidEmail(shareEmail)) {
+            const message = `Invalid email address: ${shareEmail}`;
+            enqueueSnackbar(message, {
+                variant: 'error',
+                preventDuplicate: true
+            });
+            return;
+        }
+
         handleShareFile(shareEmail, accessLevel);
         handleShareDialogClose();
     };
@@ -190,8 +196,6 @@ const FileComponent: React.FC<FileComponentProps> = ({
                 </ListItemSecondaryAction>
             </ListItem>
 
-            {notification && <Notification message={notification} variant='error' />}
-
             <Menu
                 open={Boolean(anchorPosition)}
                 onClose={handleCloseMenu}
@@ -211,7 +215,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
                     Move
                 </MenuItem>
                 <MenuItem onClick={handleShareClick}>
-                    <MoreVertIcon fontSize="small" sx={{ mr: 1 }} />
+                    <ShareIcon fontSize="small" sx={{ mr: 1 }} />
                     Share
                 </MenuItem>
             </Menu>

@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase-admin/app";
 import { registerWithEmailAndPassword, onUserCreated } from "./authentication";
 import { initiateSmallFileUpload, completeSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, abortMultipartUpload, generatePublicDownloadLink, deleteFile } from "./r2";
-import { getFileDownloadInfo, generatePrivateDownloadLink, getPrivateDownloadId, renameFile, createFolder, moveFileToFolder, renameFolder, shareFileWithUserByEmail, acceptFileShareInvitation } from "./db"
+import { getFileDownloadInfo, generatePrivateDownloadLink, getPrivateDownloadId, renameFile, createFolder, moveFileToFolder, renameFolder, shareFileWithUserByEmail, acceptFileShareInvitation, shareFolderWithUserByEmail, acceptFolderShareInvitation } from "./db"
 initializeApp();
 
 export {
@@ -23,5 +23,7 @@ export {
     moveFileToFolder,
     renameFolder,
     shareFileWithUserByEmail,
-    acceptFileShareInvitation
+    acceptFileShareInvitation,
+    shareFolderWithUserByEmail,
+    acceptFolderShareInvitation
 };

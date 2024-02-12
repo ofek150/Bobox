@@ -28,6 +28,11 @@ service cloud.firestore {
         allow read: if isOwner(userId) || isCollaborator(3);
         allow write: if isOwner(userId) || isCollaborator(2);
       }
+
+      match /folders/{folderId} {
+        allow read: if isOwner(userId) || isCollaborator(3);
+        allow write: if isOwner(userId) || isCollaborator(2);
+      }
     }
   }
 }

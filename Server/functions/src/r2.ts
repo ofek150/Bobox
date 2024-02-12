@@ -2,9 +2,9 @@ import * as functions from "firebase-functions";
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types";
-import { addFileToDB, setFileUploaded, deleteFileFromDB, doesFileExist, getFileById, addLinkToDB, updatePrivateLinkDownloadId } from "./db";
+import { addFileToDB, setFileUploaded, deleteFileFromDB, doesFileExist, getFileById, addLinkToDB, updatePrivateLinkDownloadId, getFolderById } from "./db";
 import { FileEntry } from "./utils/types";
-import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS } from "./utils/constants";
+import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS, ACCESS_LEVEL } from "./utils/constants";
 import { v4 as uuidv4 } from 'uuid';
 
 export const r2 = new S3Client({
@@ -57,11 +57,13 @@ export const initiateSmallFileUpload = functions.https.onCall(
       );
     }
 
-    console.log("File name: ", fileName, " Folder id: ", folderId, " fileSize: ", fileSize, " fileType: ", fileType);
     if (fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
     try {
 
-      if (await doesFileExist(context.auth.uid, fileName, folderId)) throw new Error("File with the same name already exists");
+      const parentFolder = await getFolderById(context.auth.uid, folderId);
+      if (!parentFolder) throw new functions.https.HttpsError('not-found', 'Parent folder not found');
+
+      if (await doesFileExist(context.auth.uid, fileName, folderId)) throw new functions.https.HttpsError('already-exists', 'File with the same name already exist in the current folder!');
 
       const { fileKey, fileId } = await addFileToDatabase(context.auth.uid, data);
       console.log("File key: ", fileKey, " File id: ", fileId);
@@ -106,7 +108,7 @@ export const completeSmallFileUpload = functions.https.onCall(
       );
     }
     try {
-      await setFileUploaded(context.auth.uid, fileId, 1);
+      if (!await setFileUploaded(context.auth.uid, fileId, 1)) throw new functions.https.HttpsError('not-found', 'File not found');
 
       await addPrivateDownloadLink(context.auth.uid, fileId);
 
@@ -433,22 +435,25 @@ export const deleteFile = functions.https.onCall(async (fileId: string, context)
       throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
     }
 
-    const fileInfo = await getFileById(context.auth.uid, fileId);
-    if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
+    const file = await getFileById(context.auth.uid, fileId);
+    if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
 
-    if (fileInfo.shared) throw new functions.https.HttpsError('permission-denied', 'Cannot delete shared file');
+    //if (file.shared) throw new functions.https.HttpsError('permission-denied', 'Cannot delete shared file');
+    const collaboratorData = file.collaborators?.[context.auth.uid];
+    if (file.ownerUid != context.auth.uid && !collaboratorData) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to delete this file');
+    if (file.ownerUid != context.auth.uid && collaboratorData.accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to delete this file');
+
+    await deleteFileFromDB(context.auth.uid, fileId);
+
     const deleteCommand = new DeleteObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
-      Key: fileInfo.fileKey
+      Key: file.fileKey
     })
 
     const result = await r2.send(deleteCommand);
     console.log("Result: ", result);
 
-    if (result.$metadata.httpStatusCode === 204) {
-      await deleteFileFromDB(context.auth.uid, fileId);
-      return { success: true };
-    }
+    if (result.$metadata.httpStatusCode === 204) return { success: true };
 
     throw new Error("Failed deleting file, please try again later!");
   } catch (error: any) {

@@ -253,12 +253,14 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
       if (data) {
         let file: File;
         const shared = data.shared;
-        if (data.status != 'Uploaded') return null;
+        if (!shared && data.status != 'Uploaded') return null;
         if (shared) {
           const docRef = data.sharedFileRef;
           const sharedFileDoc = await getDoc(docRef);
           data = sharedFileDoc.data();
+          if (data.status != 'Uploaded') return null;
         }
+        console.log("File: ", data);
         const uploadedAtDate = data.uploadedAt.toDate();
         file = {
           fileId: doc.id,
@@ -266,7 +268,7 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
           fileType: data.fileType,
           fileSize: data.fileSize,
           uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
-          parentFolderId: shared ? "shared" : data.parentFolderId,
+          parentFolderId: data.parentFolderId,
           shared: shared,
           ownerUid: data.ownerUid
         };
@@ -290,7 +292,7 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
         folder = {
           folderId: doc.id,
           folderName: data.folderName,
-          parentFolderId: shared ? "shared" : data.parentFolderId,
+          parentFolderId: data.parentFolderId,
           createdAt: createdAtDate ? formatDateToDDMMYYYY(createdAtDate) : null,
           files: data.files,
           folders: data.folders,

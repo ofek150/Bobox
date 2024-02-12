@@ -40,7 +40,7 @@ const MoveToFileFolderDialog: React.FC<MoveToFileFolderDialogProps> = ({ file, o
 
     const handleMoveFile = () => {
         if (!selectedFolderId) return;
-        onMoveFile(file.fileId, file.folderId, selectedFolderId);
+        onMoveFile(file.fileId, file.parentFolderId, selectedFolderId);
         handleClose();
     };
 
@@ -67,7 +67,7 @@ const MoveToFileFolderDialog: React.FC<MoveToFileFolderDialogProps> = ({ file, o
     const handleGoBack = () => {
         const folder: Folder = getFolderWithId(shownFolderId);
         if (!folder) return;
-        folder.folderId === "root" ? goToFolder("storage") : goToFolder(folder.inFolder);
+        folder.folderId === "root" ? goToFolder("storage") : goToFolder(folder.parentFolderId);
     }
 
     return (
