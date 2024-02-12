@@ -10,6 +10,14 @@ const useFolderStructure = () => {
 
   const transformData = (folders: Folder[], files: File[] | null) => {
     const folderMap: Map<string, any> = new Map();
+    const folderIds: string[] = folders.map(folder => folder.folderId);
+
+    files = files ? files?.map((file) => {
+      if (!folderIds.includes(file.parentFolderId) && file.shared)
+        return { ...file, parentFolderId: "shared" };
+      return file;
+    }) : [];
+
 
     const processFolder = (folder: Folder) => {
       const folderObject = {
@@ -17,6 +25,8 @@ const useFolderStructure = () => {
         fileObjects: [] as File[],
         folderObjects: [] as Folder[],
       };
+
+      if ((!folderIds.includes(folder.parentFolderId) || folder.parentFolderId === "root") && folder.shared) folder.parentFolderId = "shared";
 
       // Add files to the folderObject
       if (files) {

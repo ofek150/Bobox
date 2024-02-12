@@ -5,7 +5,7 @@ import /* Other UI components as needed */ "@mui/material";
 import FolderIcon from "@mui/icons-material/Folder";
 import { File, Folder } from "../../utils/types";
 import DescriptionIcon from "@mui/icons-material/Description";
-import { List, ListItem, ListItemText } from "@mui/material";
+import { List, ListItem, ListItemText, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { formatFileSize } from "../../utils/helpers";
 import { auth, getPrivateDownloadId } from "../../services/firebase";
@@ -19,7 +19,7 @@ interface SearchBoxProps {
 const SearchBox: React.FC<SearchBoxProps> = ({
   placeholder = "Search your files",
 }) => {
-  const [user, loadingAuthState] = useAuthState(auth);
+  const [user] = useAuthState(auth);
   const [searchTerm, setSearchTerm] = useState("");
   const { getAllFilesWithName, getAllFoldersWithName } =
     useFolderStructureContext();
@@ -71,13 +71,13 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         placeholder={placeholder}
         variant="outlined"
         fullWidth
-      // Styling or other attributes  as needed
       />
-      {/* Display results area - structure this based on desired UI */}
-      {/* Example: */}
       <div>
-        {/* If folders exist, you could display them */}
-
+        {folderResults.length === 0 && searchTerm.length > 0 && (
+          <div>
+            <Typography variant="subtitle1" sx={{ mt: 2, ml: 2, fontWeight: 500 }} >No results</Typography>
+          </div>
+        )}
         <List>
           {folderResults.length > 0 && (
             <>
@@ -122,7 +122,6 @@ const SearchBox: React.FC<SearchBoxProps> = ({
             </>
           )}
         </List>
-        {/* Display file results, similar structure */}
       </div>
     </div>
   );

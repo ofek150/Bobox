@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFileToFolder, renameFolder } from '../services/firebase';
 import { File, Folder } from '../utils/types';
-import { Typography, Alert, Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab, List } from '@mui/material';
+import { Alert, Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab } from '@mui/material';
 import Loading from '../components/Loading';
 import { getPrivateDownloadId } from '../services/firebase';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -11,6 +11,7 @@ import PublishIcon from '@mui/icons-material/Publish';
 import FolderComponent from '../components/FolderComponent';
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import SearchBox from '../components/UI/SearchBox';
+import { enqueueSnackbar } from 'notistack';
 
 interface CreateFolderDialogProps {
   open: boolean;
@@ -157,7 +158,11 @@ const MyFiles: React.FC = () => {
 
   const handleError = (error: string | null = null) => {
     console.log(error);
-    setError(error);
+    //setError(error);
+    enqueueSnackbar(error, {
+      variant: 'error',
+      preventDuplicate: true
+    });
   };
 
   if (loading || loadingAuthState) {
@@ -176,7 +181,7 @@ const MyFiles: React.FC = () => {
   }
 
   const handleCreateFolder = async (folderName: string) => {
-    const { success, error } = await createFolder({ folderName, inFolder: folderId ? folderId : "" });
+    const { success, error } = await createFolder({ folderName, parentFolderId: folderId ? folderId : "" });
     if (error || !success) {
       handleError(error);
       return;

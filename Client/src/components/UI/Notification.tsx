@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { closeSnackbar, useSnackbar } from 'notistack';
+import { useSnackbar } from 'notistack';
 import { Variant } from '../../utils/types';
 
 const Notification: React.FC<{ message: string, variant: Variant }> = ({ message, variant }) => {

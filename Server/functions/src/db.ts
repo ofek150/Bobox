@@ -43,6 +43,47 @@ const deleteQueryBatch = async (db: any, query: any, batchSize: number, resolve:
     }
 };
 
+export const getFolderById = async (uid: string, folderId: string) => {
+    const db = admin.firestore();
+
+    const docRef = await db.collection('users').doc(uid).collection('folders').doc(folderId);
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+        let data = docSnap.data();
+        if (!data) return null;
+        if (data.shared) {
+            const sharedFolderDocRef = data.sharedFolderRef;
+            const sharedFolderDoc = await sharedFolderDocRef.get();
+            if (sharedFolderDoc.exists) {
+                data = sharedFolderDoc.data();
+            }
+        }
+        if (!data) return null;
+        return data;
+    }
+
+    return null;
+}
+
+export const getFolderRefById = async (uid: string, folderId: string) => {
+    const db = admin.firestore();
+
+    console.log("Folder id: ", folderId);
+    const docRef = await db.collection('users').doc(uid).collection('folders').doc(folderId);
+    const docSnap = await docRef.get();
+    let ref = docRef;
+    if (docSnap.exists) {
+        const data = docSnap.data();
+        if (!data) return null;
+        if (data.shared && data.sharedFolderRef) {
+            ref = data.sharedFolderRef;
+            if (!(await ref.get()).exists) return null;
+        }
+    }
+    return ref;
+}
+
+
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
     const db = admin.firestore();
 
@@ -61,7 +102,9 @@ export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInf
 
 export const addFileToDB = async (userId: string, file: FileEntry) => {
     const db = admin.firestore();
-    await db.collection('users').doc(userId).collection('files').doc(file.fileId).set(
+    const parentFolder = await getFolderById(userId, file.parentFolderId);
+    const fileRef = db.collection('users').doc(userId).collection('files').doc(file.fileId);
+    await fileRef.set(
         {
             fileKey: file.fileKey,
             fileName: file.fileName,
@@ -70,7 +113,7 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
             uploadedAt: FieldValue.serverTimestamp(),
             parentFolderId: file.parentFolderId,
             status: 'In Progress',
-            collaborators: {},
+            collaborators: parentFolder ? parentFolder.collaborators : {},
             shared: false,
             ownerUid: userId
         }
@@ -79,6 +122,13 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
     await db.collection('users').doc(userId).collection('folders').doc(file.parentFolderId).update({
         files: FieldValue.arrayUnion(file.fileId)
     });
+
+
+    if (!parentFolder?.collaborators) return;
+
+    for (const [key] of Object.entries(parentFolder.collaborators)) {
+        await addSharedFileEntryToCollaborator(key, file.fileId, fileRef);
+    }
 }
 
 export const getFileById = async (uid: string, fileId: string) => {
@@ -103,27 +153,23 @@ export const getFileById = async (uid: string, fileId: string) => {
     return null;
 }
 
-export const getFolderById = async (uid: string, folderId: string) => {
+export const getFileRefById = async (uid: string, fileId: string) => {
     const db = admin.firestore();
 
-    const docRef = await db.collection('users').doc(uid).collection('folders').doc(folderId);
+    const docRef = await db.collection('users').doc(uid).collection('files').doc(fileId);
     const docSnap = await docRef.get();
+    let ref = docRef;
     if (docSnap.exists) {
-        let data = docSnap.data();
+        const data = docSnap.data();
         if (!data) return null;
-        if (data.shared) {
-            const sharedFolderDocRef = data.sharedFolderRef;
-            const sharedFolderDoc = await sharedFolderDocRef.get();
-            if (sharedFolderDoc.exists) {
-                data = sharedFolderDoc.data();
-            }
+        if (data.shared && data.sharedFileRef) {
+            ref = data.sharedFileRef;
+            if (!(await ref.get()).exists) return null;
         }
-        if (!data) return null;
-        return data;
     }
-
-    return null;
+    return ref;
 }
+
 
 export const setFileUploaded = async (uid: string, fileId: string, numOfParts: number) => {
     const db = admin.firestore();
@@ -134,20 +180,16 @@ export const setFileUploaded = async (uid: string, fileId: string, numOfParts: n
             status: 'Uploaded',
             numOfParts: numOfParts
         });
+        return true;
     }
+    else return false;
 }
 
 export const doesFileExist = async (uid: string, fileName: string, folderId: string) => {
     const db = admin.firestore();
-    const folderDocRef = db.collection('users').doc(uid).collection('folders').doc(folderId);
-    const folderDoc = await folderDocRef.get();
-
-    if (!folderDoc.exists) {
-        throw new Error('Folder not found');
-    }
-
-    const folderData = folderDoc.data();
-    const filesInFolder = folderData!.files || [];
+    const parentFolder = await getFolderById(uid, folderId);
+    if (!parentFolder) return false;
+    const filesInFolder = parentFolder!.files || [];
 
     for (const fileId of filesInFolder) {
         const fileDocRef = db.collection('users').doc(uid).collection('files').doc(fileId);
@@ -165,18 +207,21 @@ export const deleteFileFromDB = async (uid: string, fileId: string) => {
     console.log("Deleting file with fileId ", fileId, " of user with uid ", uid);
     const db = admin.firestore();
     // Delete the file from the 'files' collection
-    const fileDocRef = db.collection('users').doc(uid).collection('files').doc(fileId);
-    const fileDocSnap = await fileDocRef.get();
+    const fileRef = await getFileRefById(uid, fileId);
+    if (!fileRef) return;
+
+    const file = (await fileRef.get()).data();
+    if (!file) throw new Error('Unexpected error occurred');
 
     const collectionPath = `users/${uid}/files/${fileId}/links`;
     const batchSize = 500;
+    await fileRef.delete();
+    await deleteCollection(db, collectionPath, batchSize);
 
-    if (fileDocSnap.exists) {
-        await fileDocRef.delete();
-        console.log("Deleted file document with fileId ", fileId, " from 'files' collection.");
-        await deleteCollection(db, collectionPath, batchSize);
-    } else {
-        console.log("File document with fileId ", fileId, " not found in 'files' collection.");
+    if (file.collaborators) {
+        for (const [key] of Object.entries(file.collaborators)) {
+            await deleteSharedFileEntryFromCollaborator(key, fileId);
+        }
     }
 
     // Update the 'files' array in the 'folders' collection
@@ -275,14 +320,22 @@ export const renameFile = functions.https.onCall(async (data: RenameFileParams, 
 
         const db = admin.firestore();
 
-        const fileDocRef = db.collection('users').doc(context.auth.uid).collection('files').doc(fileId);
-        const fileDoc = await fileDocRef.get();
-        if (!fileDoc.exists) throw new functions.https.HttpsError('not-found', 'File not found');
+        const fileRef = await getFileRefById(context.auth.uid, fileId);
 
-        const fileData = fileDoc.data();
-        if (fileData?.shared) throw new functions.https.HttpsError('permission-denied', 'Cannot rename shared file');
+        if (!fileRef) throw new functions.https.HttpsError('not-found', 'File not found');
 
-        const oldFileName = fileData!.fileName;
+        // const fileData = fileDoc.data();
+        // if (fileData?.shared) throw new functions.https.HttpsError('permission-denied', 'Cannot rename shared file');
+
+        const file = (await fileRef.get()).data();
+
+        if (!file) throw new Error('Unexpected error occurred');
+
+        const collaboratorData = file.collaborators?.[context.auth.uid];
+        if (file.ownerUid != context.auth.uid && !collaboratorData) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this file');
+        if (file.ownerUid != context.auth.uid && collaboratorData.accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this file');
+
+        const oldFileName = file!.fileName;
 
         const oldFileExtension = oldFileName.includes('.') ? oldFileName.split('.').pop() : '';
 
@@ -392,30 +445,36 @@ export const createFolder = functions.https.onCall(async (data: CreateFolderPara
 
         const db = admin.firestore();
 
-
         const parentFolderDocRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(parentFolderId);
         const parentFolderDoc = await parentFolderDocRef.get();
         if (!parentFolderDoc.exists) throw new functions.https.HttpsError('invalid-argument', 'Parent folder does not exist');
 
         if (await doesFolderNameExistInFolder(context.auth.uid, parentFolderId, folderName)) throw new functions.https.HttpsError('already-exists', 'Folder with the same name already exist in the current folder!');
 
+        const parentFolderData = parentFolderDoc.data();
+        if (!parentFolderData) throw new Error("Unexpected error occurred");
 
 
-        const folderDoc = await db.collection('users').doc(context.auth.uid).collection("folders").doc();
-        await folderDoc.set({
+        const folderDocRef = await db.collection('users').doc(context.auth.uid).collection("folders").doc();
+        await folderDocRef.set({
             parentFolderId: parentFolderId,
             folderName: folderName,
             createdAt: FieldValue.serverTimestamp(),
             files: [],
             folders: [],
-            collaborators: {},
+            collaborators: parentFolderData.collaborators ? parentFolderData.collaborators : {},
             shared: false,
             ownerUid: context.auth.uid
         });
 
         parentFolderDocRef.update({
-            folders: admin.firestore.FieldValue.arrayUnion(folderDoc.id)
-        })
+            folders: FieldValue.arrayUnion(folderDocRef.id)
+        });
+
+
+        for (const [key] of Object.entries(parentFolderData.collaborators)) {
+            await addSharedFolderEntryToCollaborator(key, folderDocRef.id, folderDocRef);
+        }
 
 
         return { success: true };
@@ -434,6 +493,9 @@ export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFo
 
         const { fileId, currentFolderId, newFolderId } = data || {};
 
+        console.log("File id: " + fileId);
+        console.log("Current folder id: " + currentFolderId);
+        console.log("New folder id: " + newFolderId);
         if (!fileId || !currentFolderId || !newFolderId) {
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
@@ -497,13 +559,19 @@ export const renameFolder = functions.https.onCall(async (data: RenameFolderPara
         if (folderId === "root") throw new functions.https.HttpsError('permission-denied', 'Cannot rename root folder');
         if (folderId === "shared") throw new functions.https.HttpsError('permission-denied', 'Cannot rename shared folder');
 
-        const db = admin.firestore();
-        const folderDocRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(folderId);
-        const folderDoc = await folderDocRef.get();
-        if (!folderDoc.exists) {
+        const folderRef = await getFolderRefById(context.auth.uid, folderId);
+        if (!folderRef) {
             throw new functions.https.HttpsError('not-found', 'Folder not found');
         }
-        await folderDocRef.update({
+        const folder = (await folderRef.get()).data();
+
+        if (!folder) throw new Error('Unexpected error occurred');
+
+        const collaboratorData = folder.collaborators?.[context.auth.uid];
+        if (!collaboratorData) throw new functions.https.HttpsError('permission-denied', 'You are not a collabarator of this folder');
+        if (collaboratorData.accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this folder');
+
+        await folderRef.update({
             'folderName': newFolderName
         });
         return { success: true };
@@ -603,12 +671,12 @@ export const shareFileWithUserByEmail = functions.https.onCall(async (data: Shar
             }
         });
 
-        const invitationURL = `${WEBSITE_URL}/accept_invitation?invitationId=${invitationDocRef.id}`;
+        const invitationURL = `${WEBSITE_URL}/accept_invitation?invitationId=${invitationDocRef.id}&type=file`;
 
         const mailOptions = {
             from: process.env.SENDER_EMAIL_ADDRESS || '',
             to: invitedUser.email,
-            subject: `${user.name} invited you to collaborate on a file`, // Dynamic subject
+            subject: `${user.name} invited you to collaborate on a file`,
             html: `
                 <!DOCTYPE html>
                 <html>
@@ -678,7 +746,7 @@ export const shareFolderWithUserByEmail = functions.https.onCall(async (data: Sh
             }
         });
 
-        const invitationURL = `${WEBSITE_URL}/accept_invitation?invitationId=${invitationDocRef.id}`;
+        const invitationURL = `${WEBSITE_URL}/accept_invitation?invitationId=${invitationDocRef.id}&type=folder`;
 
         const mailOptions = {
             from: process.env.SENDER_EMAIL_ADDRESS || '',
@@ -735,7 +803,6 @@ const isFolderCollaborator = async (folderId: string, ownerId: string, userId: s
     return false;
 }
 
-
 const addCollaboratorToFile = async (fileId: string, ownerId: string, invitedUser: any, accessLevel: ACCESS_LEVEL) => {
     const db = admin.firestore();
 
@@ -752,15 +819,33 @@ const addCollaboratorToFile = async (fileId: string, ownerId: string, invitedUse
         });
     }
 
-    const sharedFileDocRef = await db.collection('users').doc(invitedUser.uid).collection('files').doc(fileId);
+    await addSharedFileEntryToCollaborator(invitedUser.uid, fileId, docRef);
+}
 
-    const sharedFileDocSnap = await docRef.get();
-    if (sharedFileDocSnap) {
-        await sharedFileDocRef.set({
-            sharedFileRef: docRef,
-            shared: true
-        });
-    }
+const addSharedFileEntryToCollaborator = async (collaboratorId: string, fileId: string, sharedFileRef: any) => {
+    const db = admin.firestore();
+    const sharedFileDocRef = db.collection('users').doc(collaboratorId).collection('files').doc(fileId);
+    await sharedFileDocRef.set({
+        sharedFileRef: sharedFileRef,
+        shared: true
+    });
+}
+
+const deleteSharedFileEntryFromCollaborator = async (collaboratorId: string, fileId: string) => {
+    const db = admin.firestore();
+    console.log("Deleting file entry for collaborator " + collaboratorId + " fileId: " + fileId);
+    const sharedFileDocRef = db.collection('users').doc(collaboratorId).collection('files').doc(fileId);
+    await sharedFileDocRef.delete();
+};
+
+
+const addSharedFolderEntryToCollaborator = async (collaboratorId: string, folderId: string, sharedFolderRef: any) => {
+    const db = admin.firestore();
+    const sharedFolderDocRef = db.collection('users').doc(collaboratorId).collection('folders').doc(folderId);
+    await sharedFolderDocRef.set({
+        sharedFolderRef: sharedFolderRef,
+        shared: true
+    });
 }
 
 const addCollaboratorToFolder = async (folderId: string, ownerId: string, invitedUser: any, accessLevel: ACCESS_LEVEL) => {
@@ -779,14 +864,11 @@ const addCollaboratorToFolder = async (folderId: string, ownerId: string, invite
         });
     }
 
-    const sharedFolderDocRef = await db.collection('users').doc(invitedUser.uid).collection('folders').doc(folderId);
+    await addSharedFolderEntryToCollaborator(invitedUser.uid, folderId, docRef);
 
-    const sharedFolderDocSnap = await docRef.get();
-    if (sharedFolderDocSnap) {
-        await sharedFolderDocRef.set({
-            sharedFolderRef: docRef,
-            shared: true
-        });
+    const files = docSnap.data()?.files ?? [];
+    for (const fileId of files) {
+        await addCollaboratorToFile(fileId, ownerId, invitedUser, accessLevel);
     }
 
     const nestedFolders = docSnap.data()?.folders ?? [];
@@ -794,7 +876,6 @@ const addCollaboratorToFolder = async (folderId: string, ownerId: string, invite
         await addCollaboratorToFolder(nestedFolderId, ownerId, invitedUser, accessLevel);
     }
 }
-
 
 export const acceptFileShareInvitation = functions.https.onCall(async (data, context) => {
     try {

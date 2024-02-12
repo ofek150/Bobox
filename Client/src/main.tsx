@@ -13,7 +13,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
       <LocalizationProvider dateAdapter={AdapterDayjs}>
-        <SnackbarProvider>
+        <SnackbarProvider maxSnack={3} autoHideDuration={3000}>
           <FolderStructureProvider>
             <App />
           </FolderStructureProvider>

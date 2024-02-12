@@ -1,10 +1,8 @@
-import * as React from 'react';
 import CircularProgress, {
     CircularProgressProps,
 } from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import { useState } from 'react';
 
 function CircularProgressWithLabel(
     props: CircularProgressProps & { value: number },
@@ -32,13 +30,6 @@ function CircularProgressWithLabel(
             </Box>
         </Box>
     );
-}
-
-const CircularWithValueLabel: React.FC = () => {
-    const [progress, setProgress] = useState(0);
-
-
-    return <CircularProgressWithLabel value={progress} />;
 }
 
 export default CircularProgressWithLabel;
