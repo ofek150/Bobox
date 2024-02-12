@@ -231,89 +231,6 @@ export const getPrivateDownloadId = async (fileId: string) => {
   }
 }
 
-// const getAllFilesOfUserFromDB = async (userId: string) => {
-//   try {
-//     const filesCollectionRef = collection(db, `users/${userId}/files`);
-//     const foldersCollectionRef = collection(db, `users/${userId}/folders`);
-
-//     const [filesSnapshot, foldersSnapshot] = await Promise.all([
-//       getDocs(filesCollectionRef),
-//       getDocs(foldersCollectionRef)
-//     ]);
-
-//     if (foldersSnapshot.empty) {
-//       return { files: [], sharedFiles: [], folders: [] };
-//     }
-
-//     const filesData: File[] = [];
-//     //const sharedFilesData: File[] = [];
-//     const sharedFilesIds: string[] = [];
-//     filesSnapshot.forEach(async (doc) => {
-//       let data: any = doc.data();
-//       if (data) {
-//         let file: File;
-//         const shared = data.shared;
-//         if (!shared && data.status != 'Uploaded') return;
-//         if (shared) {
-//           const docRef = data.sharedFileRef;
-//           const sharedFileDoc = await getDoc(docRef);
-//           data = sharedFileDoc.data();
-//         }
-//         const uploadedAtDate = data.uploadedAt.toDate();
-//         file = {
-//           fileId: doc.id,
-//           fileName: data.fileName,
-//           fileType: data.fileType,
-//           fileSize: data.fileSize,
-//           uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
-//           folderId: shared ? "shared" : data.folderId,
-//           shared: shared
-//         };
-//         if (shared) sharedFilesIds.push(file.fileId);
-//         //console.log("file data: ", file);
-//         filesData.push(file);
-//         //shared ? sharedFilesData.push(file) : filesData.push(file);
-//       }
-//     });
-
-
-//     const foldersData: Folder[] = [];
-//     foldersSnapshot.forEach((doc) => {
-//       const data = doc.data();
-//       if (data) {
-//         let createdAtDate = null;
-//         if (data.createdAt) {
-//           createdAtDate = data.createdAt.toDate();
-//         }
-//         const folder = {
-//           folderId: doc.id,
-//           folderName: data.folderName,
-//           inFolder: data.inFolder,
-//           createdAt: createdAtDate ? formatDateToDDMMYYYY(createdAtDate) : null,  // Adjust date formatting as needed
-//           files: data.files
-//         };
-//         foldersData.push(folder);
-//       }
-//     });
-
-
-//     const sharedFolder: Folder = {
-//       folderId: "shared",
-//       folderName: "shared",
-//       inFolder: "",
-//       files: sharedFilesIds,
-//       createdAt: null
-//     };
-//     foldersData.push(sharedFolder);
-
-//     const files = { folders: foldersData, files: filesData };
-//     return files;
-//   } catch (error) {
-//     console.error('Error getting documents', error);
-//     throw new Error('Failed to fetch files from the db');
-//   }
-// };
-
 const getAllFilesOfUserFromDB = async (userId: string) => {
   try {
     const filesCollectionRef = collection(db, `users/${userId}/files`);
@@ -325,16 +242,18 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
     ]);
 
     if (foldersSnapshot.empty) {
-      return { files: [], sharedFiles: [], folders: [] };
+      return { files: [], folders: [] };
     }
 
     const sharedFilesIds: string[] = [];
+    const sharedFoldersIds: string[] = [];
+
     const filesDataPromises: Promise<File | null | undefined>[] = filesSnapshot.docs.map(async (doc) => {
       let data: any = doc.data();
       if (data) {
         let file: File;
         const shared = data.shared;
-        if (!shared && data.status != 'Uploaded') return null;
+        if (data.status != 'Uploaded') return null;
         if (shared) {
           const docRef = data.sharedFileRef;
           const sharedFileDoc = await getDoc(docRef);
@@ -347,7 +266,7 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
           fileType: data.fileType,
           fileSize: data.fileSize,
           uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
-          folderId: shared ? "shared" : data.folderId,
+          parentFolderId: shared ? "shared" : data.parentFolderId,
           shared: shared,
           ownerUid: data.ownerUid
         };
@@ -356,37 +275,48 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
       }
     });
 
-    const filesData: File[] = (await Promise.all(filesDataPromises)).filter((file) => file !== null && file !== undefined) as File[];
-
-    const foldersData: Folder[] = [];
-    foldersSnapshot.forEach((doc) => {
-      const data = doc.data();
+    const foldersDataPromises: Promise<Folder | null | undefined>[] = foldersSnapshot.docs.map(async (doc) => {
+      let data: any = doc.data();
       if (data) {
-        let createdAtDate = null;
-        if (data.createdAt) {
-          createdAtDate = data.createdAt.toDate();
+        let folder: Folder;
+        const shared = data.shared;
+        console.log("Folder: ", data);
+        if (shared) {
+          const docRef = data.sharedFolderRef;
+          const sharedFolderDoc = await getDoc(docRef);
+          data = sharedFolderDoc.data();
         }
-        const folder = {
+        const createdAtDate = data.createdAt?.toDate();
+        folder = {
           folderId: doc.id,
           folderName: data.folderName,
-          inFolder: data.inFolder,
+          parentFolderId: shared ? "shared" : data.parentFolderId,
           createdAt: createdAtDate ? formatDateToDDMMYYYY(createdAtDate) : null,
-          files: data.files
+          files: data.files,
+          folders: data.folders,
+          shared: shared,
+          ownerUid: data.ownerUid
         };
-        foldersData.push(folder);
+        if (shared) sharedFoldersIds.push(folder.folderId);
+        return folder;
       }
     });
+
+    const [filesData, foldersData] = await Promise.all([Promise.all(filesDataPromises), Promise.all(foldersDataPromises)]);
 
     const sharedFolder: Folder = {
       folderId: "shared",
       folderName: "shared",
-      inFolder: "",
+      parentFolderId: "",
       files: sharedFilesIds,
-      createdAt: null
+      folders: sharedFoldersIds,
+      createdAt: null,
+      shared: true,
+      ownerUid: userId
     };
     foldersData.push(sharedFolder);
 
-    const result = { folders: foldersData, files: filesData };
+    const result = { folders: foldersData.filter((folder) => folder !== null && folder !== undefined) as Folder[], files: filesData.filter((file) => file !== null && file !== undefined) as File[] };
     return result;
   } catch (error) {
     console.error('Error getting documents', error);
@@ -394,16 +324,11 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
   }
 };
 
-
-
 export const getAllFilesOfUser = async () => {
   try {
     if (!auth.currentUser?.uid) throw new Error("User must logged in to view files");
     const result: any = await getAllFilesOfUserFromDB(auth.currentUser?.uid);
     return result;
-    // const getAllFilesOfUser = httpsCallable(functions, "getAllFilesOfUser");
-    // const result: any = (await getAllFilesOfUser()).data;
-    // return result;
   } catch (error: any) {
     console.error(error);
     return { error: error.details ? error.details.message : error.message };
@@ -481,6 +406,29 @@ export const acceptFileShareInvitation = async (invitationId: string) => {
     console.log(invitationId);
     const acceptFileShareInvitation = httpsCallable(functions, "acceptFileShareInvitation");
     const result: any = (await acceptFileShareInvitation(invitationId)).data;
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.details ? error.details.message : error.message };
+  }
+}
+
+export const shareFolderWithUserByEmail = async (parameters: ShareFolderParams) => {
+  try {
+    const shareFolderWithUserByEmail = httpsCallable(functions, "shareFolderWithUserByEmail");
+    const result: any = (await shareFolderWithUserByEmail(parameters)).data;
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.details ? error.details.message : error.message };
+  }
+}
+
+export const acceptFolderShareInvitation = async (invitationId: string) => {
+  try {
+    console.log(invitationId);
+    const acceptFolderShareInvitation = httpsCallable(functions, "acceptFolderShareInvitation");
+    const result: any = (await acceptFolderShareInvitation(invitationId)).data;
     return result;
   } catch (error: any) {
     console.error(error);

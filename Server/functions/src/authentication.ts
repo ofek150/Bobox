@@ -9,9 +9,12 @@ const createRootFolder = async (userId: string) => {
     const folderRef = docRef.collection('folders').doc('root');
     await folderRef.set({
         isRootFolder: true,
-        inFolder: "",
+        parentFolderId: "",
         folderName: "root",
-        files: []
+        files: [],
+        folders: [],
+        shared: false,
+        ownerUid: userId
     });
 }
 

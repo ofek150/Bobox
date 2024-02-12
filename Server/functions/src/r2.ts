@@ -2,7 +2,7 @@ import * as functions from "firebase-functions";
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types";
-import { addFileToDB, setFileUploaded, deleteFileFromDB, doesFileExist, getFileInfo, addLinkToDB, updatePrivateLinkDownloadId } from "./db";
+import { addFileToDB, setFileUploaded, deleteFileFromDB, doesFileExist, getFileById, addLinkToDB, updatePrivateLinkDownloadId } from "./db";
 import { FileEntry } from "./utils/types";
 import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS } from "./utils/constants";
 import { v4 as uuidv4 } from 'uuid';
@@ -24,7 +24,7 @@ const addFileToDatabase = async (userId: string, data: any) => {
   const fileKey: string = fileExtension ? `${userId}/${fileId}.${fileExtension}` : `${userId}/${fileId}`;
   const fileToAdd: FileEntry = {
     fileId: fileId,
-    folderId: data.folderId,
+    parentFolderId: data.folderId,
     fileKey: fileKey,
     fileName: data.fileName,
     fileType: data.fileType,
@@ -196,7 +196,7 @@ export const generateUploadPartURL = functions.https.onCall(
       );
     }
     try {
-      const fileInfo = await getFileInfo(context.auth.uid, fileId);
+      const fileInfo = await getFileById(context.auth.uid, fileId);
       if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
 
       const uploadPartCommand = new UploadPartCommand({
@@ -243,8 +243,9 @@ export const completeMultipartUpload = functions.https.onCall(
       );
     }
     try {
-      const fileInfo = await getFileInfo(context.auth.uid, fileId);
+      const fileInfo = await getFileById(context.auth.uid, fileId);
       if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
+
       const completeCommand = new CompleteMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileInfo.fileKey,
@@ -299,7 +300,7 @@ export const abortMultipartUpload = functions.https.onCall(
       );
     }
     try {
-      const fileInfo = await getFileInfo(context.auth.uid, fileId);
+      const fileInfo = await getFileById(context.auth.uid, fileId);
       if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
 
       const abortCommand = new AbortMultipartUploadCommand({
@@ -346,7 +347,7 @@ export const generatePublicDownloadLink = functions.https.onCall(
     }
 
     try {
-      const fileInfo = await getFileInfo(context.auth.uid, fileId);
+      const fileInfo = await getFileById(context.auth.uid, fileId);
       if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
 
       let expiresIn: number | null = null;
@@ -394,7 +395,7 @@ export const generatePublicDownloadLink = functions.https.onCall(
 );
 
 export const addPrivateDownloadLink = async (userId: string, fileId: string) => {
-  const fileInfo = await getFileInfo(userId, fileId);
+  const fileInfo = await getFileById(userId, fileId);
   if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
 
   const currentDate = new Date();
@@ -432,7 +433,7 @@ export const deleteFile = functions.https.onCall(async (fileId: string, context)
       throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
     }
 
-    const fileInfo = await getFileInfo(context.auth.uid, fileId);
+    const fileInfo = await getFileById(context.auth.uid, fileId);
     if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
 
     if (fileInfo.shared) throw new functions.https.HttpsError('permission-denied', 'Cannot delete shared file');

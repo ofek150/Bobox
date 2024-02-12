@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
-import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams, ShareFileParams } from "./utils/types";
+import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams, ShareFileParams, ShareFolderParams } from "./utils/types";
 import { ACCESS_LEVEL, WEBSITE_URL } from "./utils/constants";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { addPrivateDownloadLink } from "./r2";
@@ -68,7 +68,7 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
             fileType: file.fileType,
             fileSize: file.fileSize,
             uploadedAt: FieldValue.serverTimestamp(),
-            folderId: file.folderId,
+            parentFolderId: file.parentFolderId,
             status: 'In Progress',
             collaborators: {},
             shared: false,
@@ -76,19 +76,19 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
         }
     );
 
-    await db.collection('users').doc(userId).collection('folders').doc(file.folderId).update({
+    await db.collection('users').doc(userId).collection('folders').doc(file.parentFolderId).update({
         files: FieldValue.arrayUnion(file.fileId)
     });
 }
 
-export const getFileInfo = async (uid: string, fileId: string) => {
+export const getFileById = async (uid: string, fileId: string) => {
     const db = admin.firestore();
 
     const docRef = await db.collection('users').doc(uid).collection('files').doc(fileId);
     const docSnap = await docRef.get();
     if (docSnap.exists) {
         let data = docSnap.data();
-        if (!data) throw new Error("Requested file doesn't exist");
+        if (!data) return null;
         if (data.shared) {
             const sharedFileDocRef = data.sharedFileRef;
             const sharedFileDocSnap = await sharedFileDocRef.get();
@@ -96,6 +96,29 @@ export const getFileInfo = async (uid: string, fileId: string) => {
                 data = sharedFileDocSnap.data();
             }
         }
+        if (!data) return null;
+        return data;
+    }
+
+    return null;
+}
+
+export const getFolderById = async (uid: string, folderId: string) => {
+    const db = admin.firestore();
+
+    const docRef = await db.collection('users').doc(uid).collection('folders').doc(folderId);
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+        let data = docSnap.data();
+        if (!data) return null;
+        if (data.shared) {
+            const sharedFolderDocRef = data.sharedFolderRef;
+            const sharedFolderDoc = await sharedFolderDocRef.get();
+            if (sharedFolderDoc.exists) {
+                data = sharedFolderDoc.data();
+            }
+        }
+        if (!data) return null;
         return data;
     }
 
@@ -209,7 +232,7 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
 }
 
 export const getFilePrivateDownloadIdFromDB = async (userId: string, fileId: string) => {
-    const fileInfo = await getFileInfo(userId, fileId);
+    const fileInfo = await getFileById(userId, fileId);
 
     if (!fileInfo) throw new Error('File not found');
     console.log("File info: ", fileInfo);
@@ -284,7 +307,7 @@ export const generatePrivateDownloadLink = functions.https.onCall(async (fileId:
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
         }
-        const fileInfo = await getFileInfo(context.auth.uid, fileId);
+        const fileInfo = await getFileById(context.auth.uid, fileId);
         if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
         try {
             const result = await getFileDownloadInfoFromDB(context.auth.uid, context.auth.uid, fileId, fileInfo.privateLinkDownloadId);
@@ -348,10 +371,10 @@ export const doesFolderExist = async (uid: string, folderId: string) => {
     return folderDoc.exists;
 }
 
-export const doesFolderNameExistInFolder = async (uid: string, inFolder: string, folderName: string) => {
+export const doesFolderNameExistInFolder = async (uid: string, parentFolderId: string, folderName: string) => {
     const db = admin.firestore();
 
-    const folderDocRef = db.collection('users').doc(uid).collection('folders').where('inFolder', '==', inFolder).where('folderName', '==', folderName);
+    const folderDocRef = db.collection('users').doc(uid).collection('folders').where('parentFolderId', '==', parentFolderId).where('folderName', '==', folderName);
     const folderDocs = await folderDocRef.get();
     return !folderDocs.empty;
 };
@@ -361,24 +384,39 @@ export const createFolder = functions.https.onCall(async (data: CreateFolderPara
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
         }
-        const { folderName, inFolder } = data || {};
+        const { folderName, parentFolderId } = data || {};
 
-        if (!folderName || !inFolder) {
+        if (!folderName || !parentFolderId) {
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        if (!(await doesFolderExist(context.auth.uid, inFolder))) throw new Error("Invalid inFolder id");
-
-        if (await doesFolderNameExistInFolder(context.auth.uid, inFolder, folderName)) throw new Error("Folder with the same name already exist in the current folder!");
-
         const db = admin.firestore();
+
+
+        const parentFolderDocRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(parentFolderId);
+        const parentFolderDoc = await parentFolderDocRef.get();
+        if (!parentFolderDoc.exists) throw new functions.https.HttpsError('invalid-argument', 'Parent folder does not exist');
+
+        if (await doesFolderNameExistInFolder(context.auth.uid, parentFolderId, folderName)) throw new functions.https.HttpsError('already-exists', 'Folder with the same name already exist in the current folder!');
+
+
+
         const folderDoc = await db.collection('users').doc(context.auth.uid).collection("folders").doc();
         await folderDoc.set({
-            inFolder: inFolder,
+            parentFolderId: parentFolderId,
             folderName: folderName,
             createdAt: FieldValue.serverTimestamp(),
-            files: []
+            files: [],
+            folders: [],
+            collaborators: {},
+            shared: false,
+            ownerUid: context.auth.uid
         });
+
+        parentFolderDocRef.update({
+            folders: admin.firestore.FieldValue.arrayUnion(folderDoc.id)
+        })
+
 
         return { success: true };
     } catch (error: any) {
@@ -534,7 +572,7 @@ export const shareFileWithUserByEmail = functions.https.onCall(async (data: Shar
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        const fileInfo = await getFileInfo(context.auth.uid, fileId);
+        const fileInfo = await getFileById(context.auth.uid, fileId);
         if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
 
         const user = await getUserById(context.auth.uid);
@@ -544,15 +582,14 @@ export const shareFileWithUserByEmail = functions.https.onCall(async (data: Shar
             throw new functions.https.HttpsError('not-found', 'Invited user not found');
         }
 
-        console.log("User: ", user);
-        console.log("Invited user: ", invitedUser);
+        if (await isFileCollaborator(fileId, context.auth.uid, invitedUser.uid)) throw new functions.https.HttpsError('already-exists', 'User is already a collaborator on the folder');
 
         const db = admin.firestore();
         const invitationDocRef = await db.collection('invitations').add({
             ownerId: context.auth.uid,
             type: 'file',
             accessLevel: accessLevel,
-            fileId,
+            fileId: fileId,
             invitedUserId: invitedUser.uid,
             used: false,
         });
@@ -600,6 +637,165 @@ export const shareFileWithUserByEmail = functions.https.onCall(async (data: Shar
     }
 });
 
+export const shareFolderWithUserByEmail = functions.https.onCall(async (data: ShareFolderParams, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+        const { email, folderId, accessLevel } = data || {};
+        if (!email || !folderId || !accessLevel || accessLevel < ACCESS_LEVEL.ADMIN || accessLevel > ACCESS_LEVEL.VIEWER) {
+            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+        }
+
+        const folder = await getFolderById(context.auth.uid, folderId);
+        if (!folder) throw new functions.https.HttpsError('not-found', 'Folder not found');
+
+        const user = await getUserById(context.auth.uid);
+        const invitedUser = await getUserByEmail(email);
+
+        if (!invitedUser || !user) {
+            throw new functions.https.HttpsError('not-found', 'Invited user not found');
+        }
+
+        if (await isFolderCollaborator(folderId, context.auth.uid, invitedUser.uid)) throw new functions.https.HttpsError('already-exists', 'User is already a collaborator on the folder');
+
+        const db = admin.firestore();
+        const invitationDocRef = await db.collection('invitations').add({
+            ownerId: context.auth.uid,
+            type: 'folder',
+            accessLevel: accessLevel,
+            folderId: folderId,
+            invitedUserId: invitedUser.uid,
+            used: false,
+        });
+
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            secure: true,
+            auth: {
+                user: process.env.SENDER_EMAIL_ADDRESS || '',
+                pass: process.env.SENDER_EMAIL_PASSWORD || ''
+            }
+        });
+
+        const invitationURL = `${WEBSITE_URL}/accept_invitation?invitationId=${invitationDocRef.id}`;
+
+        const mailOptions = {
+            from: process.env.SENDER_EMAIL_ADDRESS || '',
+            to: invitedUser.email,
+            subject: `${user.name} invited you to collaborate on a folder`, // Dynamic subject
+            html: `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Folder Sharing Invitation</title>
+                </head>
+                <body>
+                    <h2>Folder Sharing Invitation from ${user.name}</h2> 
+                    <p>${user.name} (${user.email}) has invited you to collaborate on a folder within your Bobox account.</p>
+                    <p>Click the link below to accept the invitation and access the folder:</p>
+                    <a href="${invitationURL}">Accept Invitation</a>
+                    <p>If you have any questions, feel free to reach out to ${user.name} directly.</p>
+                </body>
+                </html> 
+            `
+        };
+
+        // Send Email
+        await transporter.sendMail(mailOptions);
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
+
+
+const isFileCollaborator = async (folderId: string, ownerId: string, userId: string) => {
+    const folder = await getFileById(ownerId, folderId);
+
+    if (!folder) return false;
+
+    const collaboratorData = folder.collaborators?.[userId];
+    if (collaboratorData) return true;
+
+    return false;
+}
+
+const isFolderCollaborator = async (folderId: string, ownerId: string, userId: string) => {
+    const folder = await getFolderById(ownerId, folderId);
+
+    if (!folder) return false;
+
+    const collaboratorData = folder.collaborators?.[userId];
+    if (collaboratorData) return true;
+
+    return false;
+}
+
+
+const addCollaboratorToFile = async (fileId: string, ownerId: string, invitedUser: any, accessLevel: ACCESS_LEVEL) => {
+    const db = admin.firestore();
+
+    const docRef = await db.collection('users').doc(ownerId).collection('files').doc(fileId);
+
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+        await docRef.update({
+            [`collaborators.${invitedUser.uid}`]: {
+                name: invitedUser.name,
+                email: invitedUser.email,
+                accessLevel: accessLevel,
+            }
+        });
+    }
+
+    const sharedFileDocRef = await db.collection('users').doc(invitedUser.uid).collection('files').doc(fileId);
+
+    const sharedFileDocSnap = await docRef.get();
+    if (sharedFileDocSnap) {
+        await sharedFileDocRef.set({
+            sharedFileRef: docRef,
+            shared: true
+        });
+    }
+}
+
+const addCollaboratorToFolder = async (folderId: string, ownerId: string, invitedUser: any, accessLevel: ACCESS_LEVEL) => {
+    const db = admin.firestore();
+
+    const docRef = await db.collection('users').doc(ownerId).collection('folders').doc(folderId);
+
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+        await docRef.update({
+            [`collaborators.${invitedUser.uid}`]: {
+                name: invitedUser.name,
+                email: invitedUser.email,
+                accessLevel: accessLevel,
+            }
+        });
+    }
+
+    const sharedFolderDocRef = await db.collection('users').doc(invitedUser.uid).collection('folders').doc(folderId);
+
+    const sharedFolderDocSnap = await docRef.get();
+    if (sharedFolderDocSnap) {
+        await sharedFolderDocRef.set({
+            sharedFolderRef: docRef,
+            shared: true
+        });
+    }
+
+    const nestedFolders = docSnap.data()?.folders ?? [];
+    for (const nestedFolderId of nestedFolders) {
+        await addCollaboratorToFolder(nestedFolderId, ownerId, invitedUser, accessLevel);
+    }
+}
+
+
 export const acceptFileShareInvitation = functions.https.onCall(async (data, context) => {
     try {
         if (!context.auth) {
@@ -614,50 +810,61 @@ export const acceptFileShareInvitation = functions.https.onCall(async (data, con
 
         const invitation = await getInvitationById(invitationId);
 
-        if (!invitation) {
-            throw new functions.https.HttpsError('not-found', 'Invitation not found');
-        }
+        if (!invitation) throw new functions.https.HttpsError('not-found', 'Invitation not found');
 
-        if (invitation.used) throw new Error("Invitation already used");
+        if (invitation.type != 'file') throw new functions.https.HttpsError('invalid-argument', 'Incorrect invitation type');
+
+        if (invitation.used) throw new functions.https.HttpsError('invalid-argument', 'Invitation was already used');
 
         const invitedUser = await getUserById(invitation.invitedUserId);
 
         if (!invitedUser) throw new Error('Unexpected error occurred');
+
         if (invitedUser.uid != context.auth.uid) {
-            console.log("Invited user id: ", invitedUser.uid);
-            console.log("User id: ", context.auth.uid);
             throw new functions.https.HttpsError('permission-denied', 'You do not have permission to accept this invitation');
         }
-        const docRef = await db.collection('users').doc(invitation.ownerId).collection('files').doc(invitation.fileId);
 
-        const docSnap = await docRef.get();
-        if (docSnap.exists) {
-            // await docRef.update({
-            //     collaborators: FieldValue.arrayUnion({
-            //         id: invitedUser.uid,
-            //         name: invitedUser.name,
-            //         email: invitedUser.email,
-            //         accessLevel: invitation.accessLevel,
-            //     })
-            // });
-            await docRef.update({
-                [`collaborators.${invitedUser.uid}`]: {
-                    name: invitedUser.name,
-                    email: invitedUser.email,
-                    accessLevel: invitation.accessLevel,
-                }
-            });
+        await addCollaboratorToFile(invitation.fileId, invitation.ownerId, invitedUser, invitation.accessLevel);
+
+        await db.collection('invitations').doc(invitationId).update({ used: true });
+
+        return { success: true };
+
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
+
+export const acceptFolderShareInvitation = functions.https.onCall(async (data, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+        const invitationId = data || null;
+        if (!invitationId) {
+            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        const sharedDocRef = await db.collection('users').doc(invitedUser.uid).collection('files').doc(invitation.fileId);
+        const db = admin.firestore();
 
-        const sharedDocSnap = await docRef.get();
-        if (sharedDocSnap) {
-            await sharedDocRef.set({
-                sharedFileRef: docRef,
-                shared: true
-            });
+        const invitation = await getInvitationById(invitationId);
+
+        if (!invitation) throw new functions.https.HttpsError('not-found', 'Invitation not found');
+
+        if (invitation.type != 'folder') throw new functions.https.HttpsError('invalid-argument', 'Incorrect invitation type');
+
+        if (invitation.used) throw new functions.https.HttpsError('invalid-argument', 'Invitation was already used');
+
+        const invitedUser = await getUserById(invitation.invitedUserId);
+
+        if (!invitedUser) throw new Error('Unexpected error occurred');
+
+        if (invitedUser.uid != context.auth.uid) {
+            throw new functions.https.HttpsError('permission-denied', 'You do not have permission to accept this invitation');
         }
+
+        await addCollaboratorToFolder(invitation.folderId, invitation.ownerId, invitedUser, invitation.accessLevel)
 
         await db.collection('invitations').doc(invitationId).update({ used: true });
 

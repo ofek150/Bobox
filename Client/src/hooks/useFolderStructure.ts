@@ -21,7 +21,7 @@ const useFolderStructure = () => {
       // Add files to the folderObject
       if (files) {
         const folderFiles = files.filter(
-          (file) => file.folderId === folder.folderId
+          (file) => file.parentFolderId === folder.folderId
         );
         folderFiles.forEach((file: File) => {
           folderObject.fileObjects.push(file);
@@ -29,7 +29,7 @@ const useFolderStructure = () => {
       }
       // Add subfolders to the folderObject
       const subfolders = folders.filter(
-        (subfolder) => subfolder.inFolder === folder.folderId
+        (subfolder) => subfolder.parentFolderId === folder.folderId
       );
       subfolders.forEach((subfolder) => {
         folderObject.folderObjects.push(subfolder);

@@ -32,7 +32,7 @@ export interface GenerateDownloadLinkParams {
 
 export interface FileEntry {
     fileId: string;
-    folderId: string;
+    parentFolderId: string;
     fileKey: string;
     fileName: string;
     fileType: string;
@@ -66,7 +66,7 @@ export interface File {
     fileType: string;
     fileSize: number;
     uploadedAt: string;
-    folderId: string;
+    parentFolderId: string;
     shared: boolean;
     ownerUid: string;
 }
@@ -74,9 +74,12 @@ export interface File {
 export interface Folder {
     folderId: string;
     folderName: string;
-    inFolder: string;
+    parentFolderId: string;
     createdAt: string | null;
     files: string[];
+    folders: string[];
+    shared: boolean;
+    ownerUid: string;
 }
 
 export interface Files {
@@ -91,7 +94,7 @@ export interface RenameFileParams {
 
 export interface CreateFolderParams {
     folderName: string;
-    inFolder: string;
+    parentFolderId: string;
 }
 
 export interface MoveFileToFolderParams {
@@ -105,14 +108,14 @@ export interface RenameFolderParams {
     newFolderName: string;
 }
 
-export interface ShareFolderParams {
-    email: string;
-    folderId: string;
-    accessLevel: ACCESS_LEVEL;
-}
-
 export interface ShareFileParams {
     email: string;
     fileId: string;
+    accessLevel: ACCESS_LEVEL;
+}
+
+export interface ShareFolderParams {
+    email: string;
+    folderId: string;
     accessLevel: ACCESS_LEVEL;
 }
