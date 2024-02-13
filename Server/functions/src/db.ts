@@ -85,12 +85,11 @@ export const getFolderRefById = async (uid: string, folderId: string) => {
 
 
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
-    const db = admin.firestore();
+    const fileRef = await getFileRefById(uid, fileId);
+    if (!fileRef) throw new functions.https.HttpsError('not-found', 'File not found');
 
-    const fileDocRef = db.collection('users').doc(uid).collection('files').doc(fileId);
-    //const jsDate: Date | null = !linkInfo.neverExpires && linkInfo.expiresAt ? new Date(linkInfo.expiresAt["$y"], linkInfo.expiresAt["$M"], linkInfo.expiresAt["$D"], linkInfo.expiresAt["$H"], linkInfo.expiresAt["$m"], linkInfo.expiresAt["$s"], linkInfo.expiresAt["$ms"]) : null;
     const expirationDate = new Date(linkInfo.expiresAt);
-    const linkDocRef = await fileDocRef.collection('links').add({
+    const linkDocRef = await fileRef.collection('links').add({
         downloadLink: linkInfo.downloadLink,
         isPublic: linkInfo.isPublic,
         neverExpires: linkInfo.neverExpires,
@@ -103,7 +102,9 @@ export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInf
 export const addFileToDB = async (userId: string, file: FileEntry) => {
     const db = admin.firestore();
     const parentFolder = await getFolderById(userId, file.parentFolderId);
-    const fileRef = db.collection('users').doc(userId).collection('files').doc(file.fileId);
+    if (!parentFolder) throw new Error("Parent folder not found");
+
+    const fileRef = db.collection('users').doc(parentFolder.ownerUid).collection('files').doc(file.fileId);
     await fileRef.set(
         {
             fileKey: file.fileKey,
@@ -115,11 +116,14 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
             status: 'In Progress',
             collaborators: parentFolder ? parentFolder.collaborators : {},
             shared: false,
-            ownerUid: userId
+            ownerUid: parentFolder.ownerUid
         }
     );
 
-    await db.collection('users').doc(userId).collection('folders').doc(file.parentFolderId).update({
+    const folderRef = await getFolderRefById(userId, file.parentFolderId);
+    if (!folderRef) throw new Error('Unexpected error occurred');
+
+    await folderRef.update({
         files: FieldValue.arrayUnion(file.fileId)
     });
 
@@ -153,12 +157,13 @@ export const getFileById = async (uid: string, fileId: string) => {
     return null;
 }
 
-export const getFileRefById = async (uid: string, fileId: string) => {
+export const getFileRefById = async (uid: string, fileId: string, create: boolean = false) => {
     const db = admin.firestore();
 
     const docRef = await db.collection('users').doc(uid).collection('files').doc(fileId);
     const docSnap = await docRef.get();
     let ref = docRef;
+    if (create) return ref;
     if (docSnap.exists) {
         const data = docSnap.data();
         if (!data) return null;
@@ -172,32 +177,25 @@ export const getFileRefById = async (uid: string, fileId: string) => {
 
 
 export const setFileUploaded = async (uid: string, fileId: string, numOfParts: number) => {
-    const db = admin.firestore();
-    const docRef = db.collection('users').doc(uid).collection('files').doc(fileId);
-    const docSnap = await docRef.get();
-    if (docSnap.exists) {
-        await docRef.update({
-            status: 'Uploaded',
-            numOfParts: numOfParts
-        });
-        return true;
-    }
-    else return false;
+    const docRef = await getFileRefById(uid, fileId);
+    if (!docRef) return false;
+    await docRef.update({
+        status: 'Uploaded',
+        numOfParts: numOfParts
+    });
+    return true;
 }
 
-export const doesFileExist = async (uid: string, fileName: string, folderId: string) => {
-    const db = admin.firestore();
+export const isUniqueFileName = async (uid: string, fileName: string, folderId: string) => {
     const parentFolder = await getFolderById(uid, folderId);
     if (!parentFolder) return false;
     const filesInFolder = parentFolder!.files || [];
 
     for (const fileId of filesInFolder) {
-        const fileDocRef = db.collection('users').doc(uid).collection('files').doc(fileId);
-        const fileDoc = await fileDocRef.get();
+        const file = await getFileById(uid, fileId);
+        if (!file) continue;
 
-        if (fileDoc.exists && fileDoc.data()?.fileName === fileName) {
-            return true;
-        }
+        if (file?.fileName === fileName) return true;
     }
 
     return false;
@@ -241,35 +239,29 @@ export const deleteFileFromDB = async (uid: string, fileId: string) => {
 };
 
 export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid: string, fileId: string, downloadId: string) => {
-    const db = admin.firestore();
-    const fileDocRef = db.collection('users').doc(ownerUid).collection('files').doc(fileId);
-    const fileDocSnap = await fileDocRef.get();
-    const fileData = fileDocSnap.data();
-    console.log("File data: " + fileData);
+    const fileRef = await getFileRefById(ownerUid, fileId);
+    if (!fileRef) throw new functions.https.HttpsError('not-found', 'File not found');
+    const fileData = (await fileRef.get()).data();
 
-    const linkDocRef = fileDocRef.collection('links').doc(downloadId);
+    const linkDocRef = fileRef.collection('links').doc(downloadId);
     const linkDocSnap = await linkDocRef.get();
 
-    if (!fileDocSnap.exists || !linkDocSnap.exists) throw new Error('File or link does not exist');
-    const fileInfo = fileDocSnap.data();
+    if (!linkDocSnap.exists) throw new Error('File or link does not exist');
+    const file = fileData;
     const linkInfo = linkDocSnap.data();
 
-    if (!fileInfo || !linkInfo) throw new Error('File or link does not exist');
-    console.log("Collab: " + fileInfo.collaborators[downloaderUid]);
-    console.log("condition 1: ", downloaderUid != ownerUid);
-    console.log("condition 2: ", fileInfo.collaborators[downloaderUid] && true);
-    //if(true && (false || false))
-    //Later will check if that specific user is authorized but for now unless its public only the owner can download the file
-    if (!linkInfo.isPublic && (downloaderUid != ownerUid && !fileInfo.collaborators[downloaderUid])) throw new Error('Unauthorized');
+    if (!file || !linkInfo) throw new Error('File or link does not exist');
 
-    if (linkInfo.expiresAt && linkInfo.expiresAt.toDate() < new Date()) throw new Error('Download link has expired');
+    if (!linkInfo.isPublic && (downloaderUid != ownerUid && !file.collaborators[downloaderUid])) throw new Error('Unauthorized');
+
+    if (linkInfo.expiresAt && linkInfo.expiresAt.toDate() < new Date()) throw new functions.https.HttpsError('invalid-argument', 'Download link has expired');
 
 
     const sharedFileInfo: SharedFile = {
-        fileName: fileInfo.fileName,
-        fileType: fileInfo.fileType,
-        fileSize: fileInfo.fileSize,
-        uploadedAt: fileInfo.uploadedAt.toDate().toString(),
+        fileName: file.fileName,
+        fileType: file.fileType,
+        fileSize: file.fileSize,
+        uploadedAt: file.uploadedAt.toDate().toString(),
         downloadLink: linkInfo.downloadLink,
     }
 
@@ -277,11 +269,11 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
 }
 
 export const getFilePrivateDownloadIdFromDB = async (userId: string, fileId: string) => {
-    const fileInfo = await getFileById(userId, fileId);
+    const file = await getFileById(userId, fileId);
 
-    if (!fileInfo) throw new Error('File not found');
-    console.log("File info: ", fileInfo);
-    return fileInfo.privateLinkDownloadId;
+    if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+    console.log("File info: ", file);
+    return file.privateLinkDownloadId;
 }
 
 export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadInfoParams, context) => {
@@ -299,7 +291,8 @@ export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadI
         return { fileInfo: result };
     } catch (error: any) {
         console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
@@ -318,40 +311,30 @@ export const renameFile = functions.https.onCall(async (data: RenameFileParams, 
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        const db = admin.firestore();
-
         const fileRef = await getFileRefById(context.auth.uid, fileId);
 
         if (!fileRef) throw new functions.https.HttpsError('not-found', 'File not found');
-
-        // const fileData = fileDoc.data();
-        // if (fileData?.shared) throw new functions.https.HttpsError('permission-denied', 'Cannot rename shared file');
 
         const file = (await fileRef.get()).data();
 
         if (!file) throw new Error('Unexpected error occurred');
 
-        const collaboratorData = file.collaborators?.[context.auth.uid];
-        if (file.ownerUid != context.auth.uid && !collaboratorData) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this file');
-        if (file.ownerUid != context.auth.uid && collaboratorData.accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this file');
+        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, context.auth.uid);
+        if (file.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this file');
 
         const oldFileName = file!.fileName;
-
         const oldFileExtension = oldFileName.includes('.') ? oldFileName.split('.').pop() : '';
-
-        console.log("old file extension: ", oldFileExtension);
-
         const newFileNameWithExtension = newFileName + (oldFileExtension ? `.${oldFileExtension}` : '');
-        console.log("New file name with extension: ", newFileNameWithExtension);
 
-        await db.collection('users').doc(context.auth.uid).collection('files').doc(fileId).update({
-            fileName: newFileNameWithExtension,
+        await fileRef.update({
+            fileName: newFileNameWithExtension
         });
 
         return { success: true };
     } catch (error: any) {
         console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
@@ -377,7 +360,8 @@ export const generatePrivateDownloadLink = functions.https.onCall(async (fileId:
         throw new Error("Failed generating download link");
     } catch (error: any) {
         console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
@@ -401,19 +385,17 @@ export const getPrivateDownloadId = functions.https.onCall(async (fileId: string
         throw new Error("Failed generating download link");
     } catch (error: any) {
         console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
 export const updatePrivateLinkDownloadId = async (uid: string, fileId: string, downloadId: string) => {
-    const db = admin.firestore();
-    const docRef = db.collection('users').doc(uid).collection('files').doc(fileId);
-    const docSnap = await docRef.get();
-    if (docSnap.exists) {
-        await docRef.update({
-            privateLinkDownloadId: downloadId,
-        });
-    }
+    const fileRef = await getFileRefById(uid, fileId);
+    if (!fileRef) throw new Error("File not found");
+    await fileRef.update({
+        privateLinkDownloadId: downloadId
+    });
 }
 
 export const doesFolderExist = async (uid: string, folderId: string) => {
@@ -443,44 +425,54 @@ export const createFolder = functions.https.onCall(async (data: CreateFolderPara
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
+        if (parentFolderId === 'shared') throw new functions.https.HttpsError('permission-denied', 'You are not allowed to create folders here');
+
+        const parentFolderRef = await getFolderRefById(context.auth.uid, parentFolderId);
+        if (!parentFolderRef) throw new functions.https.HttpsError('invalid-argument', 'Parent folder does not exist');
+        const parentFolder = (await parentFolderRef.get()).data();
+        if (!parentFolder) throw new Error('Unknown error occurred');
+
+        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(parentFolder, context.auth.uid);
+        if (parentFolder.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to create folders here');
+
         const db = admin.firestore();
 
-        const parentFolderDocRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(parentFolderId);
-        const parentFolderDoc = await parentFolderDocRef.get();
-        if (!parentFolderDoc.exists) throw new functions.https.HttpsError('invalid-argument', 'Parent folder does not exist');
 
         if (await doesFolderNameExistInFolder(context.auth.uid, parentFolderId, folderName)) throw new functions.https.HttpsError('already-exists', 'Folder with the same name already exist in the current folder!');
 
-        const parentFolderData = parentFolderDoc.data();
-        if (!parentFolderData) throw new Error("Unexpected error occurred");
 
 
-        const folderDocRef = await db.collection('users').doc(context.auth.uid).collection("folders").doc();
+        const collaborators: any = parentFolder.collaborators ?? {};
+
+        const folderDocRef = db.collection('users').doc(parentFolder.ownerUid).collection("folders").doc();
         await folderDocRef.set({
             parentFolderId: parentFolderId,
             folderName: folderName,
             createdAt: FieldValue.serverTimestamp(),
             files: [],
             folders: [],
-            collaborators: parentFolderData.collaborators ? parentFolderData.collaborators : {},
+            collaborators: collaborators,
             shared: false,
             ownerUid: context.auth.uid
         });
 
-        parentFolderDocRef.update({
+        parentFolderRef.update({
             folders: FieldValue.arrayUnion(folderDocRef.id)
         });
 
-
-        for (const [key] of Object.entries(parentFolderData.collaborators)) {
-            await addSharedFolderEntryToCollaborator(key, folderDocRef.id, folderDocRef);
+        if (collaborators) {
+            for (const [key] of Object.entries(collaborators)) {
+                console.log("Collaborator key: " + key);
+                await addSharedFolderEntryToCollaborator(key, folderDocRef.id, folderDocRef);
+            }
         }
 
 
         return { success: true };
     } catch (error: any) {
         console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 
 });
@@ -493,32 +485,26 @@ export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFo
 
         const { fileId, currentFolderId, newFolderId } = data || {};
 
-        console.log("File id: " + fileId);
-        console.log("Current folder id: " + currentFolderId);
-        console.log("New folder id: " + newFolderId);
         if (!fileId || !currentFolderId || !newFolderId) {
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
         if (currentFolderId === newFolderId) throw new functions.https.HttpsError('already-exists', 'File already exists in that folder');
+        if (newFolderId === "shared") throw new Error("You are not allowed to upload files here");
 
-        const db = admin.firestore();
+        const fileRef = await getFileRefById(context.auth.uid, fileId);
+        if (!fileRef) throw new functions.https.HttpsError('not-found', 'File not found');
 
-        const fileDocRef = db.collection('users').doc(context.auth.uid).collection('files').doc(fileId);
-        const fileDoc = await fileDocRef.get();
-        if (!fileDoc.exists) throw new functions.https.HttpsError('not-found', 'File not found');
-
-        const fileData = fileDoc.data();
-        if (fileData?.shared) throw new functions.https.HttpsError('permission-denied', 'Cannot move shared file');
+        const fileData = (await fileRef.get()).data();
+        if (fileData?.shared) throw new functions.https.HttpsError('permission-denied', 'Only the owner can move shared file');
 
         // Check if the file exists in the current folder
-        const currentFolderRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(currentFolderId);
-        const currentFolderDoc = await currentFolderRef.get();
+        const currFolderId = currentFolderId === "shared" ? "root" : currentFolderId
+        const currentFolderRef = await getFolderRefById(context.auth.uid, currFolderId);
+        if (!currentFolderRef) throw new functions.https.HttpsError('not-found', 'Current folder not found');
 
-        if (!currentFolderDoc.exists) throw new functions.https.HttpsError('not-found', 'Current folder not found');
 
-
-        const currentFolderData = currentFolderDoc.data();
+        const currentFolderData = (await currentFolderRef.get()).data();
         const currentFilesArray: string[] = currentFolderData!.files || [];
 
         if (!currentFilesArray.includes(fileId)) {
@@ -527,22 +513,18 @@ export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFo
 
         await currentFolderRef.update({ files: FieldValue.arrayRemove(fileId) });
 
-        // Add the file to the files array of the new folder
-        const newFolderRef = db.collection('users').doc(context.auth.uid).collection('folders').doc(newFolderId);
-        const newFolderDoc = await newFolderRef.get();
-
-        if (!newFolderDoc.exists) throw new functions.https.HttpsError('not-found', 'New folder not found');
+        const newFolderRef = await getFolderRefById(context.auth.uid, newFolderId);
+        if (!newFolderRef) throw new functions.https.HttpsError('not-found', 'New folder not found');
 
         await newFolderRef.update({ files: FieldValue.arrayUnion(fileId) });
 
-        // Update the file document with the new folderId
-
-        await fileDocRef.update({ folderId: newFolderId });
+        await fileRef.update({ parentFolderId: newFolderId });
 
         return { success: true };
     } catch (error: any) {
         console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
@@ -567,9 +549,8 @@ export const renameFolder = functions.https.onCall(async (data: RenameFolderPara
 
         if (!folder) throw new Error('Unexpected error occurred');
 
-        const collaboratorData = folder.collaborators?.[context.auth.uid];
-        if (!collaboratorData) throw new functions.https.HttpsError('permission-denied', 'You are not a collabarator of this folder');
-        if (collaboratorData.accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this folder');
+        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(folder, context.auth.uid);
+        if (folder.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this folder');
 
         await folderRef.update({
             'folderName': newFolderName
@@ -578,7 +559,8 @@ export const renameFolder = functions.https.onCall(async (data: RenameFolderPara
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
@@ -640,8 +622,11 @@ export const shareFileWithUserByEmail = functions.https.onCall(async (data: Shar
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        const fileInfo = await getFileById(context.auth.uid, fileId);
-        if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
+        const file = await getFileById(context.auth.uid, fileId);
+        if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+
+        const userAccessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, context.auth.uid);
+        if (file.ownerUid != context.auth.uid && userAccessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to share this file');
 
         const user = await getUserById(context.auth.uid);
         const invitedUser = await getUserByEmail(email);
@@ -650,11 +635,12 @@ export const shareFileWithUserByEmail = functions.https.onCall(async (data: Shar
             throw new functions.https.HttpsError('not-found', 'Invited user not found');
         }
 
+
         if (await isFileCollaborator(fileId, context.auth.uid, invitedUser.uid)) throw new functions.https.HttpsError('already-exists', 'User is already a collaborator on the folder');
 
         const db = admin.firestore();
         const invitationDocRef = await db.collection('invitations').add({
-            ownerId: context.auth.uid,
+            ownerId: file.ownerUid,
             type: 'file',
             accessLevel: accessLevel,
             fileId: fileId,
@@ -701,7 +687,8 @@ export const shareFileWithUserByEmail = functions.https.onCall(async (data: Shar
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
@@ -718,6 +705,9 @@ export const shareFolderWithUserByEmail = functions.https.onCall(async (data: Sh
         const folder = await getFolderById(context.auth.uid, folderId);
         if (!folder) throw new functions.https.HttpsError('not-found', 'Folder not found');
 
+        const userAccessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(folder, context.auth.uid);
+        if (folder.ownerUid != context.auth.uid && userAccessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to share this folder');
+
         const user = await getUserById(context.auth.uid);
         const invitedUser = await getUserByEmail(email);
 
@@ -729,7 +719,7 @@ export const shareFolderWithUserByEmail = functions.https.onCall(async (data: Sh
 
         const db = admin.firestore();
         const invitationDocRef = await db.collection('invitations').add({
-            ownerId: context.auth.uid,
+            ownerId: folder.ownerUid,
             type: 'folder',
             accessLevel: accessLevel,
             folderId: folderId,
@@ -776,7 +766,8 @@ export const shareFolderWithUserByEmail = functions.https.onCall(async (data: Sh
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
@@ -790,6 +781,10 @@ const isFileCollaborator = async (folderId: string, ownerId: string, userId: str
     if (collaboratorData) return true;
 
     return false;
+}
+
+export const getCollaboratorAccessLevel = (resource: any, userId: string) => {
+    return resource.collaborators?.[userId] ? resource.collaborators?.[userId].accessLevel : ACCESS_LEVEL.NON_COLLABORATOR;
 }
 
 const isFolderCollaborator = async (folderId: string, ownerId: string, userId: string) => {
@@ -913,7 +908,8 @@ export const acceptFileShareInvitation = functions.https.onCall(async (data, con
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
@@ -953,6 +949,7 @@ export const acceptFolderShareInvitation = functions.https.onCall(async (data, c
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });

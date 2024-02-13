@@ -12,6 +12,7 @@ import { determinePartSize } from "../utils/helpers";
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { useParams } from "react-router-dom";
 import NotFoundPage from "./NotFoundPage";
+import { enqueueSnackbar } from "notistack";
 
 const UploadFile: React.FC = () => {
     const { folderId } = useParams();
@@ -22,7 +23,6 @@ const UploadFile: React.FC = () => {
     const [multiPartUploading, setMultiPartUploading] = useState(false);
     const [abortUploadData, setAbortUploadData] = useAbortUploadData();
     const [isCancelled, setIsCancelled] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const abortController = new AbortController();
     const isCancelledRef = useRef(isCancelled);
     const [expiryDays, setExpiryDays] = useState<number>(1);
@@ -43,9 +43,6 @@ const UploadFile: React.FC = () => {
     //     setExpiryDate(nextWeek);
     // }, []);
 
-    useEffect(() => {
-        console.log("Error: ", error);
-    }, [error])
 
     useEffect(() => {
         if (!neverExpires && uploaded) {
@@ -258,7 +255,6 @@ const UploadFile: React.FC = () => {
             if (selectedFile.size > LARGE_FILE_MAX_SIZE) {
                 handleUploadError("The file is bigger than the max allowed file size - " + LARGE_FILE_MAX_SIZE.toString());
             }
-            setError(null);
             setIsCancelled(false);
             isCancelledRef.current = false;
             setUploaded(false);
@@ -311,7 +307,6 @@ const UploadFile: React.FC = () => {
             fileId: ''
         })
         setSelectedFile(null);
-        setError(null);
     }
 
     const handleGenerateDownloadLink = async () => {
@@ -325,37 +320,23 @@ const UploadFile: React.FC = () => {
             };
             const { link, error } = await generatePublicDownloadLink(generateDownloadLinkParams);
             if (error) {
-                handleGenerateShareLinkError(error);
+                handleError(error)
                 setGeneratingLink(false); // Set generatingLink to false if there's an error
                 return;
             }
             setShareLink(link);
-            setError(null);
             console.log('shareLink:', link);
             setGeneratingLink(false); // Set generatingLink to false after the link is generated
         }
     };
 
-    const handleGenerateShareLinkError = (error: string | null = null) => {
-        if (error) {
-            console.error(error);
-            setError(error);
-        }
-        else {
-            console.error("Unknown error occured, please try again!");
-            setError("Unknown error occured, please try again!");
-        }
-    }
     const handleError = (error: string | null = null) => {
         console.log("Error occured, error: ", error);
-        if (error) {
-            console.error(error);
-            setError(error);
-        }
-        else {
-            console.error("Unknown error occured, please try again!");
-            setError("Unknown error occured, please try again!");
-        }
+        const message: string = error ? error : 'Unexpected error occured, please try again later!';
+        enqueueSnackbar(message, {
+            variant: 'error',
+            preventDuplicate: true
+        });
     }
 
     const handleUploadError = (error: string | null = null) => {
@@ -434,11 +415,6 @@ const UploadFile: React.FC = () => {
                         >
                             Generate Download Link
                         </Button>
-                    )}
-                    {error && (
-                        <Alert severity="error" sx={{ mb: 2, mt: 2, pl: 1, pr: 1, width: '100%' }}>
-                            {error}
-                        </Alert>
                     )}
                     {/* {uploaded && (
                         <FormControlLabel

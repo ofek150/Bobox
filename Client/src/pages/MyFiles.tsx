@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFileToFolder, renameFolder } from '../services/firebase';
 import { File, Folder } from '../utils/types';
-import { Alert, Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab } from '@mui/material';
+import { Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab } from '@mui/material';
 import Loading from '../components/Loading';
 import { getPrivateDownloadId } from '../services/firebase';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -12,6 +12,7 @@ import FolderComponent from '../components/FolderComponent';
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import SearchBox from '../components/UI/SearchBox';
 import { enqueueSnackbar } from 'notistack';
+import NotFoundPage from './NotFoundPage';
 
 interface CreateFolderDialogProps {
   open: boolean;
@@ -56,7 +57,6 @@ const MyFiles: React.FC = () => {
   const [files, setFiles] = useState<File[] | null>(null);
   const [folders, setFolders] = useState<Folder[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isCreateFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { folderStructure, updateFolderStructure } = useFolderStructureContext();
@@ -69,12 +69,10 @@ const MyFiles: React.FC = () => {
       setFiles(files);
       setFolders(folders);
       if (error) {
-        console.error(error);
-        setError(error);
+        handleError(error);
       }
     } catch (error: any) {
-      console.error('Error fetching files:', error.message);
-      setError('Failed to fetch files.');
+      handleError('Failed to fetch files.');
       setLoading(false);
     }
   };
@@ -97,7 +95,7 @@ const MyFiles: React.FC = () => {
   }, [folderStructure]);
 
   const handleEditFileName = async (fileId: string, newFileName: string) => {
-    if (!files) return;
+    if (!files) return false;
     console.log("Renaming file with fileId: " + fileId + " to " + newFileName);
 
     const parts = newFileName.split('.');
@@ -109,9 +107,8 @@ const MyFiles: React.FC = () => {
 
     const { success, error } = await renameFile({ fileId, newFileName });
     if (error || !success) {
-      console.error(error);
-      setError(error);
-      return;
+      handleError(error);
+      return false;
     }
 
     setFiles((prevFiles) =>
@@ -119,7 +116,7 @@ const MyFiles: React.FC = () => {
         file.fileId === fileId ? { ...file, fileName: updatedFileName } : file
       )
     );
-    setError(null);
+    return true;
   };
 
   const handleEditFolderName = async (folderId: string, newFolderName: string) => {
@@ -128,9 +125,8 @@ const MyFiles: React.FC = () => {
 
     const { success, error } = await renameFolder({ folderId, newFolderName });
     if (error || !success) {
-      console.error(error);
-      setError(error);
-      return;
+      handleError(error);
+      return false;
     }
 
     setFolders((prevFolders) =>
@@ -138,7 +134,7 @@ const MyFiles: React.FC = () => {
         folder.folderId === folderId ? { ...folder, folderName: newFolderName } : folder
       )
     );
-    setError(null);
+    return true;
   };
 
   const handleDeleteFile = async (fileId: string) => {
@@ -147,18 +143,15 @@ const MyFiles: React.FC = () => {
 
     const { success, error } = await deleteFile(fileId);
     if (error || !success) {
-      console.error(error);
-      setError(error);
+      handleError(error);
       return;
     }
 
     setFiles((prevFiles) => prevFiles!.filter((file) => file.fileId !== fileId));
-    setError(null);
   };
 
   const handleError = (error: string | null = null) => {
-    console.log(error);
-    //setError(error);
+    console.error(error);
     enqueueSnackbar(error, {
       variant: 'error',
       preventDuplicate: true
@@ -174,7 +167,7 @@ const MyFiles: React.FC = () => {
     console.log(downloadId);
     if (error) {
       handleError("Couldn't fetch file information");
-      return;
+      return <NotFoundPage />;
     }
     const link = `/${ownerId}/${fileId}/${downloadId}/view`;
     navigate(link);
@@ -186,7 +179,7 @@ const MyFiles: React.FC = () => {
       handleError(error);
       return;
     }
-    setError(null);
+    handleError(error);
     await fetchFiles();
   };
 
@@ -196,7 +189,6 @@ const MyFiles: React.FC = () => {
       handleError(error);
       return;
     }
-    setError(null);
     await fetchFiles();
   };
 
@@ -207,11 +199,6 @@ const MyFiles: React.FC = () => {
   return (
     <Container maxWidth="md" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px' }}>
       <SearchBox placeholder="Search files and folders" />
-      {error && (
-        <Alert severity="error" sx={{ mb: 2, mt: 2, pl: 1, pr: 1, width: '100%' }}>
-          {error}
-        </Alert>
-      )}
       {
         folderStructure && folderId &&
         <FolderComponent folderId={folderId} selectFolder={false} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleEditFolderName={handleEditFolderName} handleMoveFile={handleMoveFile} />

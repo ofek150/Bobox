@@ -30,7 +30,7 @@ import { enqueueSnackbar } from 'notistack';
 interface FileComponentProps {
     file: File;
     navigateToFileInfo: (ownerId: string, fileId: string) => void;
-    onEditFileName: (fileId: string, newFileName: string) => void;
+    onEditFileName: ((fileId: string, newFileName: string) => Promise<boolean>);
     onDeleteFile: (fileId: string) => void;
     onMoveFile: (fileId: string, currentFolderId: string, newFolderId: string) => void;
 }
@@ -60,6 +60,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
     }, [file]);
 
     const handleItemClick = () => {
+        console.log("Owner uid: ", file.ownerUid);
         navigateToFileInfo(file.ownerUid, file.fileId);
     };
 
@@ -77,10 +78,14 @@ const FileComponent: React.FC<FileComponentProps> = ({
         setOpenEditDialog(true);
     };
 
-    const handleSaveClick = () => {
+    const handleSaveClick = async () => {
         const updatedFileName = fileNameWithoutExtension + (fileExtension ? '.' + fileExtension : '');
-        onEditFileName(file.fileId, updatedFileName);
         setOpenEditDialog(false);
+        if (!await onEditFileName(file.fileId, updatedFileName)) {
+            const parts = file.fileName.split('.');
+            parts.pop();
+            setFileNameWithoutExtension(parts.join('.'));
+        }
     };
 
     const handleCancelClick = () => {

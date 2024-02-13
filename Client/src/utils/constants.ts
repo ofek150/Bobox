@@ -16,4 +16,5 @@ export enum ACCESS_LEVEL {
     ADMIN = 1,
     OPERATOR = 2,
     VIEWER = 3,
+    NON_COLLABORATOR = 4
 }

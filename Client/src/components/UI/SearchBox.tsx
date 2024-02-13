@@ -5,11 +5,13 @@ import /* Other UI components as needed */ "@mui/material";
 import FolderIcon from "@mui/icons-material/Folder";
 import { File, Folder } from "../../utils/types";
 import DescriptionIcon from "@mui/icons-material/Description";
-import { List, ListItem, ListItemText, Typography } from "@mui/material";
+import { Box, List, ListItem, ListItemText, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { formatFileSize } from "../../utils/helpers";
 import { auth, getPrivateDownloadId } from "../../services/firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
+import { enqueueSnackbar } from "notistack";
+import NotFoundPage from "../../pages/NotFoundPage";
 
 interface SearchBoxProps {
   // (Optional) Placeholder text for the search box
@@ -55,16 +57,19 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     const { downloadId, error } = await getPrivateDownloadId(fileId);
     console.log(downloadId);
     if (error) {
-      console.error("Couldn't fetch file information");
-      return;
+      const errorMsg = "Couldn't fetch file information";
+      console.error(errorMsg);
+      enqueueSnackbar(errorMsg, {
+        variant: 'error',
+        preventDuplicate: true
+      });
+      return <NotFoundPage />;
     }
     const link = `/${user?.uid}/${fileId}/${downloadId}/view`;
     navigate(link);
   };
   return (
-    <div>
-      {" "}
-      {/* Styling wrapper if needed */}
+    <Box sx={{ width: '50%' }}>
       <TextField
         value={searchTerm}
         onChange={handleSearchChange}
@@ -96,6 +101,11 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                     secondary={folder.folderId === "root" || folder.folderId === "shared" ? '' : `Created at: ${folder.createdAt}`}
                     sx={{ mr: 10 }}
                   />
+                  {folder.shared &&
+                    <ListItemText
+                      secondary="Shared"
+                      sx={{ ml: 5 }}
+                    />}
                 </ListItem>
               ))}
             </>
@@ -123,7 +133,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           )}
         </List>
       </div>
-    </div>
+    </Box>
   );
 };
 

@@ -17,7 +17,7 @@ import { enqueueSnackbar } from 'notistack';
 interface FolderComponentProps {
     folderId: string;
     navigateToFileInfo?: (ownerId: string, fileId: string) => void;
-    handleEditFileName?: (fileId: string, newFileName: string) => void;
+    handleEditFileName?: (fileId: string, newFileName: string) => Promise<boolean>;
     handleDeleteFile?: (fileId: string) => void;
     handleMoveFile?: (fileId: string, currentFolderId: string, newFolderId: string) => void;
     handleEditFolderName?: (folderId: string, newFolderName: string) => void;
@@ -226,7 +226,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
         // Add files to the list
         sortedFiles.forEach((file: File) => {
             items.push(
-                <FileComponent key={file.fileId} file={file} navigateToFileInfo={navigateToFileInfo || (() => { })} onEditFileName={handleEditFileName || (() => { })} onDeleteFile={handleDeleteFile || (() => { })} onMoveFile={handleMoveFile || (() => { })} />
+                <FileComponent key={file.fileId} file={file} navigateToFileInfo={navigateToFileInfo!} onEditFileName={handleEditFileName!} onDeleteFile={handleDeleteFile!} onMoveFile={handleMoveFile!} />
             );
         });
 
