@@ -44,6 +44,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
     onMoveFile,
 }: FileComponentProps) => {
     const [fileNameWithoutExtension, setFileNameWithoutExtension] = useState('');
+    const [displayedFileName, setDisplayedFileName] = useState(file.fileName);
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [openMoveToFolderDialog, setOpenMoveToFolderDialog] = useState(false);
@@ -82,10 +83,12 @@ const FileComponent: React.FC<FileComponentProps> = ({
     const handleSaveClick = async () => {
         const updatedFileName = fileNameWithoutExtension + (fileExtension ? '.' + fileExtension : '');
         setOpenEditDialog(false);
+        setDisplayedFileName(updatedFileName);
         if (!await onEditFileName(file.fileId, updatedFileName)) {
             const parts = file.fileName.split('.');
             parts.pop();
             setFileNameWithoutExtension(parts.join('.'));
+            setDisplayedFileName(file.fileName);
         }
     };
 
@@ -175,7 +178,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
             >
                 <DescriptionIcon style={{ marginRight: "8px" }} />
                 <ListItemText
-                    primary={file.fileName}
+                    primary={displayedFileName}
                     secondary={`Size: ${formatFileSize(file.fileSize)} | Uploaded At: ${file.uploadedAt}`}
                     sx={{ mr: 10 }}
                 />

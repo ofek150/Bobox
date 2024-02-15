@@ -496,7 +496,7 @@ export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFo
         if (!fileRef) throw new functions.https.HttpsError('not-found', 'File not found');
 
         const fileData = (await fileRef.get()).data();
-        if (fileData?.shared) throw new functions.https.HttpsError('permission-denied', 'Only the owner can move shared file');
+        if (context.auth.uid != fileData?.ownerUid) throw new functions.https.HttpsError('permission-denied', 'Only the owner can move shared file');
 
         // Check if the file exists in the current folder
         const currFolderId = currentFolderId === "shared" ? "root" : currentFolderId

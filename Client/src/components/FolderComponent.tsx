@@ -196,37 +196,37 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
                 }
             });
 
-            switch (sortType) {
-                case SORT_TYPE.BY_NAME_DESC:
-                    allItemsWithType.sort((a: any, b: any) => {
-                        const aName = a.type === ITEM_TYPE.FOLDER ? a.folderName : a.fileName;
-                        const bName = b.type === ITEM_TYPE.FOLDER ? b.folderName : b.fileName;
-                        return aName.localeCompare(bName);
-                    });
-                    break;
-                case SORT_TYPE.BY_NAME_ASC:
-                    allItemsWithType.sort((a: any, b: any) => {
-                        const aName = a.type === ITEM_TYPE.FOLDER ? a.folderName : a.fileName;
-                        const bName = b.type === ITEM_TYPE.FOLDER ? b.folderName : b.fileName;
-                        return bName.localeCompare(aName);
-                    });
-                    break;
-                case SORT_TYPE.BY_DATE_DESC:
-                    allItemsWithType.sort((a: any, b: any) => {
-                        const aDate = a.type === ITEM_TYPE.FOLDER ? a.createdAt : a.uploadedAt;
-                        const bDate = b.type === ITEM_TYPE.FOLDER ? b.createdAt : b.uploadedAt;
-                        return aDate.localeCompare(bDate);
-                    });
-                    break;
-                case SORT_TYPE.BY_DATE_ASC:
-                    allItemsWithType.sort((a: any, b: any) => {
-                        const aDate = a.type === ITEM_TYPE.FOLDER ? a.createdAt : a.uploadedAt;
-                        const bDate = b.type === ITEM_TYPE.FOLDER ? b.createdAt : b.uploadedAt;
-                        return bDate.localeCompare(aDate);
-                    });
-                    break;
-            }
-            
+        switch (sortType) {
+            case SORT_TYPE.BY_NAME_DESC:
+                allItemsWithType.sort((a: any, b: any) => {
+                    const aName = a.type === ITEM_TYPE.FOLDER ? a.folderName : a.fileName;
+                    const bName = b.type === ITEM_TYPE.FOLDER ? b.folderName : b.fileName;
+                    return aName.localeCompare(bName);
+                });
+                break;
+            case SORT_TYPE.BY_NAME_ASC:
+                allItemsWithType.sort((a: any, b: any) => {
+                    const aName = a.type === ITEM_TYPE.FOLDER ? a.folderName : a.fileName;
+                    const bName = b.type === ITEM_TYPE.FOLDER ? b.folderName : b.fileName;
+                    return bName.localeCompare(aName);
+                });
+                break;
+            case SORT_TYPE.BY_DATE_DESC:
+                allItemsWithType.sort((a: any, b: any) => {
+                    const aDate = a.type === ITEM_TYPE.FOLDER ? a.createdAt : a.uploadedAt;
+                    const bDate = b.type === ITEM_TYPE.FOLDER ? b.createdAt : b.uploadedAt;
+                    return aDate.localeCompare(bDate);
+                });
+                break;
+            case SORT_TYPE.BY_DATE_ASC:
+                allItemsWithType.sort((a: any, b: any) => {
+                    const aDate = a.type === ITEM_TYPE.FOLDER ? a.createdAt : a.uploadedAt;
+                    const bDate = b.type === ITEM_TYPE.FOLDER ? b.createdAt : b.uploadedAt;
+                    return bDate.localeCompare(aDate);
+                });
+                break;
+        }
+
 
 
         allItemsWithType.forEach((item: any) => {
@@ -288,9 +288,9 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
     }
 
     return (
-        <Box sx={{ width: '60%' }}>
+        <Box sx={{ width: '80%' }}>
             {!selectFolder &&
-                < Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mt: 2, textAlign: 'center' }}>
+                < Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mt: 2, mb: 4, textAlign: 'center' }}>
                     {
                         folder
                             ? folder.folderId === "root"
@@ -302,7 +302,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
                     }
                 </Typography>
             }
-            <FilterBar setType={setFilterItemType} setSortBy={setSortType} sortBy={sortType} filterType={filterItemType}/>
+            <FilterBar setType={setFilterItemType} setSortBy={setSortType} sortBy={sortType} filterType={filterItemType} />
             <List>
                 {renderFolderList(folder)}
             </List>

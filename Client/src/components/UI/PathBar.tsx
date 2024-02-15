@@ -45,7 +45,7 @@ const PathBar: React.FC<PathBarProps> = ({ folderId, fileId = null }) => {
             if (folder) {
                 let folderName = folder.folderName;
                 if (currentFolderId === 'root') folderName = 'My Storage';
-                else if (currentFolderId === 'shared') folderName = 'Shared with me';
+                else if (currentFolderId === 'shared') folderName = 'Shared Storage';
 
                 folderObjects.unshift({ folderId: currentFolderId, folderName });
 
