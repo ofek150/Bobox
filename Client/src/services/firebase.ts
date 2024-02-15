@@ -296,6 +296,7 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
           createdAt: createdAtDate ? formatDateToDDMMYYYY(createdAtDate) : null,
           files: data.files,
           folders: data.folders,
+          collaborators: data.collaborators,
           shared: shared,
           ownerUid: data.ownerUid
         };
@@ -313,6 +314,7 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
       files: sharedFilesIds,
       folders: sharedFoldersIds,
       createdAt: null,
+      collaborators: {},
       shared: true,
       ownerUid: userId
     };

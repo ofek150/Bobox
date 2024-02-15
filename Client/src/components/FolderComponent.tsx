@@ -59,6 +59,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
             }
 
             setFolder(folder);
+            console.log("Collaborators: ", folder.collaborators);
             setInvalidFolderId(false);
         }
     }, [folderId, folderStructure]);

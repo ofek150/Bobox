@@ -26,7 +26,7 @@ const useFolderStructure = () => {
         folderObjects: [] as Folder[],
       };
 
-      if ((!folderIds.includes(folder.parentFolderId) || folder.parentFolderId === "root") && folder.shared) folder.parentFolderId = "shared";
+      if ((!folderIds.includes(folder.parentFolderId) || folder.parentFolderId === "root") && folder.shared && folder.folderId != 'shared') folder.parentFolderId = "shared";
 
       // Add files to the folderObject
       if (files) {

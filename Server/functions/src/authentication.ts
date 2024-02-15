@@ -13,6 +13,7 @@ const createRootFolder = async (userId: string) => {
         folderName: "root",
         files: [],
         folders: [],
+        collaborators: {},
         shared: false,
         ownerUid: userId
     });

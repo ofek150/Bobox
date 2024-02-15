@@ -64,6 +64,7 @@ export interface Folder {
     createdAt: string | null;
     files: string[];
     folders: string[];
+    collaborators: {};
     shared: boolean;
     ownerUid: string;
 }

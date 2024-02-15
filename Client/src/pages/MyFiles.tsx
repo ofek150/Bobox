@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFileToFolder, renameFolder } from '../services/firebase';
 import { File, Folder } from '../utils/types';
-import { Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab } from '@mui/material';
+import { Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab, Typography, Box } from '@mui/material';
 import Loading from '../components/Loading';
 import { getPrivateDownloadId } from '../services/firebase';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -13,6 +13,8 @@ import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import SearchBox from '../components/UI/SearchBox';
 import { enqueueSnackbar } from 'notistack';
 import NotFoundPage from './NotFoundPage';
+import PathBar from '../components/UI/PathBar';
+import { width } from '@mui/system';
 
 interface CreateFolderDialogProps {
   open: boolean;
@@ -59,7 +61,8 @@ const MyFiles: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isCreateFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const navigate = useNavigate();
-  const { folderStructure, updateFolderStructure } = useFolderStructureContext();
+  const { folderStructure, updateFolderStructure, getFolderWithId } = useFolderStructureContext();
+  const [isValidFolder, setIsValidFolder] = useState<boolean>(false);
 
   const fetchFiles = async () => {
     try {
@@ -91,6 +94,9 @@ const MyFiles: React.FC = () => {
   useEffect(() => {
     if (folderStructure.size > 0) {
       setLoading(false);
+
+      const folder = getFolderWithId(folderId ?? '')
+      if (folder) setIsValidFolder(true);
     }
   }, [folderStructure]);
 
@@ -179,7 +185,6 @@ const MyFiles: React.FC = () => {
       handleError(error);
       return;
     }
-    handleError(error);
     await fetchFiles();
   };
 
@@ -199,9 +204,16 @@ const MyFiles: React.FC = () => {
   return (
     <Container maxWidth="md" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px' }}>
       <SearchBox placeholder="Search files and folders" />
+      <Box sx={{ alignSelf: 'center' }}>
+
+        {folderStructure && folderId && isValidFolder && <PathBar folderId={folderId} />}
+      </Box>
       {
-        folderStructure && folderId &&
-        <FolderComponent folderId={folderId} selectFolder={false} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleEditFolderName={handleEditFolderName} handleMoveFile={handleMoveFile} />
+        folderStructure && folderId && isValidFolder ?
+          <>
+            <FolderComponent folderId={folderId} selectFolder={false} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleEditFolderName={handleEditFolderName} handleMoveFile={handleMoveFile} />
+          </>
+          : <Typography variant="h4" sx={{ my: 5, fontWeight: 500 }}>Folder not found</Typography>
       }
       <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', width: '100%', textAlign: 'center' }}>
         <Fab
@@ -225,7 +237,7 @@ const MyFiles: React.FC = () => {
         onClose={() => setCreateFolderDialogOpen(false)}
         onCreateFolder={handleCreateFolder}
       />
-    </Container>
+    </Container >
   );
 };
 

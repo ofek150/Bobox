@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useFolderStructureContext } from "../../contexts/FolderStructureContext";
 import TextField from "@mui/material/TextField";
-import /* Other UI components as needed */ "@mui/material";
 import FolderIcon from "@mui/icons-material/Folder";
 import { File, Folder } from "../../utils/types";
 import DescriptionIcon from "@mui/icons-material/Description";
@@ -14,7 +13,6 @@ import { enqueueSnackbar } from "notistack";
 import NotFoundPage from "../../pages/NotFoundPage";
 
 interface SearchBoxProps {
-  // (Optional) Placeholder text for the search box
   placeholder?: string;
 }
 
