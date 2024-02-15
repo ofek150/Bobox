@@ -670,8 +670,8 @@ export const shareFileWithUserByEmail = functions.https.onCall(async (data: Shar
                     <title>File Sharing Invitation</title>
                 </head>
                 <body>
-                    <h2>File Sharing Invitation from ${user.name}</h2> 
-                    <p>${user.name} (${user.email}) has invited you to collaborate on a file within your Bobox account.</p>
+                    <h2>File Sharing Invitation from ${user.name ? user.name : user.email}</h2> 
+                    <p>${user.name ? user.name + ` (${user.email})` : user.email} has invited you to collaborate on a file within your Bobox account.</p>
                     <p>Click the link below to accept the invitation and access the file:</p>
                     <a href="${invitationURL}">Accept Invitation</a>
                     <p>If you have any questions, feel free to reach out to ${user.name} directly.</p>
@@ -749,8 +749,8 @@ export const shareFolderWithUserByEmail = functions.https.onCall(async (data: Sh
                     <title>Folder Sharing Invitation</title>
                 </head>
                 <body>
-                    <h2>Folder Sharing Invitation from ${user.name}</h2> 
-                    <p>${user.name} (${user.email}) has invited you to collaborate on a folder within your Bobox account.</p>
+                    <h2>Folder Sharing Invitation from ${user.name ? user.name : user.email}</h2> 
+                    <p>${user.name ? user.name + ` (${user.email})` : user.email} has invited you to collaborate on a folder within your Bobox account.</p>
                     <p>Click the link below to accept the invitation and access the folder:</p>
                     <a href="${invitationURL}">Accept Invitation</a>
                     <p>If you have any questions, feel free to reach out to ${user.name} directly.</p>
