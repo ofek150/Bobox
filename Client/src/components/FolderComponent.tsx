@@ -5,14 +5,16 @@ import { Folder, File, ShareFolderParams, Variant } from '../utils/types';
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItem, ListItemSecondaryAction, ListItemText, Menu, MenuItem, TextField, Typography } from '@mui/material';
 import Loading from './Loading';
 import FileComponent from './FileComponent';
+import FolderIcon from "@mui/icons-material/Folder";
 import EditIcon from '@mui/icons-material/Edit';
 import ShareIcon from '@mui/icons-material/Share';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import { ACCESS_LEVEL } from '../utils/constants';
+import { ACCESS_LEVEL, FILTER_ITEMS_TYPE, SORT_TYPE, ITEM_TYPE } from '../utils/constants';
 import { shareFolderWithUserByEmail } from '../services/firebase';
 import { isValidEmail } from '../utils/validations';
 import NotFoundPage from '../pages/NotFoundPage';
 import { enqueueSnackbar } from 'notistack';
+import FilterBar from './UI/FilterBar';
 
 interface FolderComponentProps {
     folderId: string;
@@ -44,6 +46,9 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
     const [openShareDialog, setOpenShareDialog] = useState(false);
     const [shareEmail, setShareEmail] = useState('');
     const [accessLevel, setAccessLevel] = useState(ACCESS_LEVEL.ADMIN);
+
+    const [sortType, setSortType] = useState<SORT_TYPE>(SORT_TYPE.BY_DATE_DESC);
+    const [filterItemType, setFilterItemType] = useState<FILTER_ITEMS_TYPE>(FILTER_ITEMS_TYPE.BOTH);
 
 
     const [state, setState] = useState<FolderComponentState>({
@@ -168,43 +173,97 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
 
         const folders: any = Array.from(head.folderObjects.values());
         const files: any = Array.from(head.fileObjects.values());
+        const allItems: any = selectFolder ? [...folders] : [...folders, ...files];
 
-        // Sort folders by createdAt
-        const sortedFolders = folders.filter((folder: Folder) => folder.createdAt)
-            .sort((a: Folder, b: Folder) => a.createdAt!.localeCompare(b.createdAt!));
 
-        // Add folders to the list
-        sortedFolders.forEach((folder: Folder) => {
+        const allItemsWithType = allItems
+            .filter((item: any) => {
+                if (filterItemType === FILTER_ITEMS_TYPE.FOLDERS_ONLY) {
+                    return !files.includes(item);
+                } else if (filterItemType === FILTER_ITEMS_TYPE.FILES_ONLY) {
+                    return !folders.includes(item);
+                }
+                return true; // Include both folders and files when filterItemType is not specified
+            })
+            .map((item: any) => {
+                if (folders.includes(item)) {
+                    return { ...item, type: ITEM_TYPE.FOLDER };
+                } else if (files.includes(item)) {
+                    return { ...item, type: ITEM_TYPE.FILE };
+                } else {
+                    return item;
+                }
+            });
+
+            switch (sortType) {
+                case SORT_TYPE.BY_NAME_DESC:
+                    allItemsWithType.sort((a: any, b: any) => {
+                        const aName = a.type === ITEM_TYPE.FOLDER ? a.folderName : a.fileName;
+                        const bName = b.type === ITEM_TYPE.FOLDER ? b.folderName : b.fileName;
+                        return aName.localeCompare(bName);
+                    });
+                    break;
+                case SORT_TYPE.BY_NAME_ASC:
+                    allItemsWithType.sort((a: any, b: any) => {
+                        const aName = a.type === ITEM_TYPE.FOLDER ? a.folderName : a.fileName;
+                        const bName = b.type === ITEM_TYPE.FOLDER ? b.folderName : b.fileName;
+                        return bName.localeCompare(aName);
+                    });
+                    break;
+                case SORT_TYPE.BY_DATE_DESC:
+                    allItemsWithType.sort((a: any, b: any) => {
+                        const aDate = a.type === ITEM_TYPE.FOLDER ? a.createdAt : a.uploadedAt;
+                        const bDate = b.type === ITEM_TYPE.FOLDER ? b.createdAt : b.uploadedAt;
+                        return aDate.localeCompare(bDate);
+                    });
+                    break;
+                case SORT_TYPE.BY_DATE_ASC:
+                    allItemsWithType.sort((a: any, b: any) => {
+                        const aDate = a.type === ITEM_TYPE.FOLDER ? a.createdAt : a.uploadedAt;
+                        const bDate = b.type === ITEM_TYPE.FOLDER ? b.createdAt : b.uploadedAt;
+                        return bDate.localeCompare(aDate);
+                    });
+                    break;
+            }
+            
+
+
+        allItemsWithType.forEach((item: any) => {
+            console.log("item:" + item.type === 'folder' ? item as Folder : item as File);
+
+            if (selectFolder && item.type === ITEM_TYPE.FILE) return;
             items.push(selectFolder ? (
                 <ListItem
-                    key={folder.folderId}
+                    key={item.folderId}
                     // selected={selectedFolderId === folder.folderId}
-                    onDoubleClick={() => handleFolderDoubleClick(folder.folderId, folder.folderName)}
-                    onClick={() => handleFolderClick(folder.folderId)}
+                    onDoubleClick={() => handleFolderDoubleClick(item.folderId, item.folderName)}
+                    onClick={() => handleFolderClick(item.folderId)}
                     sx={{
                         ':hover': {
                             backgroundColor: 'rgba(0, 0, 0, 0.08)', // Change the background color on hover
                         },
-                        backgroundColor: selectedFolderId === folder.folderId ? 'rgba(0, 0, 0, 0.25)' : 'inherit', // Change the background color when selected
+                        backgroundColor: selectedFolderId === item.folderId ? 'rgba(0, 0, 0, 0.25)' : 'inherit', // Change the background color when selected
                     }}
                 >
-                    <ListItemText primary={folder.folderName} />
+                    <FolderIcon style={{ marginRight: "8px" }} />
+                    <ListItemText primary={item.folderName} />
                 </ListItem>
 
-            ) : (
+            ) : item.type === ITEM_TYPE.FOLDER ? (
                 <ListItem button
-                    selected={Boolean(anchorPosition)}
-                    onContextMenu={(e) => { handleContextMenu(e, folder.folderId) }} key={folder.folderId} onClick={() => navigate(`/user/folders/${folder.folderId}`)}>
-                    <ListItemText primary={folder.folderName} secondary={`Created at: ${folder.createdAt}`} sx={{ mr: 10 }} />
+                    //selected={Boolean(anchorPosition)}
+                    onContextMenu={(e) => { handleContextMenu(e, item.folderId) }} key={item.folderId} onClick={() => navigate(`/user/folders/${item.folderId}`)}>
+                    <FolderIcon style={{ marginRight: "8px" }} />
+                    <ListItemText primary={item.folderName} secondary={`Created at: ${item.createdAt}`} sx={{ mr: 10 }} />
                     <ListItemSecondaryAction>
-                        <IconButton edge="end" aria-label="Edit" onClick={() => handleEditClick(folder.folderId)} sx={{ mr: 1 }} >
+                        <IconButton edge="end" aria-label="Edit" onClick={() => handleEditClick(item.folderId)} sx={{ mr: 1 }} >
                             <EditIcon />
                         </IconButton>
                         <div
                             role="button"
                             aria-label="More"
-                            onClick={(e) => { handleContextMenu(e, folder.folderId) }}
-                            onContextMenu={(e) => { handleContextMenu(e, folder.folderId) }}
+                            onClick={(e) => { handleContextMenu(e, item.folderId) }}
+                            onContextMenu={(e) => { handleContextMenu(e, item.folderId) }}
                             style={{ display: 'inline' }}
                         >
                             <IconButton edge="end">
@@ -213,26 +272,14 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
                         </div>
                     </ListItemSecondaryAction>
                 </ListItem>
-            ));
+            ) : (
+                <FileComponent key={item.fileId} file={item as File} navigateToFileInfo={navigateToFileInfo!} onEditFileName={handleEditFileName!} onDeleteFile={handleDeleteFile!} onMoveFile={handleMoveFile!} />
+            ))
         });
 
-        //If in folder selection mode there's no need to render the filess
-        if (selectFolder) return items;
-
-        // Sort files by uploadedAt
-        const sortedFiles = files.filter((file: File) => file.uploadedAt)
-            .sort((a: File, b: File) => a.uploadedAt!.localeCompare(b.uploadedAt!));
-
-        // Add files to the list
-        sortedFiles.forEach((file: File) => {
-            items.push(
-                <FileComponent key={file.fileId} file={file} navigateToFileInfo={navigateToFileInfo!} onEditFileName={handleEditFileName!} onDeleteFile={handleDeleteFile!} onMoveFile={handleMoveFile!} />
-            );
-        });
 
         return items;
-    };
-
+    }
     if (invalidFolderId) return <NotFoundPage />;
 
     if (loading) {
@@ -242,20 +289,19 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
     return (
         <Box sx={{ width: '60%' }}>
             {!selectFolder &&
-                < Typography variant="h4" gutterBottom sx={{ fontWeight: 700, my: 8, textAlign: 'center' }}>
+                < Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mt: 2, textAlign: 'center' }}>
                     {
                         folder
                             ? folder.folderId === "root"
                                 ? "My Storage"
                                 : folder.folderId === "shared"
                                     ? "Shared Storage"
-                                    : folder.folderName // Or folder.name if you prefer
-                            : null // Adjust this part based on how you want to handle the case when 'folder' is undefined or null
+                                    : folder.folderName
+                            : null
                     }
                 </Typography>
             }
-
-
+            <FilterBar setType={setFilterItemType} setSortBy={setSortType} sortBy={sortType} filterType={filterItemType}/>
             <List>
                 {renderFolderList(folder)}
             </List>

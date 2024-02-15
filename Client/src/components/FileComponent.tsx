@@ -18,6 +18,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DriveFileMove from '@mui/icons-material/DriveFileMove';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import ShareIcon from '@mui/icons-material/Share';
+import DescriptionIcon from "@mui/icons-material/Description";
 import { formatFileSize } from '../utils/helpers';
 import { File, ShareFileParams, Variant } from '../utils/types';
 import MoveToFileFolderDialog from './MoveFileOrFolderDialog';
@@ -172,6 +173,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
                 onClick={handleItemClick}
                 selected={Boolean(anchorPosition)}
             >
+                <DescriptionIcon style={{ marginRight: "8px" }} />
                 <ListItemText
                     primary={file.fileName}
                     secondary={`Size: ${formatFileSize(file.fileSize)} | Uploaded At: ${file.uploadedAt}`}

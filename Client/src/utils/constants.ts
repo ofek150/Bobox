@@ -12,9 +12,27 @@ export const LARGE_FILE_MAX_SIZE = 1 * GB;
 export const MIN_MULTIPART_UPLOAD_SIZE = 50 * MB;
 export const MAX_UPLOAD_RETRIES = 3;
 
-export enum ACCESS_LEVEL {
+export const enum ACCESS_LEVEL {
     ADMIN = 1,
     OPERATOR = 2,
     VIEWER = 3,
     NON_COLLABORATOR = 4
+}
+
+export const enum ITEM_TYPE {
+    FILE = 'file',
+    FOLDER = 'folder'
+}
+
+export enum SORT_TYPE {
+    BY_NAME_DESC = 'By name descending',
+    BY_NAME_ASC = 'By name ascending',
+    BY_DATE_ASC = 'By date ascending',
+    BY_DATE_DESC = 'By date descending',
+}
+
+export enum FILTER_ITEMS_TYPE {
+    BOTH = 'Both',
+    FOLDERS_ONLY = 'Folders only',
+    FILES_ONLY = 'Files only'
 }

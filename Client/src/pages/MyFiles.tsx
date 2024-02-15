@@ -54,6 +54,7 @@ const CreateFolderDialog: React.FC<CreateFolderDialogProps> = ({ open, onClose, 
 const MyFiles: React.FC = () => {
   const [user, loadingAuthState] = useAuthState(auth);
   const { folderId } = useParams();
+  const [_folderId] = useState(folderId);
   const [files, setFiles] = useState<File[] | null>(null);
   const [folders, setFolders] = useState<Folder[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -197,11 +198,11 @@ const MyFiles: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="md" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px' }}>
+    <Container maxWidth="md" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', pb: 10 }}>
       <SearchBox placeholder="Search files and folders" />
       {
-        folderStructure && folderId &&
-        <FolderComponent folderId={folderId} selectFolder={false} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleEditFolderName={handleEditFolderName} handleMoveFile={handleMoveFile} />
+        folderStructure && _folderId &&
+        <FolderComponent folderId={_folderId} selectFolder={false} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleEditFolderName={handleEditFolderName} handleMoveFile={handleMoveFile} />
       }
       <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', width: '100%', textAlign: 'center' }}>
         <Fab

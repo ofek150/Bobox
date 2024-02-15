@@ -30,7 +30,6 @@ const addFileToDatabase = async (userId: string, data: any) => {
     fileType: data.fileType,
     fileSize: data.fileSize
   }
-  console.log("File to add: ", fileToAdd);
   try {
     await addFileToDB(userId, fileToAdd);
   } catch {
