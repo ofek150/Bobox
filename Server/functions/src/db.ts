@@ -881,7 +881,9 @@ export const deleteFile = functions.https.onCall(async (fileId: string, context)
 
         const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, context.auth.uid);
         if (file.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to delete this file');
-        return deleteFileFromCloudStorage(file.fileKey);
+        await deleteFileFromCloudStorage(file.fileKey);
+        await deleteFileFromDB(context.auth.uid, fileId)
+        return { success: true };
 
     } catch (error: any) {
         console.error('Error:', error.message);
