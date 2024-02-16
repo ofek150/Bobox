@@ -44,13 +44,14 @@ export interface SharedFile {
     fileType: string;
     fileSize: number;
     uploadedAt: Date;
+    downloadId: string;
     downloadLink: string;
 }
 
 export interface LinkInfo {
     downloadLink: string;
     isPublic: boolean;
-    neverExpires: boolean
+    isPermanent: boolean
     expiresAt: any | null;
 }
 

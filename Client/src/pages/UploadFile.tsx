@@ -9,7 +9,6 @@ import useAbortUploadData from "../hooks/useAbortUploadData";
 import CancelIcon from '@mui/icons-material/Cancel';
 import CircularProgressWithLabel from "../components/UI/CircularProgressWithLabel";
 import { determinePartSize } from "../utils/helpers";
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { useParams } from "react-router-dom";
 import NotFoundPage from "./NotFoundPage";
 import { enqueueSnackbar } from "notistack";
@@ -45,6 +44,10 @@ const UploadFile: React.FC = () => {
 
 
     useEffect(() => {
+        console.log('Uploading: ' + uploading, ' Uploaded: ' + uploaded, ' Generating link: ' + generatingLink);
+    }, [uploading, uploaded, generatingLink])
+
+    useEffect(() => {
         if (!neverExpires && uploaded) {
             const newExpiryDate = new Date();
             newExpiryDate.setDate(newExpiryDate.getDate() + expiryDays);
@@ -61,6 +64,7 @@ const UploadFile: React.FC = () => {
         const nextWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
         return nextWeek;
     }
+
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files) {
             setSelectedFile(event.target.files[0]);
@@ -90,9 +94,6 @@ const UploadFile: React.FC = () => {
             };
 
             const response = await axios.put(uploadUrl, selectedFile, config);
-
-            setUploading(false);
-            setProgress(0);
             const { success, error } = await completeSmallFileUpload(fileId)
             if (response.status == 200 && success) {
                 finishUpload(fileId);
@@ -252,12 +253,12 @@ const UploadFile: React.FC = () => {
 
     const handleUpload = async () => {
         if (selectedFile && selectedFile.name && selectedFile.size && selectedFile.type) {
+            setUploaded(false);
             if (selectedFile.size > LARGE_FILE_MAX_SIZE) {
                 handleUploadError("The file is bigger than the max allowed file size - " + LARGE_FILE_MAX_SIZE.toString());
             }
             setIsCancelled(false);
             isCancelledRef.current = false;
-            setUploaded(false);
             setShareLink(null);
             setUploading(true);
 
@@ -387,15 +388,15 @@ const UploadFile: React.FC = () => {
                             <Button
                                 variant="contained"
                                 color={uploading ? 'secondary' : uploaded ? 'success' : 'primary'}
-                                onClick={(!uploading && !uploaded) ? handleUpload : () => { }}
-                                disabled={uploading}
+                                onClick={handleUpload}
+                                disabled={uploading || uploaded}
                                 sx={{ mt: 1 }}
                             >
                                 Upload
                             </Button>
                         )
                     }
-                    {generatingLink && <Typography variant="subtitle1">Generating link... <br /><CircularProgress /></Typography>}
+                    {generatingLink && <CircularProgress />}
                     {uploading && multiPartUploading && (
                         <IconButton
                             color="secondary"
@@ -416,7 +417,7 @@ const UploadFile: React.FC = () => {
                             Generate Download Link
                         </Button>
                     )}
-                    {/* {uploaded && (
+                    {uploaded && !shareLink && (
                         <FormControlLabel
                             control={
                                 <Checkbox
@@ -428,7 +429,7 @@ const UploadFile: React.FC = () => {
                             label="Never Expires"
                             sx={{ mb: 1 }}
                         />
-                    )} */}
+                    )}
                     {/* Expiry Date Input */}
                     {!neverExpires && uploaded && !shareLink && (
                         <Box sx={{ mb: 1 }}>

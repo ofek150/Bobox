@@ -18,7 +18,6 @@ import FilterBar from './UI/FilterBar';
 
 interface FolderComponentProps {
     folderId: string;
-    navigateToFileInfo?: (ownerId: string, fileId: string) => void;
     handleEditFileName?: (fileId: string, newFileName: string) => Promise<boolean>;
     handleDeleteFile?: (fileId: string) => void;
     handleMoveFile?: (fileId: string, currentFolderId: string, newFolderId: string) => void;
@@ -32,7 +31,7 @@ interface FolderComponentState {
     clickedFolderId: string | null;
 }
 
-const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToFileInfo, handleEditFileName, handleEditFolderName, handleDeleteFile, selectFolder, handleMoveFile, onFolderClick, onFolderDoubleClick }: FolderComponentProps) => {
+const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditFileName, handleEditFolderName, handleDeleteFile, selectFolder, handleMoveFile, onFolderClick, onFolderDoubleClick }: FolderComponentProps) => {
     const navigate = useNavigate();
     const { folderStructure, getFolderWithId } = useFolderStructureContext();
     const [loading, setLoading] = useState(true);
@@ -274,7 +273,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, navigateToF
                     </ListItemSecondaryAction>
                 </ListItem>
             ) : (
-                <FileComponent key={item.fileId} file={item as File} navigateToFileInfo={navigateToFileInfo!} onEditFileName={handleEditFileName!} onDeleteFile={handleDeleteFile!} onMoveFile={handleMoveFile!} />
+                <FileComponent key={item.fileId} file={item as File} onEditFileName={handleEditFileName!} onDeleteFile={handleDeleteFile!} onMoveFile={handleMoveFile!} />
             ))
         });
 

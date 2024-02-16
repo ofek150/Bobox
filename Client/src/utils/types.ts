@@ -55,6 +55,7 @@ export interface File {
     parentFolderId: string;
     shared: boolean;
     ownerUid: string;
+    privateLinkDownloadId: string;
 }
 
 export interface Folder {

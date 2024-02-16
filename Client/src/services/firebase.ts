@@ -206,31 +206,6 @@ export const generatePublicDownloadLink = async (parameters: GenerateDownloadLin
   }
 }
 
-export const generatePrivateDownloadLink = async (fileId: string) => {
-  try {
-    console.log("Generating download link for file");
-    const generatePrivateDownloadLink = httpsCallable(functions, "generatePrivateDownloadLink");
-    const result: any = (await generatePrivateDownloadLink(fileId)).data;
-    console.log(result)
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
-
-export const getPrivateDownloadId = async (fileId: string) => {
-  try {
-    const getPrivateDownloadId = httpsCallable(functions, "getPrivateDownloadId");
-    const result: any = (await getPrivateDownloadId(fileId)).data;
-    console.log(result)
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
-
 const getAllFilesOfUserFromDB = async (userId: string) => {
   try {
     const filesCollectionRef = collection(db, `users/${userId}/files`);
@@ -270,7 +245,8 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
           uploadedAt: formatDateToDDMMYYYY(uploadedAtDate),
           parentFolderId: data.parentFolderId,
           shared: shared,
-          ownerUid: data.ownerUid
+          ownerUid: data.ownerUid,
+          privateLinkDownloadId: data.privateLinkDownloadId
         };
         if (shared) sharedFilesIds.push(file.fileId);
         return file;

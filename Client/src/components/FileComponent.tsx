@@ -26,11 +26,11 @@ import { shareFileWithUserByEmail } from '../services/firebase';
 import { ACCESS_LEVEL } from '../utils/constants';
 import { isValidEmail } from '../utils/validations';
 import { enqueueSnackbar } from 'notistack';
+import { useNavigate } from 'react-router-dom';
 
 
 interface FileComponentProps {
     file: File;
-    navigateToFileInfo: (ownerId: string, fileId: string) => void;
     onEditFileName: ((fileId: string, newFileName: string) => Promise<boolean>);
     onDeleteFile: (fileId: string) => void;
     onMoveFile: (fileId: string, currentFolderId: string, newFolderId: string) => void;
@@ -38,7 +38,6 @@ interface FileComponentProps {
 
 const FileComponent: React.FC<FileComponentProps> = ({
     file,
-    navigateToFileInfo,
     onEditFileName,
     onDeleteFile,
     onMoveFile,
@@ -52,6 +51,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
     const [openShareDialog, setOpenShareDialog] = useState(false);
     const [shareEmail, setShareEmail] = useState('');
     const [accessLevel, setAccessLevel] = useState(ACCESS_LEVEL.ADMIN);
+    const navigate = useNavigate();
 
     const fileExtension = file.fileName.split('.').pop();
 
@@ -63,7 +63,8 @@ const FileComponent: React.FC<FileComponentProps> = ({
 
     const handleItemClick = () => {
         console.log("Owner uid: ", file.ownerUid);
-        navigateToFileInfo(file.ownerUid, file.fileId);
+        const link = `/user/${file.ownerUid}/files/${file.fileId}?downloadId=${file.privateLinkDownloadId}`;
+        navigate(link);
     };
 
     const handleContextMenu = (e: MouseEvent<HTMLDivElement>) => {

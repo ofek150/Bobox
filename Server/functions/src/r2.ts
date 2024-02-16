@@ -306,17 +306,17 @@ export const generatePublicDownloadLink = functions.https.onCall(
         throw new Error('Invalid arguments');
       }
 
-      const signedUrl = await generatePrivateDownloadLink(file.fileKey, expiresIn);
+      const signedUrl = await generateDownloadLink(file.fileKey, expiresIn);
 
       const linkInfo: LinkInfo = {
         downloadLink: signedUrl,
         isPublic: true,
-        neverExpires: false,
+        isPermanent: neverExpires,
         expiresAt: expiresAt,
       };
 
       const downloadId = await addLinkToDB(context.auth.uid, fileId, linkInfo);
-      const shareLink = `${WEBSITE_URL}/${context.auth.uid}/${fileId}/${downloadId}/view`;
+      const shareLink = `${WEBSITE_URL}/user/${context.auth.uid}/files/${fileId}?downloadId=${downloadId}`;
 
       return { link: shareLink };
     } catch (error: any) {
@@ -335,21 +335,23 @@ export const addPrivateDownloadLink = async (userId: string, fileId: string) => 
   const expirationDate = new Date(currentDate);
   expirationDate.setDate(currentDate.getDate() + 7);
 
-  const signedUrl = await generatePrivateDownloadLink(file.fileKey, SEVEN_DAYS_SECONDS);
+  const signedUrl = await generateDownloadLink(file.fileKey, SEVEN_DAYS_SECONDS);
 
   const linkInfo: LinkInfo = {
     downloadLink: signedUrl,
     isPublic: false,
-    neverExpires: false,
+    isPermanent: true,
     expiresAt: expirationDate,
   };
 
 
   const downloadId = await addLinkToDB(userId, fileId, linkInfo);
   await updatePrivateLinkDownloadId(userId, fileId, downloadId);
+
+  return downloadId;
 };
 
-export const generatePrivateDownloadLink = async (fileKey: string, expiresIn: number) => {
+export const generateDownloadLink = async (fileKey: string, expiresIn: number) => {
   const getObjectCommand = new GetObjectCommand({
     Bucket: process.env.R2_BUCKET_NAME,
     Key: fileKey,

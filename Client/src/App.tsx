@@ -38,7 +38,7 @@ const App: React.FC = () => {
               <Route path="/user/folders/:folderId" element={<MyFiles />} />
               <Route path="/account-info" element={<AccountInformation />} />
               <Route path="/user/folders/:folderId/upload" element={<UploadFile />} />
-              <Route path="/:ownerUid/:fileId/:downloadId/view" element={<FileInfo />} />
+              <Route path="/user/:ownerUid/files/:fileId" element={<FileInfo />} />
               <Route path="/accept_invitation" element={<AcceptInvitation />} />
             </Route>
 

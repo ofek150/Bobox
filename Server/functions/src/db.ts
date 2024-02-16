@@ -1,9 +1,9 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
 import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams, ShareFileParams, ShareFolderParams } from "./utils/types";
-import { ACCESS_LEVEL, WEBSITE_URL } from "./utils/constants";
+import { ACCESS_LEVEL, SEVEN_DAYS_SECONDS, WEBSITE_URL } from "./utils/constants";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { addPrivateDownloadLink } from "./r2";
+import { generateDownloadLink } from "./r2";
 import * as nodemailer from 'nodemailer';
 
 
@@ -92,8 +92,12 @@ export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInf
     const linkDocRef = await fileRef.collection('links').add({
         downloadLink: linkInfo.downloadLink,
         isPublic: linkInfo.isPublic,
-        neverExpires: linkInfo.neverExpires,
-        expiresAt: !linkInfo.neverExpires ? Timestamp.fromDate(expirationDate!) : null
+        isPermanent: linkInfo.isPermanent,
+        expiresAt: Timestamp.fromDate(expirationDate)
+    });
+
+    await linkDocRef.update({
+        downloadId: linkDocRef.id
     });
 
     return linkDocRef.id;
@@ -252,17 +256,31 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
 
     if (!file || !linkInfo) throw new Error('File or link does not exist');
 
-    if (!linkInfo.isPublic && (downloaderUid != ownerUid && !file.collaborators[downloaderUid])) throw new Error('Unauthorized');
+    if (!linkInfo.isPublic && (downloaderUid != ownerUid && !file.collaborators[downloaderUid])) throw new functions.https.HttpsError('permission-denied', "You are not allowed to access this file");
 
-    if (linkInfo.expiresAt && linkInfo.expiresAt.toDate() < new Date()) throw new functions.https.HttpsError('invalid-argument', 'Download link has expired');
-
+    let downloadLink = linkInfo.downloadLink;
+    if (!linkInfo.isPermanent && linkInfo.expiresAt && linkInfo.expiresAt.toDate() < new Date()) {
+        await linkDocRef.delete();
+        throw new functions.https.HttpsError('invalid-argument', 'Download link has expired');
+    }
+    else if (linkInfo.isPermanent && linkInfo.expiresAt && linkInfo.expiresAt.toDate() < new Date()) {
+        downloadLink = await generateDownloadLink(fileData.fileKey, SEVEN_DAYS_SECONDS);
+        const currentDate = new Date();
+        const expirationDate = new Date(currentDate);
+        expirationDate.setDate(currentDate.getDate() + 7);
+        await linkDocRef.update({
+            downloadLink: downloadLink,
+            expiresAt: Timestamp.fromDate(expirationDate)
+        });
+    }
 
     const sharedFileInfo: SharedFile = {
         fileName: file.fileName,
         fileType: file.fileType,
         fileSize: file.fileSize,
         uploadedAt: file.uploadedAt.toDate().toString(),
-        downloadLink: linkInfo.downloadLink,
+        downloadId: linkInfo.downloadId,
+        downloadLink: downloadLink,
     }
 
     return sharedFileInfo;
@@ -272,7 +290,6 @@ export const getFilePrivateDownloadIdFromDB = async (userId: string, fileId: str
     const file = await getFileById(userId, fileId);
 
     if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
-    console.log("File info: ", file);
     return file.privateLinkDownloadId;
 }
 
@@ -331,58 +348,6 @@ export const renameFile = functions.https.onCall(async (data: RenameFileParams, 
         });
 
         return { success: true };
-    } catch (error: any) {
-        console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
-    }
-});
-
-export const generatePrivateDownloadLink = functions.https.onCall(async (fileId: string, context) => {
-    try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
-        }
-        const fileInfo = await getFileById(context.auth.uid, fileId);
-        if (!fileInfo) throw new functions.https.HttpsError('not-found', 'File not found');
-        try {
-            const result = await getFileDownloadInfoFromDB(context.auth.uid, context.auth.uid, fileId, fileInfo.privateLinkDownloadId);
-            return { downloadLink: result.downloadLink };
-
-        } catch (error: any) {
-            if (error.message === "Download link has expired") {
-                // Generate new link to download
-                await addPrivateDownloadLink(context.auth.uid, fileId);
-                const result = await getFileDownloadInfoFromDB(context.auth.uid, context.auth.uid, fileId, fileInfo.privateLinkDownloadId);
-                return { downloadLink: result.downloadLink };
-            }
-        }
-        throw new Error("Failed generating download link");
-    } catch (error: any) {
-        console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
-    }
-});
-
-export const getPrivateDownloadId = functions.https.onCall(async (fileId: string, context) => {
-    try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
-        }
-        try {
-            const downloadId = await getFilePrivateDownloadIdFromDB(context.auth.uid, fileId);
-            return { downloadId: downloadId };
-
-        } catch (error: any) {
-            if (error.message === "Download link has expired") {
-                // Generate new link to download
-                await addPrivateDownloadLink(context.auth.uid, fileId);
-                const downloadId = await getFilePrivateDownloadIdFromDB(context.auth.uid, fileId);
-                return { downloadId: downloadId };
-            }
-        }
-        throw new Error("Failed generating download link");
     } catch (error: any) {
         console.error('Error:', error.message);
         if (error instanceof functions.https.HttpsError) throw error;

@@ -7,7 +7,7 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import { Box, List, ListItem, ListItemText, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { formatFileSize } from "../../utils/helpers";
-import { auth, getPrivateDownloadId } from "../../services/firebase";
+import { auth } from "../../services/firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { enqueueSnackbar } from "notistack";
 import NotFoundPage from "../../pages/NotFoundPage";
@@ -51,19 +51,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
       setFolderResults([]);
     }
   };
-  const navigateToFileInfo = async (fileId: string) => {
-    const { downloadId, error } = await getPrivateDownloadId(fileId);
-    console.log(downloadId);
-    if (error) {
-      const errorMsg = "Couldn't fetch file information";
-      console.error(errorMsg);
-      enqueueSnackbar(errorMsg, {
-        variant: 'error',
-        preventDuplicate: true
-      });
-      return <NotFoundPage />;
-    }
-    const link = `/${user?.uid}/${fileId}/${downloadId}/view`;
+  const navigateToFileInfo = async (file: File) => {
+    const link = `/user/${file.ownerUid}/files/${file.fileId}?downloadId=${file.privateLinkDownloadId}`;
     navigate(link);
   };
   return (
@@ -114,7 +103,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 <ListItem
                   button
                   onClick={() => {
-                    navigateToFileInfo(file.fileId);
+                    navigateToFileInfo(file);
                   }}
                 >
                   <DescriptionIcon style={{ marginRight: "8px" }} />

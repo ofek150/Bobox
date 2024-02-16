@@ -3,7 +3,6 @@ import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFile
 import { File, Folder } from '../utils/types';
 import { Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab, Typography, Box } from '@mui/material';
 import Loading from '../components/Loading';
-import { getPrivateDownloadId } from '../services/firebase';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import AddIcon from '@mui/icons-material/Add';
@@ -12,9 +11,7 @@ import FolderComponent from '../components/FolderComponent';
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import SearchBox from '../components/UI/SearchBox';
 import { enqueueSnackbar } from 'notistack';
-import NotFoundPage from './NotFoundPage';
 import PathBar from '../components/UI/PathBar';
-import { width } from '@mui/system';
 
 interface CreateFolderDialogProps {
   open: boolean;
@@ -169,17 +166,6 @@ const MyFiles: React.FC = () => {
     return <Loading />;
   }
 
-  const navigateToFileInfo = async (ownerId: string, fileId: string) => {
-    const { downloadId, error } = await getPrivateDownloadId(fileId);
-    console.log(downloadId);
-    if (error) {
-      handleError("Couldn't fetch file information");
-      return <NotFoundPage />;
-    }
-    const link = `/${ownerId}/${fileId}/${downloadId}/view`;
-    navigate(link);
-  }
-
   const handleCreateFolder = async (folderName: string) => {
     const { success, error } = await createFolder({ folderName, parentFolderId: folderId ? folderId : "" });
     if (error || !success) {
@@ -212,7 +198,7 @@ const MyFiles: React.FC = () => {
       {
         folderStructure && folderId && isValidFolder ?
           <>
-            <FolderComponent folderId={folderId} selectFolder={false} navigateToFileInfo={navigateToFileInfo} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleEditFolderName={handleEditFolderName} handleMoveFile={handleMoveFile} />
+            <FolderComponent folderId={folderId} selectFolder={false} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleEditFolderName={handleEditFolderName} handleMoveFile={handleMoveFile} />
           </>
           : <Typography variant="h4" sx={{ my: 5, fontWeight: 500 }}>Folder not found</Typography>
       }
