@@ -7,6 +7,7 @@ import { Alert, Box, Button, Container, Paper, Modal } from '@mui/material';
 import Loading from '../components/Loading';
 import FileNotFound from '../components/FileNotFound';
 import streamSaver from 'streamsaver';
+import { enqueueSnackbar } from 'notistack';
 
 const FileInfo: React.FC = () => {
   const { ownerUid, fileId } = useParams();
@@ -44,7 +45,11 @@ const FileInfo: React.FC = () => {
   }, []);
 
   const handleError = (error: string | null = null) => {
-    setError(error);
+    setError(error || "An error occurred while fetching file information");
+    enqueueSnackbar(error, {
+      variant: 'error',
+      preventDuplicate: true
+    });
   };
 
   const handleDownload = async () => {
@@ -68,10 +73,8 @@ const FileInfo: React.FC = () => {
           });
 
         await pump()
-          .then(() => console.log('Closed the stream, Done writing'))
-          .catch((err: any) => {
+          .catch(() => {
             handleError("An error occurred during the download.");
-            console.log(err);
           });
 
       } catch (error) {
@@ -118,11 +121,6 @@ const FileInfo: React.FC = () => {
             <Button variant="contained" color="primary" onClick={handleDownload} sx={{ my: 1 }}>
               Download
             </Button>
-          )}
-          {error && (
-            <Alert severity="error" sx={{ my: 1 }}>
-              {error}
-            </Alert>
           )}
         </Paper>
       </Container>

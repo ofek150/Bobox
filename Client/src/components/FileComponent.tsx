@@ -25,15 +25,17 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DriveFileMove from '@mui/icons-material/DriveFileMove';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import ShareIcon from '@mui/icons-material/Share';
+import DownloadIcon from '@mui/icons-material/Download';
 import DescriptionIcon from "@mui/icons-material/Description";
 import { formatFileSize } from '../utils/helpers';
-import { File, GenerateDownloadLinkParams, ShareFileParams, Variant } from '../utils/types';
+import { DownloadInfoParams, File, GenerateDownloadLinkParams, ShareFileParams, SharedFile, Variant } from '../utils/types';
 import MoveToFileFolderDialog from './MoveFileOrFolderDialog';
-import { generatePublicDownloadLink, shareFileWithUserByEmail } from '../services/firebase';
+import { generatePublicDownloadLink, getFileInfo, shareFileWithUserByEmail } from '../services/firebase';
 import { ACCESS_LEVEL } from '../utils/constants';
 import { isValidEmail } from '../utils/validations';
 import { enqueueSnackbar } from 'notistack';
 import { useNavigate } from 'react-router-dom';
+import streamSaver from 'streamsaver';
 
 
 interface FileComponentProps {
@@ -65,6 +67,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
     const [generatingLink, setGeneratingLink] = useState(false);
     const [expiryDate, setExpiryDate] = useState<Date | null>(null);
     const [shareLink, setShareLink] = useState<string | null>(null);
+    const [fileDownloadInfo, setFileDownloadInfo] = useState<SharedFile | null>(null);
 
     const fileExtension = file.fileName.split('.').pop();
 
@@ -81,6 +84,80 @@ const FileComponent: React.FC<FileComponentProps> = ({
             setExpiryDate(newExpiryDate);
         }
     }, [expiryDays, neverExpires]);
+
+
+    const handleError = (error: string | null = null) => {
+        enqueueSnackbar(error, {
+            variant: 'error',
+            preventDuplicate: true
+        });
+    };
+
+    const fetchFileInfo = async () => {
+        const downloadInfoParams: DownloadInfoParams = {
+            ownerUid: file.ownerUid,
+            fileId: file.fileId,
+            downloadId: file.privateLinkDownloadId,
+        };
+        try {
+            const { fileInfo } = await getFileInfo(downloadInfoParams);
+            return fileInfo;
+        } catch (error: any) {
+            handleError(error.message || "An error occurred while fetching file information.");
+            return null;
+        }
+    };
+
+    const downloadFile = async (fileInfo: SharedFile) => {
+        if (fileInfo && fileInfo.downloadLink) {
+            try {
+                const res = await fetch(fileInfo.downloadLink);
+
+                if (!res || !res.body) {
+                    throw new Error("Download failed");
+                }
+
+                const totalSize = parseInt(res.headers.get("Content-Length") || "0", 10);
+
+                const fileStream = streamSaver.createWriteStream(fileInfo.fileName);
+                const writer = fileStream.getWriter();
+
+                const reader = res.body.getReader();
+
+                let bytesRead = 0;
+
+                const pump: any = async () => {
+                    const { value, done } = await reader.read();
+
+                    if (done) {
+                        writer.close();
+                    } else {
+                        bytesRead += value.byteLength;
+                        writer.write(value);
+
+                        const progress = (bytesRead / totalSize) * 100;
+                        console.log(`Download progress: ${progress.toFixed(2)}%`);
+
+                        return writer.ready.then(pump);
+                    }
+                };
+
+                await pump();
+            } catch (error: any) {
+                handleError(`An error occurred during the download: ${error.message}`);
+            }
+        }
+    };
+
+
+    const handleDownloadClick = async () => {
+        const fileDownloadInfo = await fetchFileInfo();
+        if (fileDownloadInfo && fileDownloadInfo.downloadLink) {
+            downloadFile(fileDownloadInfo);
+        }
+        handleCloseMenu();
+    };
+
 
     const handleItemClick = () => {
         console.log("Owner uid: ", file.ownerUid);
@@ -281,6 +358,10 @@ const FileComponent: React.FC<FileComponentProps> = ({
                 <MenuItem onClick={handleShareClick}>
                     <ShareIcon fontSize="small" sx={{ mr: 1 }} />
                     Share
+                </MenuItem>
+                <MenuItem onClick={handleDownloadClick}>
+                    <DownloadIcon fontSize="small" sx={{ mr: 1 }} />
+                    Download
                 </MenuItem>
             </Menu>
 

@@ -71,7 +71,7 @@ const PathBar: React.FC<PathBarProps> = ({ folderId, fileId = null }) => {
     return (
         <List sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', listStyle: 'none', padding: 0 }}>
             {folderPathObjects.length > 3 && (
-                <ListItem>
+                <ListItem key={"ellipsis"}>
                     <Button variant='text' onClick={handleEllipsisClick} sx={{ fontSize: '1.2rem', textTransform: 'none', fontWeight: 500 }}>
                         ...
                     </Button>
@@ -99,9 +99,9 @@ const PathBar: React.FC<PathBarProps> = ({ folderId, fileId = null }) => {
                 </ListItem>
             )}
             {lastThreeFolders.map((folderPathObject: FolderObject, index: number) => (
-                <>
+                <React.Fragment key={folderPathObject.folderId}>
                     <ListItem key={folderPathObject.folderId}>
-                        <Button variant='text' onClick={() => { navigateToFolder(folderPathObject.folderId) }} sx={{ fontSize: '1.3rem', fontWeight: 700, textTransform: 'none', padding: '0.2rem', whiteSpace: 'nowrap' }}>
+                        <Button key={folderPathObject.folderId + "_button"} variant='text' onClick={() => { navigateToFolder(folderPathObject.folderId) }} sx={{ fontSize: '1.3rem', fontWeight: 700, textTransform: 'none', padding: '0.2rem', whiteSpace: 'nowrap' }}>
                             {folderPathObject.folderName}
                         </Button>
                     </ListItem>
@@ -110,8 +110,9 @@ const PathBar: React.FC<PathBarProps> = ({ folderId, fileId = null }) => {
                             <Typography sx={{ fontSize: '1.5rem', fontWeight: 500 }}>/</Typography>
                         )}
                     </ListItem>
-                </>
+                </React.Fragment>
             ))}
+
         </List>
     );
 
