@@ -65,7 +65,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         fullWidth
       />
       <div>
-        {folderResults.length === 0 && searchTerm.length > 0 && (
+        {folderResults.length === 0 && filesResults.length === 0 && searchTerm.length > 0 && (
           <div>
             <Typography variant="subtitle1" sx={{ mt: 2, ml: 2, fontWeight: 500 }} >No results</Typography>
           </div>
