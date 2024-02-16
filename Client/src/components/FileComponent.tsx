@@ -12,6 +12,13 @@ import {
     DialogActions,
     Button,
     TextField,
+    FormControlLabel,
+    Typography,
+    Box,
+    Select,
+    OutlinedInput,
+    Checkbox,
+    Divider,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -20,9 +27,9 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import ShareIcon from '@mui/icons-material/Share';
 import DescriptionIcon from "@mui/icons-material/Description";
 import { formatFileSize } from '../utils/helpers';
-import { File, ShareFileParams, Variant } from '../utils/types';
+import { File, GenerateDownloadLinkParams, ShareFileParams, Variant } from '../utils/types';
 import MoveToFileFolderDialog from './MoveFileOrFolderDialog';
-import { shareFileWithUserByEmail } from '../services/firebase';
+import { generatePublicDownloadLink, shareFileWithUserByEmail } from '../services/firebase';
 import { ACCESS_LEVEL } from '../utils/constants';
 import { isValidEmail } from '../utils/validations';
 import { enqueueSnackbar } from 'notistack';
@@ -53,6 +60,12 @@ const FileComponent: React.FC<FileComponentProps> = ({
     const [accessLevel, setAccessLevel] = useState(ACCESS_LEVEL.ADMIN);
     const navigate = useNavigate();
 
+    const [expiryDays, setExpiryDays] = useState<number>(1);
+    const [neverExpires, setNeverExpires] = useState(false);
+    const [generatingLink, setGeneratingLink] = useState(false);
+    const [expiryDate, setExpiryDate] = useState<Date | null>(null);
+    const [shareLink, setShareLink] = useState<string | null>(null);
+
     const fileExtension = file.fileName.split('.').pop();
 
     useEffect(() => {
@@ -60,6 +73,14 @@ const FileComponent: React.FC<FileComponentProps> = ({
         parts.pop(); // Remove the last element (file extension)
         setFileNameWithoutExtension(parts.join('.'));
     }, [file]);
+
+    useEffect(() => {
+        if (!neverExpires) {
+            const newExpiryDate = new Date();
+            newExpiryDate.setDate(newExpiryDate.getDate() + expiryDays);
+            setExpiryDate(newExpiryDate);
+        }
+    }, [expiryDays, neverExpires]);
 
     const handleItemClick = () => {
         console.log("Owner uid: ", file.ownerUid);
@@ -153,6 +174,8 @@ const FileComponent: React.FC<FileComponentProps> = ({
         setOpenShareDialog(false);
         setShareEmail('');
         setAccessLevel(ACCESS_LEVEL.ADMIN);
+        setNeverExpires(false);
+        setExpiryDays(1);
     };
 
     const handleShareInviteClick = () => {
@@ -168,6 +191,36 @@ const FileComponent: React.FC<FileComponentProps> = ({
         handleShareFile(shareEmail, accessLevel);
         handleShareDialogClose();
     };
+
+    const getNextWeekDate = () => {
+        const today = new Date();
+        const nextWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
+        return nextWeek;
+    }
+
+    const handleGenerateDownloadLink = async () => {
+        setGeneratingLink(true);
+        const generateDownloadLinkParams: GenerateDownloadLinkParams = {
+            fileId: file.fileId,
+            neverExpires: neverExpires,
+            expiresAt: neverExpires ? null : expiryDate ? expiryDate : getNextWeekDate(),
+        };
+        const { link, error } = await generatePublicDownloadLink(generateDownloadLinkParams);
+        if (error) {
+            setGeneratingLink(false);
+            return;
+        }
+        setShareLink(link);
+        console.log('shareLink:', link);
+        setGeneratingLink(false);
+    }
+
+    const copyLink = () => {
+        if (!shareLink) return;
+        navigator.clipboard.writeText(shareLink).then(() => {
+            console.log('Link copied to clipboard:', shareLink);
+        });
+    }
 
     return (
         <>
@@ -235,13 +288,17 @@ const FileComponent: React.FC<FileComponentProps> = ({
             <Dialog open={openShareDialog} onClose={handleShareDialogClose}>
                 <DialogTitle>Share File</DialogTitle>
                 <DialogContent>
+                    {/* Collaborators Section */}
+                    <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, fontSize: '1.1rem' }}>
+                        Add Collaborators
+                    </Typography>
                     <TextField
                         label="Email"
                         type="email"
                         fullWidth
                         value={shareEmail}
                         onChange={(e) => setShareEmail(e.target.value)}
-                        sx={{ mb: 2, mt: 1 }}
+                        sx={{ mb: 2 }}
                     />
                     <TextField
                         label="Access Level"
@@ -249,22 +306,94 @@ const FileComponent: React.FC<FileComponentProps> = ({
                         fullWidth
                         value={accessLevel}
                         onChange={(e: React.ChangeEvent<{ value: unknown }>) => setAccessLevel(e.target.value as ACCESS_LEVEL)}
-
+                        sx={{ mb: 2 }}
                     >
                         <MenuItem value={ACCESS_LEVEL.ADMIN}>Admin</MenuItem>
                         <MenuItem value={ACCESS_LEVEL.OPERATOR}>Operator</MenuItem>
                         <MenuItem value={ACCESS_LEVEL.VIEWER}>Viewer</MenuItem>
                     </TextField>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handleShareInviteClick}
+                        sx={{ mb: 2, mt: 2, display: 'block', margin: 'auto' }}
+                    >
+                        Invite Collaborator
+                    </Button>
+
+                    {/* Divider */}
+                    <Divider sx={{ my: 2 }} />
+
+                    {/* Public Link Section */}
+                    <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, fontSize: '1.1rem' }}>
+                        Create Public Link
+                    </Typography>
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={neverExpires}
+                                onChange={(e) => setNeverExpires(e.target.checked)}
+                                color="primary"
+                            />
+                        }
+                        label="Never Expires"
+                        sx={{ mb: 2 }}
+                    />
+                    {!shareLink && (
+                        <>
+                            {!neverExpires && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                                        Link expiry days
+                                    </Typography>
+                                    <Select
+                                        value={expiryDays}
+                                        onChange={(e) => setExpiryDays(e.target.value as number)}
+                                        displayEmpty
+                                        input={<OutlinedInput label="Link expiry days" />}
+                                        sx={{ width: "100%" }}
+                                    >
+                                        {[1, 2, 3, 4, 5, 6, 7].map((days) => (
+                                            <MenuItem key={days} value={days}>
+                                                {days} day{days !== 1 ? "s" : ""}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </Box>
+                            )}
+
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                onClick={handleGenerateDownloadLink}
+                                sx={{ mb: 2, mt: 2, display: 'block', margin: 'auto' }}
+                            >
+                                Generate Public Link
+                            </Button>
+                        </>
+                    )}
+
+                    {/* Display the generated download link */}
+                    {shareLink && (
+                        <>
+                            <Typography variant="subtitle2" color="textPrimary" sx={{ mb: 2, mt: 2, textAlign: 'center' }}>
+                                Share this link with others to view the uploaded file.
+                            </Typography>
+                            <Button variant="outlined" onClick={copyLink} sx={{ display: 'block', margin: 'auto' }}>
+                                Copy link to Clipboard
+                            </Button>
+                        </>
+                    )}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleShareDialogClose} color="secondary">
                         Cancel
                     </Button>
-                    <Button onClick={handleShareInviteClick} color="primary">
-                        Invite
-                    </Button>
                 </DialogActions>
             </Dialog>
+
+
+
 
             {/* Edit Dialog */}
             <Dialog open={openEditDialog} onClose={handleCancelClick}>
