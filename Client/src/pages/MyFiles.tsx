@@ -116,7 +116,7 @@ const MyFiles: React.FC = () => {
     }
 
     const file = files?.find(file => file.fileId === fileId);
-    handleSuccess(`"${file?.fileName}" was successfully renamed to "${newFileName}"`);
+    handleSuccess(`The name was changed from "${file?.fileName}" to "${newFileName}"`);
 
     setFiles((prevFiles) =>
       prevFiles!.map((file) =>
@@ -137,7 +137,7 @@ const MyFiles: React.FC = () => {
     }
 
     const folder = getFolderWithId(folderId);
-    handleSuccess(`"${folder?.folderName}" was successfully renamed to "${newFolderName}"`);
+    handleSuccess(`The name was changed from "${folder?.folderName}" to "${newFolderName}"`);
 
     setFolders((prevFolders) =>
       prevFolders!.map((folder) =>
@@ -157,7 +157,7 @@ const MyFiles: React.FC = () => {
       return;
     }
     const file = files?.find(file => file.fileId === fileId);
-    handleSuccess(`"${file?.fileName}" was successfully deleted`);
+    handleSuccess(`The file with the name "${file?.fileName}" was successfully deleted`);
     setFiles((prevFiles) => prevFiles!.filter((file) => file.fileId !== fileId));
   };
 
@@ -171,7 +171,7 @@ const MyFiles: React.FC = () => {
       return;
     }
     const folder = getFolderWithId(folderId);
-    handleSuccess(`"${folder?.folderName}" deleted successfully`);
+    handleSuccess(`"The folder with the name ${folder?.folderName}" was successfullly deleted`);
     await fetchFiles();
   };
 
@@ -213,7 +213,7 @@ const MyFiles: React.FC = () => {
     const currentFolder = getFolderWithId(currentFolderId);
     const newFolder = getFolderWithId(newFolderId);
     const file = files?.find(file => file.fileId === fileId);
-    handleSuccess(`"${file?.fileName}" was successfully moved from "${currentFolder?.folderName}" to "${newFolder?.folderName}"`);
+    handleSuccess(`"The file with the name ${file?.fileName}" was successfully moved from "${currentFolder?.folderName}" to "${newFolder?.folderName}"`);
     await fetchFiles();
   };
 
