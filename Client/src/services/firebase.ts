@@ -337,6 +337,17 @@ export const deleteFile = async (fileId: string) => {
   }
 }
 
+export const deleteFolder = async (folderId: string) => {
+  try {
+    const deleteFolder = httpsCallable(functions, "deleteFolder");
+    const result: any = (await deleteFolder(folderId)).data;
+    return result;
+  } catch (error: any) {
+    console.error(error);
+    return { error: error.details ? error.details.message : error.message };
+  }
+}
+
 export const createFolder = async (parameters: CreateFolderParams) => {
   try {
     const createFolder = httpsCallable(functions, "createFolder");

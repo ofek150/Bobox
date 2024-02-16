@@ -38,16 +38,16 @@ import { useNavigate } from 'react-router-dom';
 
 interface FileComponentProps {
     file: File;
-    onEditFileName: ((fileId: string, newFileName: string) => Promise<boolean>);
-    onDeleteFile: (fileId: string) => void;
-    onMoveFile: (fileId: string, currentFolderId: string, newFolderId: string) => void;
+    handleEditFileName: ((fileId: string, newFileName: string) => Promise<boolean>);
+    handleDeleteFile: (fileId: string) => void;
+    handleMoveFile: (fileId: string, currentFolderId: string, newFolderId: string) => void;
 }
 
 const FileComponent: React.FC<FileComponentProps> = ({
     file,
-    onEditFileName,
-    onDeleteFile,
-    onMoveFile,
+    handleEditFileName,
+    handleDeleteFile,
+    handleMoveFile,
 }: FileComponentProps) => {
     const [fileNameWithoutExtension, setFileNameWithoutExtension] = useState('');
     const [displayedFileName, setDisplayedFileName] = useState(file.fileName);
@@ -106,7 +106,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
         const updatedFileName = fileNameWithoutExtension + (fileExtension ? '.' + fileExtension : '');
         setOpenEditDialog(false);
         setDisplayedFileName(updatedFileName);
-        if (!await onEditFileName(file.fileId, updatedFileName)) {
+        if (!await handleEditFileName(file.fileId, updatedFileName)) {
             const parts = file.fileName.split('.');
             parts.pop();
             setFileNameWithoutExtension(parts.join('.'));
@@ -124,7 +124,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
     };
 
     const handleDeleteConfirmation = () => {
-        onDeleteFile(file.fileId);
+        handleDeleteFile(file.fileId);
         setOpenDeleteDialog(false);
     };
 
@@ -268,7 +268,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
             >
                 <MenuItem onClick={handleEditClick}>
                     <EditIcon fontSize="small" sx={{ mr: 1 }} />
-                    Edit
+                    Edit File Name
                 </MenuItem>
                 <MenuItem onClick={handleDeleteClick}>
                     <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
@@ -431,7 +431,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
             <MoveToFileFolderDialog
                 open={openMoveToFolderDialog}
                 onClose={() => setOpenMoveToFolderDialog(false)}
-                onMoveFile={onMoveFile}
+                onMoveFile={handleMoveFile}
                 file={file}
             />
         </>

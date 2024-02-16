@@ -3,45 +3,9 @@ import * as functions from "firebase-functions";
 import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams, ShareFileParams, ShareFolderParams } from "./utils/types";
 import { ACCESS_LEVEL, SEVEN_DAYS_SECONDS, WEBSITE_URL } from "./utils/constants";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { generateDownloadLink } from "./r2";
+import { deleteFileFromCloudStorage, deleteFilesFromCloudStorage, generateDownloadLink } from "./r2";
 import * as nodemailer from 'nodemailer';
 
-
-
-const deleteCollection = async (db: any, collectionPath: string, batchSize: number) => {
-    const collectionRef = db.collection(collectionPath);
-    const query = collectionRef.orderBy('__name__').limit(batchSize);
-
-    return new Promise((resolve, reject) => {
-        deleteQueryBatch(db, query, batchSize, resolve, reject);
-    });
-};
-
-const deleteQueryBatch = async (db: any, query: any, batchSize: number, resolve: any, reject: any) => {
-    try {
-        const snapshot = await query.get();
-
-        if (snapshot.size === 0) {
-            // All documents in the collection have been deleted
-            return resolve();
-        }
-
-        // Delete documents in a batch
-        const batch = db.batch();
-        snapshot.docs.forEach((doc: any) => {
-            batch.delete(doc.ref);
-        });
-
-        await batch.commit();
-
-        // Recursively delete the next batch
-        process.nextTick(() => {
-            deleteQueryBatch(db, query, batchSize, resolve, reject);
-        });
-    } catch (error) {
-        return reject(error);
-    }
-};
 
 export const getFolderById = async (uid: string, folderId: string) => {
     const db = admin.firestore();
@@ -67,8 +31,6 @@ export const getFolderById = async (uid: string, folderId: string) => {
 
 export const getFolderRefById = async (uid: string, folderId: string) => {
     const db = admin.firestore();
-
-    console.log("Folder id: ", folderId);
     const docRef = await db.collection('users').doc(uid).collection('folders').doc(folderId);
     const docSnap = await docRef.get();
     let ref = docRef;
@@ -79,6 +41,9 @@ export const getFolderRefById = async (uid: string, folderId: string) => {
             ref = data.sharedFolderRef;
             if (!(await ref.get()).exists) return null;
         }
+    }
+    else {
+        return null;
     }
     return ref;
 }
@@ -125,9 +90,8 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
     );
 
     const folderRef = await getFolderRefById(userId, file.parentFolderId);
-    if (!folderRef) throw new Error('Unexpected error occurred');
 
-    await folderRef.update({
+    await folderRef!.update({
         files: FieldValue.arrayUnion(file.fileId)
     });
 
@@ -213,33 +177,20 @@ export const deleteFileFromDB = async (uid: string, fileId: string) => {
     if (!fileRef) return;
 
     const file = (await fileRef.get()).data();
-    if (!file) throw new Error('Unexpected error occurred');
+    await db.recursiveDelete(fileRef);
 
-    const collectionPath = `users/${uid}/files/${fileId}/links`;
-    const batchSize = 500;
-    await fileRef.delete();
-    await deleteCollection(db, collectionPath, batchSize);
-
-    if (file.collaborators) {
-        for (const [key] of Object.entries(file.collaborators)) {
+    if (file!.collaborators) {
+        for (const [key] of Object.entries(file!.collaborators)) {
             await deleteSharedFileEntryFromCollaborator(key, fileId);
         }
     }
 
     // Update the 'files' array in the 'folders' collection
-    const foldersRef = db.collection('users').doc(uid).collection('folders');
-    const foldersQuery = foldersRef.where('files', 'array-contains', fileId);
-    const foldersSnapshot = await foldersQuery.get();
+    const folderRef = await getFolderRefById(uid, file!.parentFolderId);
+    if (!folderRef) return;
+    await folderRef.update({ files: FieldValue.arrayRemove(fileId) });
 
-    if (!foldersSnapshot.empty) {
-        const folderDoc = foldersSnapshot.docs[0];
-        const updatedFilesArray = folderDoc.data().files.filter((file: string) => file !== fileId);
-
-        await folderDoc.ref.update({ files: updatedFilesArray });
-        console.log("Updated 'files' array in folder document.");
-    } else {
-        console.log("File with fileId ", fileId, " not found in any folders of user with uid ", uid);
-    }
+    await fileRef.delete();
 };
 
 export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid: string, fileId: string, downloadId: string) => {
@@ -334,10 +285,8 @@ export const renameFile = functions.https.onCall(async (data: RenameFileParams, 
 
         const file = (await fileRef.get()).data();
 
-        if (!file) throw new Error('Unexpected error occurred');
-
         const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, context.auth.uid);
-        if (file.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this file');
+        if (file!.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this file');
 
         const oldFileName = file!.fileName;
         const oldFileExtension = oldFileName.includes('.') ? oldFileName.split('.').pop() : '';
@@ -512,10 +461,8 @@ export const renameFolder = functions.https.onCall(async (data: RenameFolderPara
         }
         const folder = (await folderRef.get()).data();
 
-        if (!folder) throw new Error('Unexpected error occurred');
-
         const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(folder, context.auth.uid);
-        if (folder.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this folder');
+        if (folder!.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this folder');
 
         await folderRef.update({
             'folderName': newFolderName
@@ -793,11 +740,15 @@ const addSharedFileEntryToCollaborator = async (collaboratorId: string, fileId: 
 
 const deleteSharedFileEntryFromCollaborator = async (collaboratorId: string, fileId: string) => {
     const db = admin.firestore();
-    console.log("Deleting file entry for collaborator " + collaboratorId + " fileId: " + fileId);
     const sharedFileDocRef = db.collection('users').doc(collaboratorId).collection('files').doc(fileId);
     await sharedFileDocRef.delete();
 };
 
+const deleteSharedFolderEntryFromCollaborator = async (collaboratorId: string, folderId: string) => {
+    const db = admin.firestore();
+    const sharedFileDocRef = db.collection('users').doc(collaboratorId).collection('folders').doc(folderId);
+    await sharedFileDocRef.delete();
+};
 
 const addSharedFolderEntryToCollaborator = async (collaboratorId: string, folderId: string, sharedFolderRef: any) => {
     const db = admin.firestore();
@@ -837,12 +788,12 @@ const addCollaboratorToFolder = async (folderId: string, ownerId: string, invite
     }
 }
 
-export const acceptFileShareInvitation = functions.https.onCall(async (data, context) => {
+export const acceptFileShareInvitation = functions.https.onCall(async (invitationId: string, context) => {
     try {
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
         }
-        const invitationId = data || null;
+
         if (!invitationId) {
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
@@ -878,12 +829,12 @@ export const acceptFileShareInvitation = functions.https.onCall(async (data, con
     }
 });
 
-export const acceptFolderShareInvitation = functions.https.onCall(async (data, context) => {
+export const acceptFolderShareInvitation = functions.https.onCall(async (invitationId: string, context) => {
     try {
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
         }
-        const invitationId = data || null;
+
         if (!invitationId) {
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
@@ -911,6 +862,84 @@ export const acceptFolderShareInvitation = functions.https.onCall(async (data, c
         await db.collection('invitations').doc(invitationId).update({ used: true });
 
         return { success: true };
+
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
+
+export const deleteFile = functions.https.onCall(async (fileId: string, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+
+        const file = await getFileById(context.auth.uid, fileId);
+        if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+
+        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, context.auth.uid);
+        if (file.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to delete this file');
+        return deleteFileFromCloudStorage(file.fileKey);
+
+    } catch (error: any) {
+        console.error('Error:', error.message);
+        if (error instanceof functions.https.HttpsError) throw error;
+        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+    }
+});
+
+export const deleteFolder = functions.https.onCall(async (folderId: string, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        }
+
+        if (!folderId) throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+
+        if (folderId === "root") throw new functions.https.HttpsError('permission-denied', 'Cannot delete root folder');
+        if (folderId === "shared") throw new functions.https.HttpsError('permission-denied', 'Cannot delete shared folder');
+
+        const folderRef = await getFolderRefById(context.auth.uid, folderId);
+        if (!folderRef) throw new functions.https.HttpsError('not-found', 'Folder not found');
+        const folder = (await folderRef.get()).data();
+
+        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(folder, context.auth.uid);
+        if (folder!.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to delete this folder');
+
+        try {
+            const fileIds = folder!.files;
+            const fileKeys: string[] = [];
+            if (fileIds && fileIds.length > 0) {
+                for (const fileId of fileIds) {
+                    const fileRef = await getFileRefById(context.auth.uid, fileId);
+                    if (!fileRef) continue;
+                    const file = (await fileRef.get()).data();
+                    console.log("Deleting file file with key: ", file!.fileKey);
+                    fileKeys.push(file!.fileKey);
+                    await deleteFileFromDB(context.auth.uid, fileId)
+                }
+
+                await deleteFilesFromCloudStorage(fileKeys);
+            }
+
+            if (folder!.collaborators) {
+                for (const [key] of Object.entries(folder!.collaborators)) {
+                    await deleteSharedFolderEntryFromCollaborator(key, folderId);
+                }
+            }
+            const parentFolderRef = await getFolderRefById(context.auth.uid, folder!.parentFolderId);
+            if (!parentFolderRef) return;
+
+            await parentFolderRef.update({ folders: FieldValue.arrayRemove(folderId) });
+
+            await folderRef.delete();
+
+            return { success: true };
+        } catch {
+            throw new Error('Failed to delete folder');
+        }
 
     } catch (error: any) {
         console.error('Error:', error.message);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFileToFolder, renameFolder } from '../services/firebase';
+import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFileToFolder, renameFolder, deleteFolder } from '../services/firebase';
 import { File, Folder } from '../utils/types';
 import { Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab, Typography, Box } from '@mui/material';
 import Loading from '../components/Loading';
@@ -115,6 +115,9 @@ const MyFiles: React.FC = () => {
       return false;
     }
 
+    const file = files?.find(file => file.fileId === fileId);
+    handleSuccess(`"${file?.fileName}" was successfully renamed to "${newFileName}"`);
+
     setFiles((prevFiles) =>
       prevFiles!.map((file) =>
         file.fileId === fileId ? { ...file, fileName: updatedFileName } : file
@@ -133,6 +136,9 @@ const MyFiles: React.FC = () => {
       return false;
     }
 
+    const folder = getFolderWithId(folderId);
+    handleSuccess(`"${folder?.folderName}" was successfully renamed to "${newFolderName}"`);
+
     setFolders((prevFolders) =>
       prevFolders!.map((folder) =>
         folder.folderId === folderId ? { ...folder, folderName: newFolderName } : folder
@@ -150,14 +156,36 @@ const MyFiles: React.FC = () => {
       handleError(error);
       return;
     }
-
+    const file = files?.find(file => file.fileId === fileId);
+    handleSuccess(`"${file?.fileName}" was successfully deleted`);
     setFiles((prevFiles) => prevFiles!.filter((file) => file.fileId !== fileId));
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    if (!folders) return;
+    console.log("Deleting folder with foldereId: " + folderId);
+
+    const { success, error } = await deleteFolder(folderId);
+    if (error || !success) {
+      handleError(error);
+      return;
+    }
+    const folder = getFolderWithId(folderId);
+    handleSuccess(`"${folder?.folderName}" deleted successfully`);
+    await fetchFiles();
   };
 
   const handleError = (error: string | null = null) => {
     console.error(error);
     enqueueSnackbar(error, {
       variant: 'error',
+      preventDuplicate: true
+    });
+  };
+
+  const handleSuccess = (message: string) => {
+    enqueueSnackbar(message, {
+      variant: 'success',
       preventDuplicate: true
     });
   };
@@ -172,6 +200,7 @@ const MyFiles: React.FC = () => {
       handleError(error);
       return;
     }
+    handleSuccess(`A folder with the name "${folderName}" was successfully created`);
     await fetchFiles();
   };
 
@@ -181,6 +210,10 @@ const MyFiles: React.FC = () => {
       handleError(error);
       return;
     }
+    const currentFolder = getFolderWithId(currentFolderId);
+    const newFolder = getFolderWithId(newFolderId);
+    const file = files?.find(file => file.fileId === fileId);
+    handleSuccess(`"${file?.fileName}" was successfully moved from "${currentFolder?.folderName}" to "${newFolder?.folderName}"`);
     await fetchFiles();
   };
 
@@ -198,7 +231,7 @@ const MyFiles: React.FC = () => {
       {
         folderStructure && folderId && isValidFolder ?
           <>
-            <FolderComponent folderId={folderId} selectFolder={false} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleEditFolderName={handleEditFolderName} handleMoveFile={handleMoveFile} />
+            <FolderComponent folderId={folderId} selectFolder={false} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleDeleteFolder={handleDeleteFolder} handleEditFolderName={handleEditFolderName} handleMoveFile={handleMoveFile} />
           </>
           : <Typography variant="h4" sx={{ my: 5, fontWeight: 500 }}>Folder not found</Typography>
       }

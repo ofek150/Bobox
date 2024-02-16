@@ -7,6 +7,7 @@ import Loading from './Loading';
 import FileComponent from './FileComponent';
 import FolderIcon from "@mui/icons-material/Folder";
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import ShareIcon from '@mui/icons-material/Share';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { ACCESS_LEVEL, FILTER_ITEMS_TYPE, SORT_TYPE, ITEM_TYPE } from '../utils/constants';
@@ -22,6 +23,7 @@ interface FolderComponentProps {
     handleDeleteFile?: (fileId: string) => void;
     handleMoveFile?: (fileId: string, currentFolderId: string, newFolderId: string) => void;
     handleEditFolderName?: (folderId: string, newFolderName: string) => void;
+    handleDeleteFolder?: (folderId: string) => void;
     onFolderClick?: (folderId: string) => void;
     onFolderDoubleClick?: (folderId: string, folderName: string) => void;
     selectFolder: boolean;
@@ -31,7 +33,7 @@ interface FolderComponentState {
     clickedFolderId: string | null;
 }
 
-const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditFileName, handleEditFolderName, handleDeleteFile, selectFolder, handleMoveFile, onFolderClick, onFolderDoubleClick }: FolderComponentProps) => {
+const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditFileName, handleEditFolderName, handleDeleteFile, handleDeleteFolder, selectFolder, handleMoveFile, onFolderClick, onFolderDoubleClick }: FolderComponentProps) => {
     const navigate = useNavigate();
     const { folderStructure, getFolderWithId } = useFolderStructureContext();
     const [loading, setLoading] = useState(true);
@@ -48,6 +50,8 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
 
     const [sortType, setSortType] = useState<SORT_TYPE>(SORT_TYPE.BY_DATE_DESC);
     const [filterItemType, setFilterItemType] = useState<FILTER_ITEMS_TYPE>(FILTER_ITEMS_TYPE.BOTH);
+
+    const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
 
     const [state, setState] = useState<FolderComponentState>({
@@ -168,6 +172,29 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
         setAnchorPosition(null);
     };
 
+
+
+    const handleDeleteClick = (folderId: string | null) => {
+        if (!folderId) return;
+        handleCloseMenu();
+        const selectedFolder: Folder = getFolderWithId(folderId);
+        if (!selectedFolder) return;
+        setCurrFolderName(selectedFolder.folderName);
+        setSelectedFolderId(folderId);
+        setOpenDeleteDialog(true);
+    };
+
+    const handleDeleteConfirmation = () => {
+        if (handleDeleteFolder && selectedFolderId) {
+            handleDeleteFolder(selectedFolderId);
+            setOpenDeleteDialog(false);
+        }
+    };
+
+    const handleCancelDelete = () => {
+        setOpenDeleteDialog(false);
+    };
+
     const renderFolderList = (head: { [key: string]: any }) => {
         const items: JSX.Element[] = [];
 
@@ -256,8 +283,11 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
                     <FolderIcon style={{ marginRight: "8px" }} />
                     <ListItemText primary={item.folderName} secondary={`Created at: ${item.createdAt}`} sx={{ mr: 10 }} />
                     <ListItemSecondaryAction>
-                        <IconButton edge="end" aria-label="Edit" onClick={() => handleEditClick(item.folderId)} sx={{ mr: 1 }} >
+                        <IconButton edge="end" aria-label="Edit" onClick={() => handleEditClick(item.folderId)}>
                             <EditIcon />
+                        </IconButton>
+                        <IconButton edge="end" aria-label="Delete" onClick={() => handleDeleteClick(item.folderId)} sx={{ ml: 1.2, mr: 1 }}>
+                            <DeleteIcon />
                         </IconButton>
                         <div
                             role="button"
@@ -273,7 +303,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
                     </ListItemSecondaryAction>
                 </ListItem>
             ) : (
-                <FileComponent key={item.fileId} file={item as File} onEditFileName={handleEditFileName!} onDeleteFile={handleDeleteFile!} onMoveFile={handleMoveFile!} />
+                <FileComponent key={item.fileId} file={item as File} handleEditFileName={handleEditFileName!} handleDeleteFile={handleDeleteFile!} handleMoveFile={handleMoveFile!} />
             ))
         });
 
@@ -312,9 +342,13 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
                 anchorReference="anchorPosition"
                 anchorPosition={anchorPosition as { top: number; left: number }}
             >
-                <MenuItem onClick={() => { handleEditClick(state.clickedFolderId) }}>
+                <MenuItem onClick={() => handleEditClick(state.clickedFolderId)}>
                     <EditIcon fontSize="small" sx={{ mr: 1 }} />
-                    Edit
+                    Edit Folder Name
+                </MenuItem>
+                <MenuItem onClick={() => handleDeleteClick(state.clickedFolderId)}>
+                    <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+                    Delete
                 </MenuItem>
                 <MenuItem onClick={handleShareClick}>
                     <ShareIcon fontSize="small" sx={{ mr: 1 }} />
@@ -344,7 +378,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
 
             {/* Share Dialog */}
             <Dialog open={openShareDialog} onClose={handleShareDialogClose}>
-                <DialogTitle>Share File</DialogTitle>
+                <DialogTitle>Add Collaborators</DialogTitle>
                 <DialogContent>
                     <TextField
                         label="Email"
@@ -373,6 +407,22 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
                     </Button>
                     <Button onClick={handleShareInviteClick} color="primary">
                         Invite
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Delete Dialog */}
+            <Dialog open={openDeleteDialog} onClose={handleCancelDelete}>
+                <DialogTitle>Confirm Deletion</DialogTitle>
+                <DialogContent>
+                    <p>Are you sure you want to delete this folder?</p>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCancelDelete} color="secondary">
+                        Cancel
+                    </Button>
+                    <Button onClick={handleDeleteConfirmation} color="primary">
+                        Delete
                     </Button>
                 </DialogActions>
             </Dialog>

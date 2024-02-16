@@ -1,5 +1,5 @@
 import * as functions from "firebase-functions";
-import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types";
 import { addFileToDB, setFileUploaded, deleteFileFromDB, isUniqueFileName, getFileById, addLinkToDB, updatePrivateLinkDownloadId, getFolderById, getCollaboratorAccessLevel } from "./db";
@@ -362,35 +362,34 @@ export const generateDownloadLink = async (fileKey: string, expiresIn: number) =
   return signedUrl;
 };
 
-export const deleteFile = functions.https.onCall(async (fileId: string, context) => {
-  try {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
-    }
+export const deleteFileFromCloudStorage = async (fileKey: string) => {
+  const deleteCommand = new DeleteObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key: fileKey
+  })
 
-    const file = await getFileById(context.auth.uid, fileId);
-    if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+  const result = await r2.send(deleteCommand);
+  console.log("Result: ", result);
 
-    const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, context.auth.uid);
-    if (file.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to delete this file');
+  if (result.$metadata.httpStatusCode === 204) return { success: true };
 
-    await deleteFileFromDB(context.auth.uid, fileId);
+  throw new Error("Failed deleting file, please try again later!");
+}
 
-    const deleteCommand = new DeleteObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME,
-      Key: file.fileKey
-    })
+export const deleteFilesFromCloudStorage = async (fileKeys: string[]) => {
+  const deleteCommand = new DeleteObjectsCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Delete: {
+      Objects: fileKeys.map((key) => ({ Key: key })),
+      Quiet: false,
+    },
+  });
 
-    const result = await r2.send(deleteCommand);
-    console.log("Result: ", result);
+  const result = await r2.send(deleteCommand);
+  console.log("Result: ", result);
 
-    if (result.$metadata.httpStatusCode === 204) return { success: true };
+  if (result.$metadata.httpStatusCode === 200) return { success: true };
 
-    throw new Error("Failed deleting file, please try again later!");
-  } catch (error: any) {
-    console.error('Error:', error.message);
-    if (error instanceof functions.https.HttpsError) throw error;
-    else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
-  }
-});
+  throw new Error("Failed deleting files, please try again later!");
+}
 
