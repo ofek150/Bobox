@@ -331,7 +331,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
                     }
                 </Typography>
             }
-            <FilterBar setType={setFilterItemType} setSortBy={setSortType} sortBy={sortType} filterType={filterItemType} />
+            {!selectFolder && <FilterBar setType={setFilterItemType} setSortBy={setSortType} sortBy={sortType} filterType={filterItemType} />}
             <List>
                 {renderFolderList(folder)}
             </List>
