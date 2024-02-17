@@ -2,7 +2,7 @@ import React, { useEffect, useState, MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import { Folder, File, ShareFolderParams, Variant } from '../utils/types';
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItem, ListItemSecondaryAction, ListItemText, Menu, MenuItem, TextField, Typography } from '@mui/material';
+import { Box, Button, Card, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItem, ListItemSecondaryAction, ListItemText, Menu, MenuItem, TextField, Typography } from '@mui/material';
 import Loading from './Loading';
 import FileComponent from './FileComponent';
 import FolderIcon from "@mui/icons-material/Folder";
@@ -269,14 +269,16 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
                         ':hover': {
                             backgroundColor: 'rgba(0, 0, 0, 0.08)', // Change the background color on hover
                         },
+                        width: '100%',
                         backgroundColor: selectedFolderId === item.folderId ? 'rgba(0, 0, 0, 0.25)' : 'inherit', // Change the background color when selected
                     }}
                 >
                     <FolderIcon style={{ marginRight: "8px" }} />
-                    <ListItemText primary={item.folderName} />
+                    <ListItemText primary={item.folderName}/>
                 </ListItem>
 
             ) : item.type === ITEM_TYPE.FOLDER ? (
+                <Card sx={{mb: '0.8rem'}}>
                 <ListItem button
                     //selected={Boolean(anchorPosition)}
                     onContextMenu={(e) => { handleContextMenu(e, item.folderId) }} key={item.folderId} onClick={() => navigate(`/user/folders/${item.folderId}`)}>
@@ -301,7 +303,8 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
                             </IconButton>
                         </div>
                     </ListItemSecondaryAction>
-                </ListItem>
+                    </ListItem>
+                </Card>
             ) : (
                 <FileComponent key={item.fileId} file={item as File} handleEditFileName={handleEditFileName!} handleDeleteFile={handleDeleteFile!} handleMoveFile={handleMoveFile!} />
             ))
@@ -317,7 +320,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
     }
 
     return (
-        <Box sx={{ width: '80%' }}>
+        <Box>
             {!selectFolder &&
                 < Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mt: 2, mb: 4, textAlign: 'center' }}>
                     {

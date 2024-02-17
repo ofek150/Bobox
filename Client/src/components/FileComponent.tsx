@@ -19,6 +19,7 @@ import {
     OutlinedInput,
     Checkbox,
     Divider,
+    Card,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -300,7 +301,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
     }
 
     return (
-        <>
+        <Card sx={{mb: '0.8rem'}}>
             <ListItem
                 button
                 onContextMenu={handleContextMenu}
@@ -311,17 +312,14 @@ const FileComponent: React.FC<FileComponentProps> = ({
                 <ListItemText
                     primary={displayedFileName}
                     secondary={`Size: ${formatFileSize(file.fileSize)} | Uploaded At: ${file.uploadedAt}`}
-                    sx={{ mr: 10 }}
+                    sx={{ mr: 15 }}
                 />
                 <ListItemSecondaryAction>
                     <IconButton edge="end" aria-label="Edit" onClick={handleEditClick}>
                         <EditIcon />
                     </IconButton>
-                    <IconButton edge="end" aria-label="Delete" onClick={handleDeleteClick} sx={{ ml: 1.2 }}>
+                    <IconButton edge="end" aria-label="Delete" onClick={handleDeleteClick} sx={{ ml: 1.2, mr: 1 }}>
                         <DeleteIcon />
-                    </IconButton>
-                    <IconButton edge="end" aria-label="Move to Folder" onClick={handleMoveClick} sx={{ ml: 1.2, mr: 1 }}>
-                        <DriveFileMove />
                     </IconButton>
                     <div
                         role="button"
@@ -515,7 +513,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
                 onMoveFile={handleMoveFile}
                 file={file}
             />
-        </>
+        </Card>
     );
 };
 
