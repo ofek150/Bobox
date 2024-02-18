@@ -12,15 +12,12 @@ import UploadFile from './pages/UploadFile';
 import FileInfo from './pages/FileInfo';
 import MyFiles from './pages/MyFiles';
 import AcceptInvitation from './pages/AcceptInvitation';
-import { logout } from './services/firebase';
-import { Button } from '@mui/material';
 
 
 const App: React.FC = () => {
 
   return (
     <main className="App">
-      <Button onClick={logout}>Logout</Button>
       <Router>
         <Routes>
           <Route path="/" element={<Layout />}>

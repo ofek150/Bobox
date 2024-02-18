@@ -7,12 +7,12 @@ import {
     Button,
     List,
     ListItem,
-    ListItemText,
-    Typography,
+    ListItemText
 } from '@mui/material';
 import FolderComponent from './FolderComponent';
 import { File, Folder } from '../utils/types'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import FolderIcon from "@mui/icons-material/Folder";
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 
 interface MoveToFileFolderDialogProps {
@@ -92,7 +92,9 @@ const MoveToFileFolderDialog: React.FC<MoveToFileFolderDialogProps> = ({ file, o
                                 },
                             }}
                         >
+                            <FolderIcon style={{ marginRight: "8px" }} />
                             <ListItemText primary={"root"} />
+
                         </ListItem>
                     }
                     {shownFolderId && shownFolderId != "storage" && <FolderComponent folderId={shownFolderId} selectFolder={true} onFolderClick={handleFolderClick} onFolderDoubleClick={handleFolderDoubleClick} />}

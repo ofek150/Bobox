@@ -28,6 +28,7 @@ const theme = createTheme({
         MuiButton: {
             styleOverrides: {
                 root: {
+                    borderRadius: 5, // Set borderRadius to 5 for all buttons
                     color: '#ffffff',
                 },
                 contained: {
@@ -41,7 +42,7 @@ const theme = createTheme({
                     backgroundColor: 'transparent',
                     color: '#172B3F',
                     '&:hover': {
-                        backgroundColor: '#00000014'
+                        backgroundColor: '#00000014',
                     },
                 },
                 outlined: {

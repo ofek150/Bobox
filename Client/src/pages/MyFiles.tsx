@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFileToFolder, renameFolder, deleteFolder } from '../services/firebase';
 import { File, Folder } from '../utils/types';
-import { Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab, Typography, Box } from '@mui/material';
+import { Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab, Typography, Box, IconButton, useMediaQuery } from '@mui/material';
 import Loading from '../components/Loading';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -12,6 +12,8 @@ import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import SearchBox from '../components/UI/SearchBox';
 import { enqueueSnackbar } from 'notistack';
 import PathBar from '../components/UI/PathBar';
+
+import theme from '../theme';
 
 interface CreateFolderDialogProps {
   open: boolean;
@@ -61,6 +63,7 @@ const MyFiles: React.FC = () => {
   const navigate = useNavigate();
   const { folderStructure, updateFolderStructure, getFolderWithId } = useFolderStructureContext();
   const [isValidFolder, setIsValidFolder] = useState<boolean>(false);
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const fetchFiles = async () => {
     try {
@@ -224,9 +227,9 @@ const MyFiles: React.FC = () => {
   return (
     <Container maxWidth="md" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', pb: 10 }}>
       <SearchBox placeholder="Search files and folders" />
+      
       <Box sx={{ alignSelf: 'center' }}>
-
-        {folderStructure && folderId && isValidFolder && <PathBar folderId={folderId} />}
+        {folderStructure && folderId && isValidFolder && !isMobile && <PathBar folderId={folderId} />}
       </Box>
       {
         folderStructure && folderId && isValidFolder ?

@@ -5,7 +5,7 @@ import { auth, getUserData, logout } from '../services/firebase';
 import Loading from '../components/Loading';
 import { enqueueSnackbar } from 'notistack';
 import { useNavigate } from 'react-router';
-import { formatFileSize, formatToMB } from '../utils/helpers';
+import { formatFileSize } from '../utils/helpers';
 
 interface AccountInfo {
     name: string;
@@ -76,8 +76,11 @@ const AccountInformation: React.FC = () => {
                             value={accountInfo.name}
                             InputProps={{
                                 readOnly: true,
+                                sx: {
+                                    borderRadius: 5
+                                }
                             }}
-                            style={{ width: '100%' }}
+                            sx={{ width: '100%' }}
                         />
                     </Grid>
                     <Grid item xs={12} sx={{ width: '100%', mb: 2 }}>
@@ -86,8 +89,11 @@ const AccountInformation: React.FC = () => {
                             value={accountInfo.email}
                             InputProps={{
                                 readOnly: true,
+                                sx: {
+                                    borderRadius: 5
+                                }
                             }}
-                            style={{ width: '100%' }}
+                            sx={{ width: '100%' }}
                         />
                     </Grid>
                     <Grid item xs={12} sx={{ width: '100%', mb: '2' }}>
@@ -103,7 +109,7 @@ const AccountInformation: React.FC = () => {
                         </Typography>
                     </Grid>
                     <Grid item xs={12} sx={{ width: '100%', mt: 3 }}>
-                        <Button variant="contained" onClick={handleLogout} sx={{ width: '100%' }}>Logout</Button>
+                        <Button variant="contained" onClick={handleLogout} sx={{ width: '100%', borderRadius: 5 }}>Logout</Button>
                     </Grid>
                 </>
             )}

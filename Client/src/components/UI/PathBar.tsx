@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import { useFolderStructureContext } from "../../contexts/FolderStructureContext";
 import { useNavigate } from "react-router-dom";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { Box, Button, List, ListItem, MenuItem, Popover, Typography } from "@mui/material";
+import { Button, List, ListItem, MenuItem, Popover, Typography } from "@mui/material";
 import { auth } from "../../services/firebase";
 import FolderIcon from "@mui/icons-material/Folder";
+import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 
 interface PathBarProps {
     folderId: string;
@@ -75,7 +76,7 @@ const PathBar: React.FC<PathBarProps> = ({ folderId, fileId = null }) => {
                     <Button variant='text' onClick={handleEllipsisClick} sx={{ fontSize: '1.2rem', textTransform: 'none', fontWeight: 500 }}>
                         ...
                     </Button>
-                    <Typography sx={{ fontSize: '1.5rem', fontWeight: 500, ml: 1 }}>/</Typography>
+                    <KeyboardArrowRightIcon />
                     <Popover
                         open={Boolean(popoverAnchor)}
                         anchorEl={popoverAnchor}
@@ -107,7 +108,8 @@ const PathBar: React.FC<PathBarProps> = ({ folderId, fileId = null }) => {
                     </ListItem>
                     <ListItem key={folderPathObject.folderId + "_selector"}>
                         {index < lastThreeFolders.length - 1 && (
-                            <Typography sx={{ fontSize: '1.5rem', fontWeight: 500 }}>/</Typography>
+                            <KeyboardArrowRightIcon />
+                            // <Typography sx={{ fontSize: '1.5rem', fontWeight: 500 }}>/</Typography>
                         )}
                     </ListItem>
                 </React.Fragment>

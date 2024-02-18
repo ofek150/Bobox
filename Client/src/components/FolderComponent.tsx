@@ -16,6 +16,7 @@ import { isValidEmail } from '../utils/validations';
 import NotFoundPage from '../pages/NotFoundPage';
 import { enqueueSnackbar } from 'notistack';
 import FilterBar from './UI/FilterBar';
+import ArrowBackIcon from '@mui/icons-material/ArrowBackIos';
 
 interface FolderComponentProps {
     folderId: string;
@@ -52,6 +53,10 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
     const [filterItemType, setFilterItemType] = useState<FILTER_ITEMS_TYPE>(FILTER_ITEMS_TYPE.BOTH);
 
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+
+    const handleGoBack = () => {
+        navigate(-1);
+    };
 
 
     const [state, setState] = useState<FolderComponentState>({
@@ -321,19 +326,23 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
 
     return (
         <Box>
-            {!selectFolder &&
-                < Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mt: 2, mb: 4, textAlign: 'center' }}>
-                    {
-                        folder
-                            ? folder.folderId === "root"
-                                ? "My Storage"
-                                : folder.folderId === "shared"
-                                    ? "Shared Storage"
-                                    : folder.folderName
-                            : null
-                    }
-                </Typography>
-            }
+            {!selectFolder && (
+      <Box sx={{ display: 'flex', alignItems: 'flex-end', mb: 4, justifyContent: 'center' }}>
+      <IconButton onClick={handleGoBack} sx={{ color: 'primary.main', mr: 1 }}>
+        <ArrowBackIcon />
+      </IconButton>
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mt: 2, mb: 0, textAlign: 'center' }}>
+        {folder
+          ? folder.folderId === 'root'
+            ? 'My Storage'
+            : folder.folderId === 'shared'
+            ? 'Shared Storage'
+            : folder.folderName
+          : null}
+      </Typography>
+    </Box>
+    
+    )}
             {!selectFolder && <FilterBar setType={setFilterItemType} setSortBy={setSortType} sortBy={sortType} filterType={filterItemType} />}
             <List>
                 {renderFolderList(folder)}

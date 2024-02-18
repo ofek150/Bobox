@@ -3,6 +3,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { auth, waitForRoot } from '../services/firebase';
 import Loading from './Loading';
+import Navbar from './UI/Navbar';
 
 const RequireAuth: React.FC = () => {
     const [user, loading] = useAuthState(auth);
@@ -26,7 +27,7 @@ const RequireAuth: React.FC = () => {
         return <Navigate to="/login" state={{ from: location }} replace />; // Redirect to login page if user is not authenticated
     }
 
-    return <Outlet />; // Render the nested child routes
+    return <Outlet />
 };
 
 export default RequireAuth;

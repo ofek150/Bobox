@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton, FormControlLabel, Checkbox, Alert, Paper, Container, Select, MenuItem, CircularProgress } from "@mui/material"
+import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton, FormControlLabel, Checkbox, Paper, Container, Select, MenuItem, CircularProgress } from "@mui/material"
 import { MIN_MULTIPART_UPLOAD_SIZE, MAX_UPLOAD_RETRIES, LARGE_FILE_MAX_SIZE, MAX_FILE_SIZE_STRING } from "../utils/constants";
 import { initiateSmallFileUpload, completeSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, abortMultipartUpload, generatePublicDownloadLink } from "../services/firebase";
 import { UploadFileParams, UploadPartParams, CompleteMultiPartParams, GenerateDownloadLinkParams } from "../utils/types";
@@ -35,12 +35,6 @@ const UploadFile: React.FC = () => {
     const [shareLink, setShareLink] = useState<string | null>(null);
 
     if (!folderId) return <NotFoundPage />;
-
-    // useEffect(() => {
-    //     const today = new Date();
-    //     const nextWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
-    //     setExpiryDate(nextWeek);
-    // }, []);
 
 
     useEffect(() => {
@@ -356,6 +350,7 @@ const UploadFile: React.FC = () => {
             console.log('Link copied to clipboard:', shareLink);
         });
     };
+
     return (
         <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <Container maxWidth="xs">
@@ -363,8 +358,7 @@ const UploadFile: React.FC = () => {
                     <Typography variant="h4" gutterBottom sx={{ mb: 2, fontWeight: "bold" }}>
                         Upload a File
                     </Typography>
-                    <div className="input-container" style={{ marginBottom: '16px' }}>
-                        <OutlinedInput
+                    <OutlinedInput
                             type="file"
                             onChange={handleFileChange}
                             endAdornment={
@@ -381,8 +375,9 @@ const UploadFile: React.FC = () => {
                                     </IconButton>
                                 </InputAdornment>
                             }
-                        />
-                    </div>
+                            sx={{mb: 2}}
+                    />
+
                     {uploading && <CircularProgressWithLabel value={progress} sx={{ mt: 1, mb: 2 }} />}
                     {!uploaded && !uploading && !generatingLink &&
                         (
