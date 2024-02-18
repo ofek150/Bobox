@@ -163,7 +163,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
   };
 
   return (
-    <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+    <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', mt: 12 }}>
       <Container maxWidth="xs">
         <Paper elevation={3} sx={{ p: 2, borderRadius: 3 }}>
           <Tabs value={activeTab} onChange={handleTabChange} centered TabIndicatorProps={{ style: { display: 'none' } }}>
