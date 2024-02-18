@@ -197,10 +197,16 @@ export const isUniqueFileName = async (uid: string, fileName: string, folderId: 
     const filesInFolder = parentFolder!.files || [];
 
     for (const fileId of filesInFolder) {
-        const file = await getFileById(uid, fileId);
+        const file = await getFileById(uid, fileId)
         if (!file) continue;
 
-        if (file?.fileName === fileName) return true;
+        if (file!.fileName === fileName) {
+            if (file!.status !== 'Uploaded') {
+                await deleteFileFromDB(uid, fileId);
+                return false;
+            }
+            return true;
+        }
     }
 
     return false;

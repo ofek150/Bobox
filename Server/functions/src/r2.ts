@@ -4,7 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types";
 import { addFileToDB, setFileUploaded, deleteFileFromDB, isUniqueFileName, getFileById, addLinkToDB, updatePrivateLinkDownloadId, getFolderById, getCollaboratorAccessLevel } from "./db";
 import { FileEntry } from "./utils/types";
-import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS, ACCESS_LEVEL } from "./utils/constants";
+import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS, ACCESS_LEVEL, MAX_FILE_SIZE_STRING } from "./utils/constants";
 import { v4 as uuidv4 } from 'uuid';
 
 export const r2 = new S3Client({
@@ -47,7 +47,7 @@ export const initiateSmallFileUpload = functions.https.onCall(
     const { fileName, folderId, fileType, fileSize } = data || {};
     if (!folderId || !fileName || !fileSize || !fileType) throw new functions.https.HttpsError('invalid-argument', 'Missing arguments');
 
-    if (fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
+    if (fileSize > MAX_FILE_SIZE) if (fileSize > MAX_FILE_SIZE) throw new functions.https.HttpsError('invalid-argument', `The file is bigger than the max allowed file size (${MAX_FILE_SIZE_STRING})`);
     if (folderId === "shared") throw new functions.https.HttpsError('permission-denied', 'You are not allowed to upload files here');
 
     try {
@@ -110,7 +110,7 @@ export const initiateMultipartUpload = functions.https.onCall(
     if (!folderId || !fileName || !fileSize || !fileType) {
       throw new functions.https.HttpsError('invalid-argument', 'Missing arguments');
     }
-    if (fileSize > MAX_FILE_SIZE) throw new Error("The file is bigger than the max allowed file size" + MAX_FILE_SIZE.toString());
+    if (fileSize > MAX_FILE_SIZE) throw new functions.https.HttpsError('invalid-argument', `The file is bigger than the max allowed file size (${MAX_FILE_SIZE_STRING})`);
     if (folderId === "shared") throw new functions.https.HttpsError('permission-denied', 'You are not allowed to upload files here');
     try {
 
@@ -151,7 +151,7 @@ export const generateUploadPartURL = functions.https.onCall(
       );
     }
     const { fileId, partNumber, uploadId } = data || {};
-    if (fileId || partNumber || uploadId) {
+    if (!fileId || !partNumber || !uploadId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Missing arguments"

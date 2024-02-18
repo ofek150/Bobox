@@ -23,11 +23,14 @@ export const formatFileSize = (sizeInBytes: number): string => {
         unitIndex++;
     }
 
-    const formattedSize = size % 1 === 0 ? Math.round(size) : size.toFixed(2);
+    const formattedSize = Math.round(size * 100) / 100;
     const unit = units[unitIndex];
 
     return `${formattedSize} ${unit}`;
 };
+
+
+
 
 
 export const formatDateTimeLocal = (date: Date): string => {

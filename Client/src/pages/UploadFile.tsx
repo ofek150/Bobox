@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Typography, Button, Box, InputAdornment, OutlinedInput, IconButton, FormControlLabel, Checkbox, Alert, Paper, Container, Select, MenuItem, CircularProgress } from "@mui/material"
-import { MIN_MULTIPART_UPLOAD_SIZE, MAX_UPLOAD_RETRIES, LARGE_FILE_MAX_SIZE } from "../utils/constants";
+import { MIN_MULTIPART_UPLOAD_SIZE, MAX_UPLOAD_RETRIES, LARGE_FILE_MAX_SIZE, MAX_FILE_SIZE_STRING } from "../utils/constants";
 import { initiateSmallFileUpload, completeSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, abortMultipartUpload, generatePublicDownloadLink } from "../services/firebase";
 import { UploadFileParams, UploadPartParams, CompleteMultiPartParams, GenerateDownloadLinkParams } from "../utils/types";
 import axios, { AxiosProgressEvent, AxiosRequestConfig } from "axios";
@@ -168,7 +168,7 @@ const UploadFile: React.FC = () => {
         if (!selectedFile) return;
         const { uploadId, fileId, error } = await initiateMultipartUpload(fileParameters);
         if (error) {
-            handleError(error);
+            handleUploadError(error);
             return;
         }
 
@@ -229,7 +229,7 @@ const UploadFile: React.FC = () => {
         } catch (error: any) {
             if (error & error.message) console.error("Failed to upload file", error.meessage);
             await abortMultipartUpload(abortUploadData);
-            handleError(error);
+            handleUploadError(error);
             return;
         }
         parts.sort((a: any, b: any) => a.partNumber - b.partNumber);
@@ -255,7 +255,8 @@ const UploadFile: React.FC = () => {
         if (selectedFile && selectedFile.name && selectedFile.size && selectedFile.type) {
             setUploaded(false);
             if (selectedFile.size > LARGE_FILE_MAX_SIZE) {
-                handleUploadError("The file is bigger than the max allowed file size - " + LARGE_FILE_MAX_SIZE.toString());
+                handleUploadError(`The file is bigger than the max allowed file size (${MAX_FILE_SIZE_STRING})`);
+                return;
             }
             setIsCancelled(false);
             isCancelledRef.current = false;
