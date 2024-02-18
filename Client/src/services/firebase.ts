@@ -47,8 +47,10 @@ export const waitForRoot = async () => {
   });
 }
 
+
 export const signInWithGoogle = async () => {
   await signInWithPopup(auth, googleProvider);
+
 };
 
 export const loginWithEmailAndPassword = async (email: string, password: string) => {
@@ -424,5 +426,6 @@ export const acceptFolderShareInvitation = async (invitationId: string) => {
     return { error: error.details ? error.details.message : error.message };
   }
 }
+
 
 

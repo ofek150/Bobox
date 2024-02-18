@@ -19,7 +19,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-
+      allow read: if isOwner(userId);
+      
       match /folders/{folderId} {
         allow read: if isOwner(userId);
       }
