@@ -53,7 +53,6 @@ const CreateFolderDialog: React.FC<CreateFolderDialogProps> = ({ open, onClose, 
 };
 
 const MyFiles: React.FC = () => {
-  const [loadingAuthState] = useAuthState(auth);
   const { folderId } = useParams();
   const [_folderId] = useState(folderId);
   const [files, setFiles] = useState<File[] | null>(null);
@@ -88,7 +87,6 @@ const MyFiles: React.FC = () => {
   useEffect(() => {
     if (folders) {
       updateFolderStructure(folders, files);
-      setLoading(false);
     }
   }, [files, folders]);
 
@@ -100,6 +98,10 @@ const MyFiles: React.FC = () => {
       if (folder) setIsValidFolder(true);
     }
   }, [folderStructure]);
+
+  useEffect(() => {
+    console.log('loading: ', loading);
+  }, [loading])
 
   const handleEditFileName = async (fileId: string, newFileName: string) => {
     if (!files) return false;
@@ -193,7 +195,7 @@ const MyFiles: React.FC = () => {
     });
   };
 
-  if (loading || loadingAuthState) {
+  if (loading) {
     return <Loading />;
   }
 

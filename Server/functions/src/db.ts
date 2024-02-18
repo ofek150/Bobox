@@ -1,14 +1,13 @@
-import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
 import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams, ShareFileParams, ShareFolderParams } from "./utils/types.js";
 import { ACCESS_LEVEL, SEVEN_DAYS_SECONDS, WEBSITE_URL } from "./utils/constants.js";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { deleteFileFromCloudStorage, deleteFilesFromCloudStorage, generateDownloadLink } from "./r2.js";
 import * as nodemailer from 'nodemailer';
 
 
 export const getFolderById = async (uid: string, folderId: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
 
     const docRef = await db.collection('users').doc(uid).collection('folders').doc(folderId);
     const docSnap = await docRef.get();
@@ -30,7 +29,7 @@ export const getFolderById = async (uid: string, folderId: string) => {
 }
 
 export const getFolderRefById = async (uid: string, folderId: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const docRef = await db.collection('users').doc(uid).collection('folders').doc(folderId);
     const docSnap = await docRef.get();
     let ref = docRef;
@@ -49,7 +48,7 @@ export const getFolderRefById = async (uid: string, folderId: string) => {
 }
 
 export const getUserRefById = async (uid: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const docRef = await db.collection('users').doc(uid)
     const docSnap = await docRef.get();
     if (docSnap.exists) {
@@ -83,7 +82,7 @@ export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInf
 }
 
 export const addFileToDB = async (userId: string, file: FileEntry) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const parentFolder = await getFolderById(userId, file.parentFolderId);
     if (!parentFolder) throw new Error("Parent folder not found");
 
@@ -141,7 +140,7 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
 }
 
 export const getFileById = async (uid: string, fileId: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
 
     const docRef = await db.collection('users').doc(uid).collection('files').doc(fileId);
     const docSnap = await docRef.get();
@@ -163,7 +162,7 @@ export const getFileById = async (uid: string, fileId: string) => {
 }
 
 export const getFileRefById = async (uid: string, fileId: string, create: boolean = false) => {
-    const db = admin.firestore();
+    const db = getFirestore();
 
     const docRef = await db.collection('users').doc(uid).collection('files').doc(fileId);
     const docSnap = await docRef.get();
@@ -214,7 +213,7 @@ export const isUniqueFileName = async (uid: string, fileName: string, folderId: 
 
 export const deleteFileFromDB = async (uid: string, fileId: string) => {
     console.log("Deleting file with fileId ", fileId, " of user with uid ", uid);
-    const db = admin.firestore();
+    const db = getFirestore();
     // Delete the file from the 'files' collection
     const fileRef = await getFileRefById(uid, fileId);
     if (!fileRef) return;
@@ -360,7 +359,7 @@ export const updatePrivateLinkDownloadId = async (uid: string, fileId: string, d
 }
 
 export const doesFolderExist = async (uid: string, folderId: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const folderDocRef = db.collection('users').doc(uid).collection('folders').doc(folderId);
     const folderDoc = await folderDocRef.get();
 
@@ -368,7 +367,7 @@ export const doesFolderExist = async (uid: string, folderId: string) => {
 }
 
 export const doesFolderNameExistInFolder = async (uid: string, parentFolderId: string, folderName: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
 
     const folderDocRef = db.collection('users').doc(uid).collection('folders').where('parentFolderId', '==', parentFolderId).where('folderName', '==', folderName);
     const folderDocs = await folderDocRef.get();
@@ -396,7 +395,7 @@ export const createFolder = functions.https.onCall(async (data: CreateFolderPara
         const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(parentFolder, context.auth.uid);
         if (parentFolder.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to create folders here');
 
-        const db = admin.firestore();
+        const db = getFirestore();
 
 
         if (await doesFolderNameExistInFolder(context.auth.uid, parentFolderId, folderName)) throw new functions.https.HttpsError('already-exists', 'Folder with the same name already exist in the current folder!');
@@ -524,7 +523,7 @@ export const renameFolder = functions.https.onCall(async (data: RenameFolderPara
 });
 
 const getUserByEmail = async (email: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     try {
         const querySnapshot = await db.collection('users').where('email', '==', email).get();
 
@@ -540,7 +539,7 @@ const getUserByEmail = async (email: string) => {
 };
 
 const getUserById = async (userId: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     try {
         const documentSnapshot = await db.collection('users').doc(userId).get();
 
@@ -556,7 +555,7 @@ const getUserById = async (userId: string) => {
 };
 
 const getInvitationById = async (invitationId: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     try {
         const documentSnapshot = await db.collection('invitations').doc(invitationId).get();
 
@@ -597,7 +596,7 @@ export const shareFileWithUserByEmail = functions.https.onCall(async (data: Shar
 
         if (await isFileCollaborator(fileId, context.auth.uid, invitedUser.uid)) throw new functions.https.HttpsError('already-exists', 'User is already a collaborator on the folder');
 
-        const db = admin.firestore();
+        const db = getFirestore();
         const invitationDocRef = await db.collection('invitations').add({
             ownerId: file.ownerUid,
             type: 'file',
@@ -676,7 +675,7 @@ export const shareFolderWithUserByEmail = functions.https.onCall(async (data: Sh
 
         if (await isFolderCollaborator(folderId, context.auth.uid, invitedUser.uid)) throw new functions.https.HttpsError('already-exists', 'User is already a collaborator on the folder');
 
-        const db = admin.firestore();
+        const db = getFirestore();
         const invitationDocRef = await db.collection('invitations').add({
             ownerId: folder.ownerUid,
             type: 'folder',
@@ -758,7 +757,7 @@ const isFolderCollaborator = async (folderId: string, ownerId: string, userId: s
 }
 
 const addCollaboratorToFile = async (fileId: string, ownerId: string, invitedUser: any, accessLevel: ACCESS_LEVEL) => {
-    const db = admin.firestore();
+    const db = getFirestore();
 
     const docRef = await db.collection('users').doc(ownerId).collection('files').doc(fileId);
 
@@ -777,7 +776,7 @@ const addCollaboratorToFile = async (fileId: string, ownerId: string, invitedUse
 }
 
 const addSharedFileEntryToCollaborator = async (collaboratorId: string, fileId: string, sharedFileRef: any) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const sharedFileDocRef = db.collection('users').doc(collaboratorId).collection('files').doc(fileId);
     await sharedFileDocRef.set({
         sharedFileRef: sharedFileRef,
@@ -786,19 +785,19 @@ const addSharedFileEntryToCollaborator = async (collaboratorId: string, fileId: 
 }
 
 const deleteSharedFileEntryFromCollaborator = async (collaboratorId: string, fileId: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const sharedFileDocRef = db.collection('users').doc(collaboratorId).collection('files').doc(fileId);
     await sharedFileDocRef.delete();
 };
 
 const deleteSharedFolderEntryFromCollaborator = async (collaboratorId: string, folderId: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const sharedFileDocRef = db.collection('users').doc(collaboratorId).collection('folders').doc(folderId);
     await sharedFileDocRef.delete();
 };
 
 const addSharedFolderEntryToCollaborator = async (collaboratorId: string, folderId: string, sharedFolderRef: any) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const sharedFolderDocRef = db.collection('users').doc(collaboratorId).collection('folders').doc(folderId);
     await sharedFolderDocRef.set({
         sharedFolderRef: sharedFolderRef,
@@ -807,7 +806,7 @@ const addSharedFolderEntryToCollaborator = async (collaboratorId: string, folder
 }
 
 const addCollaboratorToFolder = async (folderId: string, ownerId: string, invitedUser: any, accessLevel: ACCESS_LEVEL) => {
-    const db = admin.firestore();
+    const db = getFirestore();
 
     const docRef = await db.collection('users').doc(ownerId).collection('folders').doc(folderId);
 
@@ -845,7 +844,7 @@ export const acceptFileShareInvitation = functions.https.onCall(async (invitatio
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        const db = admin.firestore();
+        const db = getFirestore();
 
         const invitation = await getInvitationById(invitationId);
 
@@ -886,7 +885,7 @@ export const acceptFolderShareInvitation = functions.https.onCall(async (invitat
             throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        const db = admin.firestore();
+        const db = getFirestore();
 
         const invitation = await getInvitationById(invitationId);
 

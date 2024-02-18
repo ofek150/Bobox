@@ -7,18 +7,22 @@ import Loading from './Loading';
 const RequireAuth: React.FC = () => {
     const [user, loading] = useAuthState(auth);
     const location = useLocation();
-    const [foundRoot, setFoundRoot] = useState(true);
+    const [foundRoot, setFoundRoot] = useState(false);
 
     useEffect(() => {
         const waitForRootFolderCreation = async () => {
             await waitForRoot();
-            setFoundRoot(false);
+            setFoundRoot(true);
         }
         if (user) waitForRootFolderCreation();
     }, [user]);
 
+    useEffect(() => {
+        console.log('Found root: ', foundRoot);
+    }, [foundRoot])
 
-    if (loading || foundRoot && user) {
+
+    if (loading || !foundRoot && user) {
         return <Loading />; // Display a loading state while authentication state is being resolved
     }
 

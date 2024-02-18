@@ -1,11 +1,11 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
 import { isValidEmail, isValidName, isValidPassword } from './utils/helpers.js';
 import { DEFAULT_MAX_TOTAL_FILE_SIZE } from './utils/constants.js';
 
-
 const createRootFolder = async (userId: string) => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const docRef = db.collection('users').doc(userId);
     const folderRef = docRef.collection('folders').doc('root');
     await folderRef.set({
@@ -22,7 +22,7 @@ const createRootFolder = async (userId: string) => {
 
 export const onUserCreated = functions.auth.user().onCreate(async (user) => {
     try {
-        const db = admin.firestore();
+        const db = getFirestore();
         const docRef = db.collection('users').doc(user.uid);
         const docSnap = await docRef.get();
 
@@ -74,20 +74,20 @@ export const registerWithEmailAndPassword = functions.https.onCall(async (data: 
 
         // Use admin SDK to check if the user already exists
         try {
-            await admin.auth().getUserByEmail(email);
+            await getAuth().getUserByEmail(email);
             throw new functions.https.HttpsError('already-exists', 'A user with this email address already exists.');
         } catch (getUserError: any) {
             if (getUserError && getUserError.code === 'auth/user-not-found') {
                 // Continue registration if the user does not exist
                 // Use admin SDK to create user
-                const userRecord = await admin.auth().createUser({
+                const userRecord = await getAuth().createUser({
                     email: email,
                     password: password,
                     displayName: name,
                 });
 
                 // Then create user document
-                const db = admin.firestore();
+                const db = getFirestore();
                 await db.collection('users').doc(userRecord.uid).set({
                     uid: userRecord.uid,
                     name: data.name,

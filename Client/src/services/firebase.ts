@@ -237,6 +237,7 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
         }
         console.log("File: ", data);
         const uploadedAtDate = data.uploadedAt.toDate();
+        // eslint-disable-next-line prefer-const
         file = {
           fileId: doc.id,
           fileName: data.fileName,
@@ -265,6 +266,7 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
           data = sharedFolderDoc.data();
         }
         const createdAtDate = data.createdAt?.toDate();
+        // eslint-disable-next-line prefer-const
         folder = {
           folderId: doc.id,
           folderName: data.folderName,
