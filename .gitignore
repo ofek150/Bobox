@@ -88,3 +88,6 @@ deployment_keys.tar
 release-artifacts-*
 *.local
 .vite/
+
+# Local Netlify folder
+.netlify

@@ -3,7 +3,7 @@ import { SharedFile } from '../utils/types';
 import { Box, Typography } from '@mui/material';
 import { formatFileSize } from '../utils/helpers';
 
-const ShowFileInfo: React.FC<SharedFile> = ({ fileName, fileType, fileSize, uploadedAt }) => {
+const ShowFileInfo: React.FC<SharedFile> = ({ fileName, fileSize, uploadedAt }) => {
   const formattedDate = new Date(uploadedAt).toLocaleDateString('en-GB');
 
   return (

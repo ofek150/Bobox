@@ -65,10 +65,8 @@ const FileComponent: React.FC<FileComponentProps> = ({
 
     const [expiryDays, setExpiryDays] = useState<number>(1);
     const [neverExpires, setNeverExpires] = useState(false);
-    const [generatingLink, setGeneratingLink] = useState(false);
     const [expiryDate, setExpiryDate] = useState<Date | null>(null);
     const [shareLink, setShareLink] = useState<string | null>(null);
-    const [fileDownloadInfo, setFileDownloadInfo] = useState<SharedFile | null>(null);
 
     const fileExtension = file.fileName.split('.').pop();
 
@@ -277,7 +275,6 @@ const FileComponent: React.FC<FileComponentProps> = ({
     }
 
     const handleGenerateDownloadLink = async () => {
-        setGeneratingLink(true);
         const generateDownloadLinkParams: GenerateDownloadLinkParams = {
             fileId: file.fileId,
             neverExpires: neverExpires,
@@ -285,12 +282,10 @@ const FileComponent: React.FC<FileComponentProps> = ({
         };
         const { link, error } = await generatePublicDownloadLink(generateDownloadLinkParams);
         if (error) {
-            setGeneratingLink(false);
             return;
         }
         setShareLink(link);
         console.log('shareLink:', link);
-        setGeneratingLink(false);
     }
 
     const copyLink = () => {
@@ -301,7 +296,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
     }
 
     return (
-        <Card sx={{mb: '0.8rem'}}>
+        <Card sx={{ mb: '0.8rem' }}>
             <ListItem
                 button
                 onContextMenu={handleContextMenu}

@@ -3,7 +3,7 @@ import ShowFileInfo from '../components/ShowFileInfo';
 import { DownloadInfoParams, SharedFile } from '../utils/types';
 import { getFileInfo } from '../services/firebase';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Alert, Box, Button, Container, Paper, Modal } from '@mui/material';
+import { Box, Button, Container, Paper, Modal } from '@mui/material';
 import Loading from '../components/Loading';
 import FileNotFound from '../components/FileNotFound';
 import streamSaver from 'streamsaver';
@@ -11,14 +11,13 @@ import { enqueueSnackbar } from 'notistack';
 
 const FileInfo: React.FC = () => {
   const { ownerUid, fileId } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const downloadId = searchParams.get("downloadId");
 
   const navigate = useNavigate();
   const [fileInfo, setFileInfo] = useState<SharedFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [fileNotFound, setFileNotFound] = useState<boolean>(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   useEffect(() => {
@@ -38,7 +37,6 @@ const FileInfo: React.FC = () => {
         handleError(error.message || "An error occurred while fetching file information.");
       } finally {
         setLoading(false);
-        setFileNotFound(true);
       }
     };
     fetchFileInfo();

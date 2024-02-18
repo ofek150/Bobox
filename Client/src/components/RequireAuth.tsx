@@ -3,7 +3,6 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { auth, waitForRoot } from '../services/firebase';
 import Loading from './Loading';
-import Navbar from './UI/Navbar';
 
 const RequireAuth: React.FC = () => {
     const [user, loading] = useAuthState(auth);

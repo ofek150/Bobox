@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useFolderStructureContext } from "../../contexts/FolderStructureContext";
 import { useNavigate } from "react-router-dom";
-import { useAuthState } from "react-firebase-hooks/auth";
-import { Button, List, ListItem, MenuItem, Popover, Typography } from "@mui/material";
-import { auth } from "../../services/firebase";
+import { Button, List, ListItem, MenuItem, Popover } from "@mui/material";
 import FolderIcon from "@mui/icons-material/Folder";
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 
@@ -17,8 +15,7 @@ interface FolderObject {
     folderName: string;
 }
 
-const PathBar: React.FC<PathBarProps> = ({ folderId, fileId = null }) => {
-    const [user] = useAuthState(auth);
+const PathBar: React.FC<PathBarProps> = ({ folderId }) => {
     const { getFolderWithId } = useFolderStructureContext();
     const [folderPathObjects, setFolderPathObjects] = useState<FolderObject[]>([]);
     const [lastThreeFolders, setLastThreeFolders] = useState<FolderObject[]>([]);

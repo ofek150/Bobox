@@ -1,7 +1,6 @@
 import { Alert, Box, Container } from '@mui/material';
 import { verifyPasswordResetCode } from 'firebase/auth';
 import React, { useEffect, useState } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
 import { useLocation, } from 'react-router-dom';
 import { auth } from '../services/firebase';
 import ResetPasswordForm from '../pages/ResetPasswordForm';
@@ -16,7 +15,6 @@ const FirebaseActionHandler: React.FC = () => {
 
     const [accountEmail, setAccountEmail] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [user, loading] = useAuthState(auth);
 
     useEffect(() => {
         const handleAction = async () => {

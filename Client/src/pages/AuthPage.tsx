@@ -157,8 +157,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
       setIsLoading(false);
     }
   };
-
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
     setAuthError(null);
   };
