@@ -6,6 +6,7 @@ import { addFileToDB, setFileUploaded, deleteFileFromDB, isUniqueFileName, getFi
 import { FileEntry } from "./utils/types";
 import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS, ACCESS_LEVEL, MAX_FILE_SIZE_STRING } from "./utils/constants.js";
 import { v4 as uuidv4 } from 'uuid';
+import 'dotenv/config'
 
 export const r2 = new S3Client({
   region: "auto",

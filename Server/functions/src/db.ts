@@ -4,6 +4,7 @@ import { ACCESS_LEVEL, SEVEN_DAYS_SECONDS, WEBSITE_URL } from "./utils/constants
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { deleteFileFromCloudStorage, deleteFilesFromCloudStorage, generateDownloadLink } from "./r2.js";
 import * as nodemailer from 'nodemailer';
+import 'dotenv/config'
 
 
 export const getFolderById = async (uid: string, folderId: string) => {
