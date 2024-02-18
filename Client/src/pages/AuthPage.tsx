@@ -163,7 +163,16 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
   };
 
   return (
-    <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', mt: 12 }}>
+    <Box
+      sx={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        mb: 6,
+      }}
+    >
       <Container maxWidth="xs">
         <Paper elevation={3} sx={{ p: 2, borderRadius: 3 }}>
           <Tabs value={activeTab} onChange={handleTabChange} centered TabIndicatorProps={{ style: { display: 'none' } }}>
@@ -395,7 +404,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
                 >
                   <img src={GoogleIcon} alt="Google" style={{ width: '100%' }} />
                 </Button>
-                <Typography variant="body2" sx={{ color: "#888", textAlign: "center", mb: '1rem', mt: '0.5rem' }}>
+                {/* <Typography variant="body2" sx={{ color: "#888", textAlign: "center", mb: '1rem', mt: '0.5rem' }}>
                   By registering, you agree to our{" "}
                   <Link component={RouterLink} to="/terms-and-conditions" color="inherit">
                     Terms & Conditions
@@ -404,7 +413,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
                   <Link component={RouterLink} to="/privacy-policy" color="inherit">
                     Privacy Policy
                   </Link>
-                </Typography>
+                </Typography> */}
               </>
             )}
           </Box>
