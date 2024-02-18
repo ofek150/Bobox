@@ -1,4 +1,4 @@
-export const WEBSITE_URL = "http://localhost:3000"
+export const WEBSITE_URL = "https://bobox.netlify.app"
 
 export const MB = 1024 * 1024;
 export const GB = 1024 * MB;
