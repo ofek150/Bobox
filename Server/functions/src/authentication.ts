@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import { isValidEmail, isValidName, isValidPassword } from './utils/helpers';
-import { DEFAULT_MAX_TOTAL_FILE_SIZE } from './utils/constants';
+import { isValidEmail, isValidName, isValidPassword } from './utils/helpers.js';
+import { DEFAULT_MAX_TOTAL_FILE_SIZE } from './utils/constants.js';
 
 
 const createRootFolder = async (userId: string) => {

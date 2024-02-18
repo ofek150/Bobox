@@ -2,17 +2,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Deny access to root-level collections and documents
-    //match /{document=**} {
-    //  allow read, write: if false;
-    //}
-
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
 
     function isCollaborator(accessLevel) {
-      //return true;
       return request.auth != null && 'collaborators' in resource.data &&
         resource.data.collaborators.keys().hasAny([request.auth.uid]) &&
         resource.data.collaborators[request.auth.uid].accessLevel <= accessLevel;
@@ -21,10 +15,6 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId);
       
-      match /folders/{folderId} {
-        allow read: if isOwner(userId);
-      }
-
       match /files/{fileId} {
         allow read: if isOwner(userId) || isCollaborator(3);
         allow write: if isOwner(userId) || isCollaborator(2);

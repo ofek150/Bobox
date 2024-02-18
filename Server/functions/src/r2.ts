@@ -1,10 +1,10 @@
 import * as functions from "firebase-functions";
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types";
-import { addFileToDB, setFileUploaded, deleteFileFromDB, isUniqueFileName, getFileById, addLinkToDB, updatePrivateLinkDownloadId, getFolderById, getCollaboratorAccessLevel } from "./db";
+import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types.js";
+import { addFileToDB, setFileUploaded, deleteFileFromDB, isUniqueFileName, getFileById, addLinkToDB, updatePrivateLinkDownloadId, getFolderById, getCollaboratorAccessLevel } from "./db.js";
 import { FileEntry } from "./utils/types";
-import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS, ACCESS_LEVEL, MAX_FILE_SIZE_STRING } from "./utils/constants";
+import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS, ACCESS_LEVEL, MAX_FILE_SIZE_STRING } from "./utils/constants.js";
 import { v4 as uuidv4 } from 'uuid';
 
 export const r2 = new S3Client({
