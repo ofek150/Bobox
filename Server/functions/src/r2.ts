@@ -32,7 +32,8 @@ const addFileToDatabase = async (userId: string, data: any) => {
   }
   try {
     await addFileToDB(userId, fileToAdd);
-  } catch {
+  } catch (error: any) {
+    if (error instanceof functions.https.HttpsError) throw error;
     throw new Error("Failed to upload file");
   }
   return { fileKey: fileKey, fileId: fileId };

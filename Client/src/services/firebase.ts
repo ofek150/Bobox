@@ -47,10 +47,8 @@ export const waitForRoot = async () => {
   });
 }
 
-
 export const signInWithGoogle = async () => {
   await signInWithPopup(auth, googleProvider);
-
 };
 
 export const loginWithEmailAndPassword = async (email: string, password: string) => {

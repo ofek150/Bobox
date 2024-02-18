@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { isValidEmail, isValidName, isValidPassword } from './utils/helpers';
+import { DEFAULT_MAX_TOTAL_FILE_SIZE } from './utils/constants';
 
 
 const createRootFolder = async (userId: string) => {
@@ -32,9 +33,11 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
                 name: user.displayName,
                 authProvider: 'google',
                 email: user.email,
-                agreeMailToPromotions: false
+                agreeMailToPromotions: false,
+                totalFileSize: 0,
+                maxTotalFileSize: DEFAULT_MAX_TOTAL_FILE_SIZE
             });
-            createRootFolder(user.uid);
+            await createRootFolder(user.uid);
         }
     } catch (error) {
         throw new functions.https.HttpsError('internal', 'An error occurred while signing in with Google.');
@@ -90,12 +93,14 @@ export const registerWithEmailAndPassword = functions.https.onCall(async (data: 
                     name: data.name,
                     authProvider: 'local',
                     email: data.email,
-                    agreeMailToPromotions: agreeMailPromotions
+                    agreeMailToPromotions: agreeMailPromotions,
+                    totalFileSize: 0,
+                    maxTotalFileSize: DEFAULT_MAX_TOTAL_FILE_SIZE
                 });
 
-                createRootFolder(userRecord.uid);
+                await createRootFolder(userRecord.uid);
 
-                return { message: 'User registered successfully' };
+                return { success: true };
             } else {
                 console.error(getUserError);
                 throw new functions.https.HttpsError('internal', 'Failed to check user existence');

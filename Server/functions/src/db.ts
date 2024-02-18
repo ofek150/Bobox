@@ -48,6 +48,20 @@ export const getFolderRefById = async (uid: string, folderId: string) => {
     return ref;
 }
 
+export const getUserRefById = async (uid: string) => {
+    const db = admin.firestore();
+    const docRef = await db.collection('users').doc(uid)
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+        const data = docSnap.data();
+        if (!data) return null;
+    }
+    else {
+        return null;
+    }
+    return docRef;
+}
+
 
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
     const fileRef = await getFileRefById(uid, fileId);
@@ -73,6 +87,26 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
     const parentFolder = await getFolderById(userId, file.parentFolderId);
     if (!parentFolder) throw new Error("Parent folder not found");
 
+    const userRef = await getUserRefById(userId);
+    if (!userRef) throw new Error('Unexpected error occurred');
+
+    const user = (await userRef.get()).data();
+
+    if (user!.totalFileSize + file.fileSize > user!.maxTotalFileSize) {
+        throw new functions.https.HttpsError(
+            'invalid-argument', // Error code indicating an invalid argument (in this case, exceeding the limit)
+            'Adding this file would exceed the user\'s maximum total file size limit.' // Error message providing more information
+        );
+    }
+
+    if (user!.totalFileSize + file.fileSize == user!.maxTotalFileSize) {
+        throw new functions.https.HttpsError(
+            'resource-exhausted',
+            'User has exceeded the maximum total file size limit.'
+        );
+    }
+
+
     const fileRef = db.collection('users').doc(parentFolder.ownerUid).collection('files').doc(file.fileId);
     await fileRef.set(
         {
@@ -94,6 +128,9 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
     await folderRef!.update({
         files: FieldValue.arrayUnion(file.fileId)
     });
+
+
+    await userRef.update({ totalFileSize: FieldValue.increment(file.fileSize) });
 
 
     if (!parentFolder?.collaborators) return;
@@ -191,6 +228,10 @@ export const deleteFileFromDB = async (uid: string, fileId: string) => {
     await folderRef.update({ files: FieldValue.arrayRemove(fileId) });
 
     await fileRef.delete();
+    const userRef = await getUserRefById(uid);
+    if (!userRef) throw new Error('Unexpected error occurred');
+
+    await userRef.update({ totalFileSize: FieldValue.increment(-file!.fileSize) });
 };
 
 export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid: string, fileId: string, downloadId: string) => {
