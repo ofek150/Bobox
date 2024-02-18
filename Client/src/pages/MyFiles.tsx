@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { auth, deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFileToFolder, renameFolder, deleteFolder } from '../services/firebase';
+import { deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFileToFolder, renameFolder, deleteFolder } from '../services/firebase';
 import { File, Folder } from '../utils/types';
 import { Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab, Typography, Box, useMediaQuery } from '@mui/material';
 import Loading from '../components/Loading';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAuthState } from 'react-firebase-hooks/auth';
 import AddIcon from '@mui/icons-material/Add';
 import PublishIcon from '@mui/icons-material/Publish';
 import FolderComponent from '../components/FolderComponent';
