@@ -5,6 +5,7 @@ import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { deleteFileFromCloudStorage, deleteFilesFromCloudStorage, generateDownloadLink } from "./r2.js";
 import * as nodemailer from 'nodemailer';
 import 'dotenv/config'
+import { formatFileSize } from "./utils/helpers.js";
 
 
 export const getFolderById = async (uid: string, folderId: string) => {
@@ -112,14 +113,14 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
     if (websiteData!.totalFileSize == websiteData!.maxTotalFileSize) {
         throw new functions.https.HttpsError(
             'resource-exhausted',
-            `Website has exceeded the maximum total file size limit (${websiteData!.maxTotalFileSize})`
+            `Website has reached the maximum total file size limit (${formatFileSize(websiteData!.maxTotalFileSize)})`
         );
     }
 
     if (websiteData!.totalFileSize + file.fileSize > websiteData!.maxTotalFileSize) {
         throw new functions.https.HttpsError(
             'invalid-argument',
-            `Adding this file would exceed the website's maximum total file size limit (${websiteData!.maxTotalFileSize})`
+            `Adding this file would exceed the website's maximum total file size limit (${formatFileSize(websiteData!.maxTotalFileSize)})`
         );
     }
 
@@ -128,14 +129,14 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
     if (user!.totalFileSize == user!.maxTotalFileSize) {
         throw new functions.https.HttpsError(
             'resource-exhausted',
-            `User has exceeded the maximum total file size limit (${user!.maxTotalFileSize})`
+            `User has reached the maximum total file size limit (${formatFileSize(user!.maxTotalFileSize)})`
         );
     }
 
     if (user!.totalFileSize + file.fileSize > user!.maxTotalFileSize) {
         throw new functions.https.HttpsError(
             'invalid-argument',
-            `Adding this file would exceed the user's maximum total file size limit (${user!.maxTotalFileSize})`
+            `Adding this file would exceed the user's maximum total file size limit (${formatFileSize(user!.maxTotalFileSize)})`
         );
     }
 
