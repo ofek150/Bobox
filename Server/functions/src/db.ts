@@ -122,22 +122,6 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
             ownerUid: parentFolder.ownerUid
         }
     );
-
-    const folderRef = await getFolderRefById(userId, file.parentFolderId);
-
-    await folderRef!.update({
-        files: FieldValue.arrayUnion(file.fileId)
-    });
-
-
-    await userRef.update({ totalFileSize: FieldValue.increment(file.fileSize) });
-
-
-    if (!parentFolder?.collaborators) return;
-
-    for (const [key] of Object.entries(parentFolder.collaborators)) {
-        await addSharedFileEntryToCollaborator(key, file.fileId, fileRef);
-    }
 }
 
 export const getFileById = async (uid: string, fileId: string) => {
@@ -180,14 +164,39 @@ export const getFileRefById = async (uid: string, fileId: string, create: boolea
     return ref;
 }
 
-
 export const setFileUploaded = async (uid: string, fileId: string, numOfParts: number) => {
-    const docRef = await getFileRefById(uid, fileId);
-    if (!docRef) return false;
-    await docRef.update({
+    const fileRef = await getFileRefById(uid, fileId);
+    if (!fileRef) return false;
+    await fileRef.update({
         status: 'Uploaded',
         numOfParts: numOfParts
     });
+
+    const file = (await fileRef.get()).data();
+    if (!file) throw new Error('Unexpected error occurred');
+
+    const parentFolderRef = await getFolderRefById(uid, file.parentFolderId);
+    if (!parentFolderRef) throw new Error("Parent folder not found");
+
+    const parentFolder = (await parentFolderRef.get()).data();
+    if (!parentFolder) throw new Error('Unexpected error occurred');
+
+    await parentFolderRef!.update({
+        files: FieldValue.arrayUnion(fileId)
+    });
+
+    const userRef = await getUserRefById(uid);
+    if (!userRef) throw new Error('Unexpected error occurred');
+
+
+    await userRef.update({ totalFileSize: FieldValue.increment(file.fileSize) });
+
+
+    if (!parentFolder.collaborators) return;
+
+    for (const [key] of Object.entries(parentFolder.collaborators)) {
+        await addSharedFileEntryToCollaborator(key, file.fileId, fileRef);
+    }
     return true;
 }
 
@@ -414,7 +423,7 @@ export const createFolder = functions.https.onCall(async (data: CreateFolderPara
             folders: [],
             collaborators: collaborators,
             shared: false,
-            ownerUid: context.auth.uid
+            ownerUid: parentFolder.ownerUid
         });
 
         parentFolderRef.update({
@@ -619,7 +628,7 @@ export const shareFileWithUserByEmail = functions.https.onCall(async (data: Shar
         const invitationURL = `${WEBSITE_URL}/accept_invitation?invitationId=${invitationDocRef.id}&type=file`;
 
         const mailOptions = {
-            from: process.env.SENDER_EMAIL_ADDRESS || '',
+            from: 'Bobox',
             to: invitedUser.email,
             subject: `${user.name} invited you to collaborate on a file`,
             html: `
@@ -698,7 +707,7 @@ export const shareFolderWithUserByEmail = functions.https.onCall(async (data: Sh
         const invitationURL = `${WEBSITE_URL}/accept_invitation?invitationId=${invitationDocRef.id}&type=folder`;
 
         const mailOptions = {
-            from: process.env.SENDER_EMAIL_ADDRESS || '',
+            from: 'Bobox',
             to: invitedUser.email,
             subject: `${user.name} invited you to collaborate on a folder`, // Dynamic subject
             html: `
@@ -853,7 +862,7 @@ export const acceptFileShareInvitation = functions.https.onCall(async (invitatio
 
         if (invitation.type != 'file') throw new functions.https.HttpsError('invalid-argument', 'Incorrect invitation type');
 
-        if (invitation.used) throw new functions.https.HttpsError('invalid-argument', 'Invitation was already used');
+        //if (invitation.used) throw new functions.https.HttpsError('invalid-argument', 'Invitation was already used');
 
         const invitedUser = await getUserById(invitation.invitedUserId);
 
@@ -865,7 +874,7 @@ export const acceptFileShareInvitation = functions.https.onCall(async (invitatio
 
         await addCollaboratorToFile(invitation.fileId, invitation.ownerId, invitedUser, invitation.accessLevel);
 
-        await db.collection('invitations').doc(invitationId).update({ used: true });
+        await db.collection('invitations').doc(invitationId).delete();
 
         return { success: true };
 
@@ -894,7 +903,7 @@ export const acceptFolderShareInvitation = functions.https.onCall(async (invitat
 
         if (invitation.type != 'folder') throw new functions.https.HttpsError('invalid-argument', 'Incorrect invitation type');
 
-        if (invitation.used) throw new functions.https.HttpsError('invalid-argument', 'Invitation was already used');
+        //if (invitation.used) throw new functions.https.HttpsError('invalid-argument', 'Invitation was already used');
 
         const invitedUser = await getUserById(invitation.invitedUserId);
 
@@ -906,7 +915,7 @@ export const acceptFolderShareInvitation = functions.https.onCall(async (invitat
 
         await addCollaboratorToFolder(invitation.folderId, invitation.ownerId, invitedUser, invitation.accessLevel)
 
-        await db.collection('invitations').doc(invitationId).update({ used: true });
+        await db.collection('invitations').doc(invitationId).delete();
 
         return { success: true };
 

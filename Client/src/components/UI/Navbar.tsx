@@ -7,6 +7,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, logout } from '../../services/firebase';
 import Logo from '../../assets/Logo.png';
+import FolderSharedIcon from '@mui/icons-material/FolderShared';
 
 const Navbar: React.FC = () => {
     const [user] = useAuthState(auth);
@@ -31,6 +32,9 @@ const Navbar: React.FC = () => {
                     <>
                         <IconButton color="inherit" sx={{ color: 'white' }} component={RouterLink} to="/">
                             <HomeIcon />
+                        </IconButton>
+                        <IconButton color="inherit" sx={{ color: 'white' }} component={RouterLink} to="/user/folders/shared">
+                            <FolderSharedIcon />
                         </IconButton>
                         <IconButton color="inherit" sx={{ color: 'white' }} component={RouterLink} to="/account-info">
                             <PersonIcon />

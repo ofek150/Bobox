@@ -135,7 +135,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
                         writer.write(value);
 
                         const progress = (bytesRead / totalSize) * 100;
-                        console.log(`Download progress: ${progress.toFixed(2)}%`);
+                        //console.log(`Download progress: ${progress.toFixed(2)}%`);
 
                         return writer.ready.then(pump);
                     }

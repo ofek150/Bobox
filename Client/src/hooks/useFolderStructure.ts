@@ -90,9 +90,9 @@ const useFolderStructure = () => {
   };
 
 
-  useEffect(() => {
-    console.log("Folder structure after update: ", folderStructure);
-  }, [folderStructure]);
+  // useEffect(() => {
+  //   console.log("Folder structure after update: ", folderStructure);
+  // }, [folderStructure]);
 
   return {
     folderStructure,

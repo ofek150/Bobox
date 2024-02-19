@@ -5,15 +5,13 @@ import { getFileInfo } from '../services/firebase';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Box, Button, Container, Paper, Modal } from '@mui/material';
 import Loading from '../components/Loading';
-import FileNotFound from '../components/FileNotFound';
 import streamSaver from 'streamsaver';
 import { enqueueSnackbar } from 'notistack';
 
 const FileInfo: React.FC = () => {
   const { ownerUid, fileId } = useParams();
   const [searchParams] = useSearchParams();
-  const downloadId = searchParams.get("downloadId");
-
+  const downloadId = searchParams.get("downloadId") === "undefined" ? null : searchParams.get("downloadId");
   const navigate = useNavigate();
   const [fileInfo, setFileInfo] = useState<SharedFile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,24 +21,31 @@ const FileInfo: React.FC = () => {
   useEffect(() => {
     const fetchFileInfo = async () => {
       console.log("Retrieving file info...");
-      if (!ownerUid || !fileId || !downloadId) navigate("/user/folders/root");
+      if (!ownerUid || !fileId || !downloadId) {
+        navigate("/user/folders/root");
+        return;
+      }
+
       const downloadInfoParams: DownloadInfoParams = {
         ownerUid: ownerUid!,
         fileId: fileId!,
         downloadId: downloadId!,
       };
+
       try {
         const { fileInfo } = await getFileInfo(downloadInfoParams);
         console.log(fileInfo);
         setFileInfo(fileInfo);
       } catch (error: any) {
-        handleError(error.message || "An error occurred while fetching file information.");
+        handleError("File information not available. Please try again later.");
       } finally {
         setLoading(false);
       }
     };
+
     fetchFileInfo();
-  }, []);
+  }, [ownerUid, fileId, downloadId]);
+
 
   const handleError = (error: string | null = null) => {
     setError(error || "An error occurred while fetching file information");
@@ -48,6 +53,8 @@ const FileInfo: React.FC = () => {
       variant: 'error',
       preventDuplicate: true
     });
+
+    navigate("/user/folders/root");
   };
 
   const handleDownload = async () => {
@@ -93,35 +100,32 @@ const FileInfo: React.FC = () => {
     return <Loading />;
   }
 
-  if (!fileInfo && !loading) {
-    handleError("File information not available. Please try again later.");
-    return <FileNotFound />;
-  }
-
   return (
     <Box style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-      <Container maxWidth="xs">
-        <Paper elevation={3} sx={{ py: 2, px: 1, borderRadius: 5, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-          <ShowFileInfo {...fileInfo!} />
-          {fileInfo?.fileType && fileInfo.fileType.startsWith('image/') && (
-            <>
-              <Button variant="outlined" color="primary" onClick={openPreviewModal} sx={{ mt: 4, mb: 1 }}>
-                View Image
+      {fileInfo &&
+        <Container maxWidth="xs">
+          <Paper elevation={3} sx={{ py: 2, px: 1, borderRadius: 5, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+            <ShowFileInfo {...fileInfo!} />
+            {fileInfo?.fileType && fileInfo.fileType.startsWith('image/') && (
+              <>
+                <Button variant="outlined" color="primary" onClick={openPreviewModal} sx={{ mt: 4, mb: 1 }}>
+                  View Image
+                </Button>
+                <Modal open={showPreviewModal} onClose={closePreviewModal}>
+                  <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bgcolor: 'background.paper', boxShadow: 24, p: 4, maxWidth: '80vw', maxHeight: '80vh', overflow: 'auto' }}>
+                    <img src={fileInfo.downloadLink} alt={fileInfo.fileName} style={{ width: '100%', height: 'auto' }} />
+                  </Box>
+                </Modal>
+              </>
+            )}
+            {!error && (
+              <Button variant="contained" color="primary" onClick={handleDownload} sx={{ my: 1 }}>
+                Download
               </Button>
-              <Modal open={showPreviewModal} onClose={closePreviewModal}>
-                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bgcolor: 'background.paper', boxShadow: 24, p: 4, maxWidth: '80vw', maxHeight: '80vh', overflow: 'auto' }}>
-                  <img src={fileInfo.downloadLink} alt={fileInfo.fileName} style={{ width: '100%', height: 'auto' }} />
-                </Box>
-              </Modal>
-            </>
-          )}
-          {!error && (
-            <Button variant="contained" color="primary" onClick={handleDownload} sx={{ my: 1 }}>
-              Download
-            </Button>
-          )}
-        </Paper>
-      </Container>
+            )}
+          </Paper>
+        </Container>
+      }
     </Box>
   );
 };

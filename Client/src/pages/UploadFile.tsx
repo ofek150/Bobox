@@ -90,6 +90,8 @@ const UploadFile: React.FC = () => {
             const response = await axios.put(uploadUrl, selectedFile, config);
             const { success, error } = await completeSmallFileUpload(fileId)
             if (response.status == 200 && success) {
+                console.log(response);
+                console.log("Success: ", success);
                 finishUpload(fileId);
             }
             else {
@@ -359,23 +361,23 @@ const UploadFile: React.FC = () => {
                         Upload a File
                     </Typography>
                     <OutlinedInput
-                            type="file"
-                            onChange={handleFileChange}
-                            endAdornment={
-                                <InputAdornment position="end">
-                                    <IconButton
-                                        component="label"
-                                        htmlFor="file-upload"
-                                        color="primary"
-                                        aria-label="upload file"
-                                        edge="end"
-                                        disabled={uploading}
-                                    >
-                                        <CloudUploadIcon />
-                                    </IconButton>
-                                </InputAdornment>
-                            }
-                            sx={{mb: 2}}
+                        type="file"
+                        onChange={handleFileChange}
+                        endAdornment={
+                            <InputAdornment position="end">
+                                <IconButton
+                                    component="label"
+                                    htmlFor="file-upload"
+                                    color="primary"
+                                    aria-label="upload file"
+                                    edge="end"
+                                    disabled={uploading}
+                                >
+                                    <CloudUploadIcon />
+                                </IconButton>
+                            </InputAdornment>
+                        }
+                        sx={{ mb: 2 }}
                     />
 
                     {uploading && <CircularProgressWithLabel value={progress} sx={{ mt: 1, mb: 2 }} />}
@@ -403,7 +405,7 @@ const UploadFile: React.FC = () => {
                         </IconButton>
                     )}
                     {/* Generate Download Link Button */}
-                    {uploaded && !shareLink && (
+                    {uploaded && !shareLink && !generatingLink && (
                         <Button
                             variant="contained"
                             color="primary"
@@ -413,7 +415,7 @@ const UploadFile: React.FC = () => {
                             Generate Download Link
                         </Button>
                     )}
-                    {uploaded && !shareLink && (
+                    {uploaded && !shareLink && !generatingLink && (
                         <FormControlLabel
                             control={
                                 <Checkbox
@@ -427,7 +429,7 @@ const UploadFile: React.FC = () => {
                         />
                     )}
                     {/* Expiry Date Input */}
-                    {!neverExpires && uploaded && !shareLink && (
+                    {!neverExpires && uploaded && !shareLink && !generatingLink && (
                         <Box sx={{ mb: 1 }}>
                             <Typography variant="subtitle2" sx={{ mb: 1 }}>
                                 Link expiry days

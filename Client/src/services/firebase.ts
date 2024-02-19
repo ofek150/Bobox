@@ -25,11 +25,11 @@ export const db = getFirestore(app);
 const functions = getFunctions(app);
 
 
-if (process.env.NODE_ENV === 'development') {
-  connectFirestoreEmulator(db, "localhost", 8080);
-  connectFunctionsEmulator(functions, "localhost", 5001);
-  connectAuthEmulator(auth, "http://localhost:9099");
-}
+// if (process.env.NODE_ENV === 'development') {
+//   connectFirestoreEmulator(db, "localhost", 8080);
+//   connectFunctionsEmulator(functions, "localhost", 5001);
+//   connectAuthEmulator(auth, "http://localhost:9099");
+// }
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -235,7 +235,6 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
           data = sharedFileDoc.data();
           if (data.status != 'Uploaded') return null;
         }
-        console.log("File: ", data);
         const uploadedAtDate = data.uploadedAt.toDate();
         // eslint-disable-next-line prefer-const
         file = {
@@ -259,7 +258,6 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
       if (data) {
         let folder: Folder;
         const shared = data.shared;
-        console.log("Folder: ", data);
         if (shared) {
           const docRef = data.sharedFolderRef;
           const sharedFolderDoc = await getDoc(docRef);

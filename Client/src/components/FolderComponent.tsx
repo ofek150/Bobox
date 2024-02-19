@@ -72,7 +72,6 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
             }
 
             setFolder(folder);
-            console.log("Collaborators: ", folder.collaborators);
             setInvalidFolderId(false);
         }
     }, [folderId, folderStructure]);
@@ -261,7 +260,6 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
 
 
         allItemsWithType.forEach((item: any) => {
-            console.log("item:" + item.type === 'folder' ? item as Folder : item as File);
 
             if (selectFolder && item.type === ITEM_TYPE.FILE) return;
             items.push(selectFolder ? (
@@ -279,35 +277,35 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
                     }}
                 >
                     <FolderIcon style={{ marginRight: "8px" }} />
-                    <ListItemText primary={item.folderName}/>
+                    <ListItemText primary={item.folderName} />
                 </ListItem>
 
             ) : item.type === ITEM_TYPE.FOLDER ? (
-                <Card sx={{mb: '0.8rem'}}>
-                <ListItem button
-                    //selected={Boolean(anchorPosition)}
-                    onContextMenu={(e) => { handleContextMenu(e, item.folderId) }} key={item.folderId} onClick={() => navigate(`/user/folders/${item.folderId}`)}>
-                    <FolderIcon style={{ marginRight: "8px" }} />
-                    <ListItemText primary={item.folderName} secondary={`Created at: ${item.createdAt}`} sx={{ mr: 10 }} />
-                    <ListItemSecondaryAction>
-                        <IconButton edge="end" aria-label="Edit" onClick={() => handleEditClick(item.folderId)}>
-                            <EditIcon />
-                        </IconButton>
-                        <IconButton edge="end" aria-label="Delete" onClick={() => handleDeleteClick(item.folderId)} sx={{ ml: 1.2, mr: 1 }}>
-                            <DeleteIcon />
-                        </IconButton>
-                        <div
-                            role="button"
-                            aria-label="More"
-                            onClick={(e) => { handleContextMenu(e, item.folderId) }}
-                            onContextMenu={(e) => { handleContextMenu(e, item.folderId) }}
-                            style={{ display: 'inline' }}
-                        >
-                            <IconButton edge="end">
-                                <MoreVertIcon />
+                <Card sx={{ mb: '0.8rem' }}>
+                    <ListItem button
+                        //selected={Boolean(anchorPosition)}
+                        onContextMenu={(e) => { handleContextMenu(e, item.folderId) }} key={item.folderId} onClick={() => navigate(`/user/folders/${item.folderId}`)}>
+                        <FolderIcon style={{ marginRight: "8px" }} />
+                        <ListItemText primary={item.folderName} secondary={`Created at: ${item.createdAt}`} sx={{ mr: 10 }} />
+                        <ListItemSecondaryAction>
+                            <IconButton edge="end" aria-label="Edit" onClick={() => handleEditClick(item.folderId)}>
+                                <EditIcon />
                             </IconButton>
-                        </div>
-                    </ListItemSecondaryAction>
+                            <IconButton edge="end" aria-label="Delete" onClick={() => handleDeleteClick(item.folderId)} sx={{ ml: 1.2, mr: 1 }}>
+                                <DeleteIcon />
+                            </IconButton>
+                            <div
+                                role="button"
+                                aria-label="More"
+                                onClick={(e) => { handleContextMenu(e, item.folderId) }}
+                                onContextMenu={(e) => { handleContextMenu(e, item.folderId) }}
+                                style={{ display: 'inline' }}
+                            >
+                                <IconButton edge="end">
+                                    <MoreVertIcon />
+                                </IconButton>
+                            </div>
+                        </ListItemSecondaryAction>
                     </ListItem>
                 </Card>
             ) : (
@@ -327,22 +325,22 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
     return (
         <Box>
             {!selectFolder && (
-      <Box sx={{ display: 'flex', alignItems: 'flex-end', mb: 4, justifyContent: 'center' }}>
-      <IconButton onClick={handleGoBack} sx={{ color: 'primary.main', mr: 1 }}>
-        <ArrowBackIcon />
-      </IconButton>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mt: 2, mb: 0, textAlign: 'center' }}>
-        {folder
-          ? folder.folderId === 'root'
-            ? 'My Storage'
-            : folder.folderId === 'shared'
-            ? 'Shared Storage'
-            : folder.folderName
-          : null}
-      </Typography>
-    </Box>
-    
-    )}
+                <Box sx={{ display: 'flex', alignItems: 'flex-end', mb: 4, justifyContent: 'center' }}>
+                    <IconButton onClick={handleGoBack} sx={{ color: 'primary.main', mr: 1 }}>
+                        <ArrowBackIcon />
+                    </IconButton>
+                    <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mt: 2, mb: 0, textAlign: 'center' }}>
+                        {folder
+                            ? folder.folderId === 'root'
+                                ? 'My Storage'
+                                : folder.folderId === 'shared'
+                                    ? 'Shared Storage'
+                                    : folder.folderName
+                            : null}
+                    </Typography>
+                </Box>
+
+            )}
             {!selectFolder && <FilterBar setType={setFilterItemType} setSortBy={setSortType} sortBy={sortType} filterType={filterItemType} />}
             <List>
                 {renderFolderList(folder)}

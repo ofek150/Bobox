@@ -98,10 +98,6 @@ const MyFiles: React.FC = () => {
     }
   }, [folderStructure]);
 
-  useEffect(() => {
-    console.log('loading: ', loading);
-  }, [loading])
-
   const handleEditFileName = async (fileId: string, newFileName: string) => {
     if (!files) return false;
     console.log("Renaming file with fileId: " + fileId + " to " + newFileName);
@@ -175,7 +171,7 @@ const MyFiles: React.FC = () => {
       return;
     }
     const folder = getFolderWithId(folderId);
-    handleSuccess(`"The folder with the name ${folder?.folderName}" was successfullly deleted`);
+    handleSuccess(`The folder with the name ${folder?.folderName}" was successfullly deleted`);
     await fetchFiles();
   };
 
@@ -217,7 +213,7 @@ const MyFiles: React.FC = () => {
     const currentFolder = getFolderWithId(currentFolderId);
     const newFolder = getFolderWithId(newFolderId);
     const file = files?.find(file => file.fileId === fileId);
-    handleSuccess(`"The file with the name ${file?.fileName}" was successfully moved from "${currentFolder?.folderName}" to "${newFolder?.folderName}"`);
+    handleSuccess(`The file with the name ${file?.fileName}" was successfully moved from "${currentFolder?.folderName}" to "${newFolder?.folderName}"`);
     await fetchFiles();
   };
 
