@@ -226,6 +226,10 @@ export const setFileUploaded = async (uid: string, fileId: string, numOfParts: n
 
     await userRef.update({ totalFileSize: FieldValue.increment(file.fileSize) });
 
+    const websiteDocRef = await getWebsiteDocRef();
+    if (!websiteDocRef) throw new Error('Unexpected error occurred');
+    await websiteDocRef.update({ totalFileSize: FieldValue.increment(file.fileSize) });
+
 
     if (!parentFolder.collaborators) return;
 
@@ -282,6 +286,10 @@ export const deleteFileFromDB = async (uid: string, fileId: string) => {
     if (!userRef) throw new Error('Unexpected error occurred');
 
     await userRef.update({ totalFileSize: FieldValue.increment(-file!.fileSize) });
+
+    const websiteDocRef = await getWebsiteDocRef();
+    if (!websiteDocRef) throw new Error('Unexpected error occurred');
+    await websiteDocRef.update({ totalFileSize: FieldValue.increment(-file!.fileSize) });
 };
 
 export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid: string, fileId: string, downloadId: string) => {
