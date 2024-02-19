@@ -326,9 +326,11 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
         <Box>
             {!selectFolder && (
                 <Box sx={{ display: 'flex', alignItems: 'flex-end', mb: 4, justifyContent: 'center' }}>
-                    <IconButton onClick={handleGoBack} sx={{ color: 'primary.main', mr: 1 }}>
-                        <ArrowBackIcon />
-                    </IconButton>
+                    {folderId !== 'root' &&
+                        <IconButton onClick={handleGoBack} sx={{ color: 'primary.main', mr: 1 }}>
+                            <ArrowBackIcon />
+                        </IconButton>
+                    }
                     <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mt: 2, mb: 0, textAlign: 'center' }}>
                         {folder
                             ? folder.folderId === 'root'
