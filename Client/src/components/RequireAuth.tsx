@@ -17,19 +17,18 @@ const RequireAuth: React.FC = () => {
         if (user) waitForRootFolderCreation();
     }, [user]);
 
-    useEffect(() => {
-        console.log('Found root: ', foundRoot);
-    }, [foundRoot])
+    // useEffect(() => {
+    //     console.log('Found root: ', foundRoot);
+    // }, [foundRoot])
 
 
     if (loading || !foundRoot && user) {
-        return <Loading />; // Display a loading state while authentication state is being resolved
+        return <Loading />;
     }
 
     if (!user) {
-        return <Navigate to="/login" state={{ from: location }} replace />; // Redirect to login page if user is not authenticated
+        return <Navigate to="/login" state={{ from: location }} replace />;
     }
-
     return <Outlet />
 };
 
