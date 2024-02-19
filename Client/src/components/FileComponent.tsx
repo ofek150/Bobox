@@ -116,7 +116,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
                     throw new Error("Download failed");
                 }
 
-                const totalSize = parseInt(res.headers.get("Content-Length") || "0", 10);
+                //const totalSize = parseInt(res.headers.get("Content-Length") || "0", 10);
 
                 const fileStream = streamSaver.createWriteStream(fileInfo.fileName);
                 const writer = fileStream.getWriter();
