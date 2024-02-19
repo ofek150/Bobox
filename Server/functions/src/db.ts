@@ -50,7 +50,21 @@ export const getFolderRefById = async (uid: string, folderId: string) => {
 
 export const getUserRefById = async (uid: string) => {
     const db = getFirestore();
-    const docRef = await db.collection('users').doc(uid)
+    const docRef = await db.collection('users').doc(uid);
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+        const data = docSnap.data();
+        if (!data) return null;
+    }
+    else {
+        return null;
+    }
+    return docRef;
+}
+
+export const getWebsiteDocRef = async () => {
+    const db = getFirestore();
+    const docRef = await db.collection('website').doc('website');
     const docSnap = await docRef.get();
     if (docSnap.exists) {
         const data = docSnap.data();
@@ -90,21 +104,41 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
     const userRef = await getUserRefById(userId);
     if (!userRef) throw new Error('Unexpected error occurred');
 
+    const websiteDocRef = await getWebsiteDocRef();
+    if (!websiteDocRef) throw new Error('Unexpected error occurred');
+
+    const websiteData = (await websiteDocRef.get()).data();
+
+    if (websiteData!.totalFileSize == websiteData!.maxTotalFileSize) {
+        throw new functions.https.HttpsError(
+            'resource-exhausted',
+            `Website has exceeded the maximum total file size limit (${websiteData!.maxTotalFileSize})`
+        );
+    }
+
+    if (websiteData!.totalFileSize + file.fileSize > websiteData!.maxTotalFileSize) {
+        throw new functions.https.HttpsError(
+            'invalid-argument',
+            `Adding this file would exceed the website's maximum total file size limit (${websiteData!.maxTotalFileSize})`
+        );
+    }
+
     const user = (await userRef.get()).data();
+
+    if (user!.totalFileSize == user!.maxTotalFileSize) {
+        throw new functions.https.HttpsError(
+            'resource-exhausted',
+            `User has exceeded the maximum total file size limit (${user!.maxTotalFileSize})`
+        );
+    }
 
     if (user!.totalFileSize + file.fileSize > user!.maxTotalFileSize) {
         throw new functions.https.HttpsError(
-            'invalid-argument', // Error code indicating an invalid argument (in this case, exceeding the limit)
-            'Adding this file would exceed the user\'s maximum total file size limit.' // Error message providing more information
+            'invalid-argument',
+            `Adding this file would exceed the user's maximum total file size limit (${user!.maxTotalFileSize})`
         );
     }
 
-    if (user!.totalFileSize + file.fileSize == user!.maxTotalFileSize) {
-        throw new functions.https.HttpsError(
-            'resource-exhausted',
-            'User has exceeded the maximum total file size limit.'
-        );
-    }
 
 
     const fileRef = db.collection('users').doc(parentFolder.ownerUid).collection('files').doc(file.fileId);
