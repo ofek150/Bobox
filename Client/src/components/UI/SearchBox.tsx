@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useFolderStructureContext } from "../../contexts/FolderStructureContext";
 import TextField from "@mui/material/TextField";
 import FolderIcon from "@mui/icons-material/Folder";
+import FolderSharedIcon from '@mui/icons-material/FolderShared';
 import DescriptionIcon from "@mui/icons-material/Description";
 import { Box, List, ListItem, ListItemText, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
@@ -32,7 +33,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 
   useEffect(() => {
     const getResults = async () => {
-      if(debouncedSearchTerm.length > 0) {
+      if (debouncedSearchTerm.length > 0) {
         const newFileResults = await getAllFilesWithName(debouncedSearchTerm);
         const newFolderResults = await getAllFoldersWithName(debouncedSearchTerm);
         setFileResults(newFileResults);
@@ -91,7 +92,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                     clearResults();
                   }}
                 >
-                  <FolderIcon style={{ marginRight: "8px" }} />
+                  {folder.shared ? <FolderSharedIcon style={{ marginRight: "8px" }} /> : <FolderIcon style={{ marginRight: "8px" }} />}
                   <ListItemText
                     primary={folder.folderName}
                     secondary={folder.folderId === "root" || folder.folderId === "shared" ? "" : `Created at: ${folder.createdAt}`}
