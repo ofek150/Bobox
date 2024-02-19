@@ -272,7 +272,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
                         ':hover': {
                             backgroundColor: 'rgba(0, 0, 0, 0.08)', // Change the background color on hover
                         },
-                        width: '100%',
+                        width: '1C00%',
                         backgroundColor: selectedFolderId === item.folderId ? 'rgba(0, 0, 0, 0.25)' : 'inherit', // Change the background color when selected
                     }}
                 >
@@ -281,7 +281,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
                 </ListItem>
 
             ) : item.type === ITEM_TYPE.FOLDER ? (
-                <Card sx={{ mb: '0.8rem' }}>
+                <Card sx={{ mb: '0.8rem' }} key={"card_" + item.folderId}>
                     <ListItem button
                         //selected={Boolean(anchorPosition)}
                         onContextMenu={(e) => { handleContextMenu(e, item.folderId) }} key={item.folderId} onClick={() => navigate(`/user/folders/${item.folderId}`)}>

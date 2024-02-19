@@ -52,7 +52,6 @@ const useFolderStructure = () => {
       const folderObject = processFolder(folder);
       folderMap.set(folder.folderId, folderObject);
     });
-    console.log(files);
 
     setFiles(files);
     return folderMap;
