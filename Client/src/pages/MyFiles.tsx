@@ -171,7 +171,7 @@ const MyFiles: React.FC = () => {
       return;
     }
     const folder = getFolderWithId(folderId);
-    handleSuccess(`The folder with the name ${folder?.folderName}" was successfullly deleted`);
+    handleSuccess(`The folder with the name "${folder?.folderName}" was successfullly deleted`);
     await fetchFiles();
   };
 
