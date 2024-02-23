@@ -6,6 +6,7 @@ import { Box, Button, Card, Dialog, DialogActions, DialogContent, DialogTitle, I
 import Loading from './Loading';
 import FileComponent from './FileComponent';
 import FolderIcon from "@mui/icons-material/Folder";
+import FolderSharedIcon from '@mui/icons-material/FolderShared';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ShareIcon from '@mui/icons-material/Share';
@@ -285,7 +286,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditF
                     <ListItem button
                         //selected={Boolean(anchorPosition)}
                         onContextMenu={(e) => { handleContextMenu(e, item.folderId) }} key={item.folderId} onClick={() => navigate(`/user/folders/${item.folderId}`)}>
-                        <FolderIcon style={{ marginRight: "8px" }} />
+                        {item.shared ? <FolderSharedIcon style={{ marginRight: "8px" }} /> : <FolderIcon style={{ marginRight: "8px" }} />}
                         <ListItemText primary={item.folderName} secondary={`Created at: ${item.createdAt}`} sx={{ mr: 10 }} />
                         <ListItemSecondaryAction>
                             <IconButton edge="end" aria-label="Edit" onClick={() => handleEditClick(item.folderId)}>
