@@ -23,3 +23,7 @@ Bobox is a file sharing platform that leverages modern technologies to provide u
 ## Try it Out
 
 Visit [Bobox Website](https://bobox.netlify.app) to experience the platform.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
