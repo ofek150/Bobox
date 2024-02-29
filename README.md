@@ -2,13 +2,14 @@
 
 ![Bobox Logo](https://github.com/ofek150/Bobox/blob/main/BoboxLogo.png?raw=true)
 
-Bobox is a versatile file sharing platform that leverages modern technologies to provide users with a seamless experience for uploading, organizing, and collaborating on files and folders. The frontend is built with React, TypeScript, and MaterialUI, offering a clean and responsive user interface. The backend utilizes Firebase, including Firestore for the database and Cloud Functions for scalable server-side logic. Additionally, Cloudflare R2 is employed for efficient object storage, serving as a reliable alternative to Amazon S3.
+Bobox is a file sharing platform that leverages modern technologies to provide users with a seamless experience for uploading, organizing, and collaborating on files and folders. The frontend is built with React, TypeScript, and MaterialUI, offering a clean and responsive user interface. The backend utilizes Firebase, including Firestore for the database and Cloud Functions for scalable server-side logic. Additionally, Cloudflare R2 is employed for efficient object storage.
 
 ## Features
 
 - **Upload Files:** Easily upload files of various types and sizes to the platform.
 - **Organize in Folders:** Create folders to systematically arrange your files.
 - **Collaborate with Others:** Enable seamless teamwork by collaborating on folders and files.
+- **Generate Public Links:** Users can generate public links to share files they uploaded.
 
 ## Technologies
 
