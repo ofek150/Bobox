@@ -44,8 +44,6 @@ const UploadFile: React.FC = () => {
     const [copied, setCopied] = useState(false);
     const navigate = useNavigate();
 
-    if (!folderId) return <NotFoundPage />;
-
     useEffect(() => {
         if (!neverExpires && uploaded) {
             const newExpiryDate = new Date();
@@ -266,7 +264,7 @@ const UploadFile: React.FC = () => {
 
             const fileParameters: UploadFileParams = {
                 fileName: selectedFile.name,
-                folderId: folderId,
+                folderId: folderId ?? "",
                 fileType: selectedFile.type,
                 fileSize: selectedFile.size
             };
@@ -357,6 +355,8 @@ const UploadFile: React.FC = () => {
         setShareLink(null);
         setSelectedFile(null);
     };
+
+    if (!folderId) return <NotFoundPage />;
 
     return (
         <div className="mx-auto w-full max-w-lg px-4 py-8">
