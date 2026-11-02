@@ -13,6 +13,7 @@ import ConfirmDialog from './UI/ConfirmDialog';
 import ShareDialog from './UI/ShareDialog';
 import FilterBar from './UI/FilterBar';
 import { FolderIconBadge } from './UI/FileTypeIcon';
+import { useContextMenuGesture } from '../hooks/useContextMenuGesture';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -57,6 +58,90 @@ const toSortableDate = (value: string | null): string => {
     if (!value) return '';
     const parts = value.split('/');
     return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
+};
+
+/**
+ * One folder row. A component (not inline JSX in the list map) so it can own
+ * its context-menu gesture state: long-press (touch) / right-click (mouse)
+ * open the same actions menu as the kebab button.
+ */
+interface FolderRowProps {
+    name: string;
+    shared?: boolean;
+    ownerUid?: string;
+    date?: string | null;
+    onOpen: () => void;
+    onActions: (action: 'rename' | 'share' | 'delete') => void;
+}
+
+const FolderRow: React.FC<FolderRowProps> = ({ name, shared, ownerUid, date, onOpen, onActions }) => {
+    const { bind, open, setOpen, pressed } = useContextMenuGesture();
+
+    return (
+        <div
+            {...bind}
+            className={cn(
+                'flex touch-manipulation select-none items-center gap-2 rounded-xl border bg-card py-2 pr-1.5 pl-3 transition-colors [-webkit-touch-callout:none] hover:bg-accent/50',
+                pressed && 'bg-accent active:bg-accent'
+            )}
+        >
+            <button
+                type="button"
+                onClick={onOpen}
+                className="flex min-w-0 flex-1 items-center gap-3 py-1.5 text-left"
+            >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                    <FolderIconBadge shared={shared} className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                        <span className="truncate font-medium">{name}</span>
+                        {shared && (
+                            <span className="shrink-0 rounded-md bg-chart-2/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-chart-2 uppercase">
+                                Shared
+                            </span>
+                        )}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                        {date ? `Created ${date}` : 'Shared with you'}
+                    </span>
+                </span>
+            </button>
+
+            {/* Collaborators cannot rename or delete folders they don't own. */}
+            {ownerUid && (
+                <DropdownMenu open={open} onOpenChange={setOpen}>
+                    <DropdownMenuTrigger asChild>
+                        <Button data-no-gesture variant="ghost" size="icon" aria-label={`More actions for ${name}`}>
+                            <MoreVertical />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                        <DropdownMenuItem onClick={onOpen}>
+                            <FolderInput />
+                            Open
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onActions('rename')}>
+                            <Pencil />
+                            Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onActions('share')}>
+                            <Share2 />
+                            Share
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                            onClick={() => onActions('delete')}
+                        >
+                            <Trash2 />
+                            Delete
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
+        </div>
+    );
 };
 
 const FolderComponent: React.FC<FolderComponentProps> = ({
@@ -242,66 +327,15 @@ const FolderComponent: React.FC<FolderComponentProps> = ({
             <div className="flex flex-col gap-2">
                 {items.map((item) =>
                     item.type === ITEM_TYPE.FOLDER ? (
-                        <div
+                        <FolderRow
                             key={item.key}
-                            className="flex items-center gap-2 rounded-xl border bg-card py-2 pr-1.5 pl-3 transition-colors hover:bg-accent/50"
-                        >
-                            <button
-                                type="button"
-                                onClick={() => navigate(`/user/folders/${item.data.folderId}`)}
-                                className="flex min-w-0 flex-1 items-center gap-3 py-1.5 text-left"
-                            >
-                                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary">
-                                    <FolderIconBadge shared={(item.data as Folder).shared} className="size-5" />
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                    <span className="flex items-center gap-1.5">
-                                        <span className="truncate font-medium">{item.name}</span>
-                                        {(item.data as Folder).shared && (
-                                            <span className="shrink-0 rounded-md bg-chart-2/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-chart-2 uppercase">
-                                                Shared
-                                            </span>
-                                        )}
-                                    </span>
-                                    <span className="block truncate text-xs text-muted-foreground">
-                                        {item.date ? `Created ${item.date}` : 'Shared with you'}
-                                    </span>
-                                </span>
-                            </button>
-
-                            {/* Collaborators cannot rename or delete folders they don't own. */}
-                            {(item.data as Folder).ownerUid && (
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" aria-label={`More actions for ${item.name}`}>
-                                            <MoreVertical />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-52">
-                                        <DropdownMenuItem onClick={() => navigate(`/user/folders/${item.data.folderId}`)}>
-                                            <FolderInput />
-                                            Open
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => openFolderActions(item.data.folderId, item.name, 'rename')}>
-                                            <Pencil />
-                                            Rename
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => openFolderActions(item.data.folderId, item.name, 'share')}>
-                                            <Share2 />
-                                            Share
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                                            onClick={() => openFolderActions(item.data.folderId, item.name, 'delete')}
-                                        >
-                                            <Trash2 />
-                                            Delete
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            )}
-                        </div>
+                            name={item.name}
+                            shared={(item.data as Folder).shared}
+                            ownerUid={(item.data as Folder).ownerUid}
+                            date={item.date}
+                            onOpen={() => navigate(`/user/folders/${item.data.folderId}`)}
+                            onActions={(action) => openFolderActions(item.data.folderId, item.name, action)}
+                        />
                     ) : (
                         <FileComponent
                             key={item.key}

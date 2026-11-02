@@ -22,6 +22,7 @@ import ConfirmDialog from './UI/ConfirmDialog';
 import ShareDialog from './UI/ShareDialog';
 import PreviewDialog, { previewKind } from './UI/PreviewDialog';
 import { FileIcon } from './UI/FileTypeIcon';
+import { useContextMenuGesture } from '../hooks/useContextMenuGesture';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -160,11 +161,16 @@ const FileComponent: React.FC<FileComponentProps> = ({
         return await generatePublicDownloadLink(params);
     };
 
+    // Long-press (touch) / right-click (mouse) open the same row menu.
+    const { bind: gesture, open: menuOpen, setOpen: setMenuOpen, pressed } = useContextMenuGesture();
+
     return (
         <>
             <div
+                {...gesture}
                 className={cn(
-                    'flex items-center gap-2 rounded-xl border bg-card py-2 pr-1.5 pl-3 transition-colors hover:bg-accent/50',
+                    'flex touch-manipulation select-none items-center gap-2 rounded-xl border bg-card py-2 pr-1.5 pl-3 transition-colors [-webkit-touch-callout:none] hover:bg-accent/50',
+                    pressed && 'bg-accent active:bg-accent',
                     downloading && 'opacity-70'
                 )}
             >
@@ -202,9 +208,14 @@ const FileComponent: React.FC<FileComponentProps> = ({
                     <Download />
                 </Button>
 
-                <DropdownMenu>
+                <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label={`More actions for ${displayedFileName}`}>
+                        <Button
+                            data-no-gesture
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`More actions for ${displayedFileName}`}
+                        >
                             <MoreVertical />
                         </Button>
                     </DropdownMenuTrigger>
