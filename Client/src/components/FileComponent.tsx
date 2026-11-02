@@ -169,8 +169,8 @@ const FileComponent: React.FC<FileComponentProps> = ({
             <div
                 {...gesture}
                 className={cn(
-                    'flex touch-manipulation select-none items-center gap-2 rounded-xl border bg-card py-2 pr-1.5 pl-3 transition-colors [-webkit-touch-callout:none] hover:bg-accent/50',
-                    pressed && 'bg-accent active:bg-accent',
+                    'flex touch-manipulation select-none items-center gap-2 rounded-xl border bg-card py-2 pr-1.5 pl-3 transition-[background-color,transform] duration-150 [-webkit-touch-callout:none] hover:bg-accent/50',
+                    pressed && 'scale-[0.995] bg-accent active:bg-accent',
                     downloading && 'opacity-70'
                 )}
             >

@@ -134,3 +134,52 @@
     @apply font-sans;
     }
 }
+
+/* Entrance choreography: soft fade + rise, ease-out-expo feel.
+   Transform/opacity only, so it stays fluid on mobile. */
+@keyframes fade-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Registered as a Tailwind utility so variants work (tabs.tsx uses
+   data-[state=active]:animate-page-in; a plain CSS class there is a no-op). */
+@utility animate-page-in {
+  animation: fade-rise-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@layer utilities {
+  /* Staggered entrance for list children (rows, skeletons). */
+  .stagger-in > * {
+    animation: fade-rise-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .stagger-in > :nth-child(1) { animation-delay: 0ms; }
+  .stagger-in > :nth-child(2) { animation-delay: 45ms; }
+  .stagger-in > :nth-child(3) { animation-delay: 90ms; }
+  .stagger-in > :nth-child(4) { animation-delay: 135ms; }
+  .stagger-in > :nth-child(5) { animation-delay: 180ms; }
+  .stagger-in > :nth-child(6) { animation-delay: 225ms; }
+  .stagger-in > :nth-child(7) { animation-delay: 270ms; }
+  .stagger-in > :nth-child(8) { animation-delay: 315ms; }
+  .stagger-in > :nth-child(n + 9) { animation-delay: 360ms; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-in,
+  .stagger-in > * {
+    animation: none;
+  }
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

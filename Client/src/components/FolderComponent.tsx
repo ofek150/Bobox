@@ -81,8 +81,8 @@ const FolderRow: React.FC<FolderRowProps> = ({ name, shared, ownerUid, date, onO
         <div
             {...bind}
             className={cn(
-                'flex touch-manipulation select-none items-center gap-2 rounded-xl border bg-card py-2 pr-1.5 pl-3 transition-colors [-webkit-touch-callout:none] hover:bg-accent/50',
-                pressed && 'bg-accent active:bg-accent'
+                'flex touch-manipulation select-none items-center gap-2 rounded-xl border bg-card py-2 pr-1.5 pl-3 transition-[background-color,transform] duration-150 [-webkit-touch-callout:none] hover:bg-accent/50',
+                pressed && 'scale-[0.995] bg-accent active:bg-accent'
             )}
         >
             <button
@@ -266,7 +266,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({
     if (invalidFolderId) return <NotFoundPage />;
     if (loading || !folder) {
         return (
-            <div className="flex flex-col gap-2 p-1">
+            <div className="stagger-in flex flex-col gap-2 p-1">
                 {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
             </div>
         );
@@ -324,7 +324,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({
                 <FilterBar setType={setFilterItemType} setSortBy={setSortType} sortBy={sortType} filterType={filterItemType} />
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="stagger-in flex flex-col gap-2">
                 {items.map((item) =>
                     item.type === ITEM_TYPE.FOLDER ? (
                         <FolderRow
