@@ -2,11 +2,11 @@ import { initializeApp } from "firebase/app";
 import { GoogleAuthProvider, connectAuthEmulator, getAuth, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth";
 import { connectFirestoreEmulator, onSnapshot, doc, getDoc, getFirestore, collection, getDocs } from "firebase/firestore";
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
-//import { getAnalytics } from "firebase/analytics";
+import { toast } from "sonner";
 import { isValidEmail, isValidName, isValidPassword } from "../utils/validations";
 import { formatDateToDDMMYYYY } from "../utils/helpers";
+import { toFriendlyMessage } from "../utils/errors";
 import { File, Folder, AbortMultiPartUploadParams, CompleteMultiPartParams, UploadFileParams, UploadPartParams, DownloadInfoParams, GenerateDownloadLinkParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams, ShareFolderParams, ShareFileParams } from "../utils/types";
-//import useAbortUploadData from "../hooks/useAbortUploadData";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_API_KEY,
@@ -19,11 +19,9 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-//const analytics = getAnalytics(app);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 const functions = getFunctions(app);
-
 
 // Emulators are opt-in: set VITE_USE_FIREBASE_EMULATORS=1 to talk to the local
 // Firebase suite (run `firebase emulators:start` from Server/) instead of the real project.
@@ -37,34 +35,67 @@ if (USE_FIREBASE_EMULATORS) {
 
 const googleProvider = new GoogleAuthProvider();
 
-
-export const waitForRoot = async () => {
-  const foldersRef = doc(db, `users/${auth.currentUser?.uid}/folders/root`);
-
-  return new Promise((resolve) => {
-    const unsubscribe = onSnapshot(foldersRef, (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        unsubscribe();
-        resolve(true);
-      }
-    });
-  });
+/**
+ * Calls a callable and normalizes the outcome: on success its `data`, on
+ * failure an `{ error }` string mapped through toFriendlyMessage. Components
+ * check `result.error` — callables from this module never throw.
+ */
+async function call<T = Record<string, any>>(name: string, data?: unknown): Promise<T & { error?: string }> {
+  try {
+    const result = await httpsCallable(functions, name)(data);
+    return result.data as unknown as T & { error?: string };
+  } catch (err) {
+    console.error(`[callable:${name}]`, err);
+    return { error: toFriendlyMessage(err) } as T & { error: string };
+  }
 }
 
+/**
+ * Resolves true once the user's root folder exists (Google sign-up finishes
+ * initializing in the background). Resolves false after `timeoutMs` so the
+ * caller can show an escape hatch instead of an endless spinner.
+ */
+export const waitForRoot = async (timeoutMs: number = 15000) => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return false;
+  const foldersRef = doc(db, `users/${uid}/folders/root`);
+
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unsubscribe();
+      resolve(value);
+    };
+    const unsubscribe = onSnapshot(
+      foldersRef,
+      (docSnapshot) => { if (docSnapshot.exists()) finish(true); },
+      () => finish(false)
+    );
+    const timer = setTimeout(() => finish(false), timeoutMs);
+  });
+};
 
 export const signInWithGoogle = async () => {
   await signInWithPopup(auth, googleProvider);
   // The user document + root folder are initialized by a callable (v2 functions
-  // have no auth triggers). Idempotent, and the app waits for the root doc.
-  try {
-    await httpsCallable(functions, "completeGoogleSignUp")();
-  } catch (error) {
-    console.error("completeGoogleSignUp failed", error);
+  // have no auth triggers). Idempotent, and RequireAuth waits for the root doc.
+  const { error } = await call("completeGoogleSignUp");
+  if (error) {
+    // The user IS signed in; setup will be retried on the next app load, and
+    // RequireAuth shows a friendly waiting screen meanwhile.
+    toast("Setting up your account is taking longer than usual. It will finish automatically.", { id: "google-signup-setup" });
   }
 };
 
 export const loginWithEmailAndPassword = async (email: string, password: string) => {
-  await signInWithEmailAndPassword(auth, email, password);
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    throw new Error(toFriendlyMessage(err, "Incorrect email or password."));
+  }
 };
 
 export const registerWithEmailAndPassword = async (name: string, email: string, password: string, agreeMailPromotions: boolean) => {
@@ -88,13 +119,16 @@ export const registerWithEmailAndPassword = async (name: string, email: string, 
     ].join("\n"));
   }
 
-
-  const registerUser = httpsCallable(functions, "registerWithEmailAndPassword");
-  await registerUser({ name, email, password: password, agreeMailPromotions: agreeMailPromotions });
+  const result = await call("registerWithEmailAndPassword", { name, email, password, agreeMailPromotions });
+  if (result.error) throw new Error(result.error);
 };
 
 export const sendPasswordReset = async (email: string) => {
-  await sendPasswordResetEmail(auth, email);
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (err) {
+    throw new Error(toFriendlyMessage(err, "Failed to send the reset email. Please try again."));
+  }
 };
 
 export const logout = () => {
@@ -103,7 +137,6 @@ export const logout = () => {
 
 export const getUserData = async (uid: string) => {
   try {
-    console.log("Getting data of user with uid ", uid);
     const userRef = doc(db, "users", uid);
     const userSnap = await getDoc(userRef);
 
@@ -117,106 +150,37 @@ export const getUserData = async (uid: string) => {
   }
 };
 
-export const initiateSmallFileUpload = async (parameters: UploadFileParams) => {
-  try {
-    const initiateSmallFileUpload = httpsCallable(functions, "initiateSmallFileUpload");
-    console.log("Parameters: ", parameters);
-    const result: any = (await initiateSmallFileUpload(parameters)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-};
+export const initiateSmallFileUpload = async (parameters: UploadFileParams) =>
+  call("initiateSmallFileUpload", parameters);
 
-export const completeSmallFileUpload = async (fileId: string) => {
-  try {
-    const completeSmallFileUpload = httpsCallable(functions, "completeSmallFileUpload");
-    console.log("Parameters: ", fileId);
-    const result: any = (await completeSmallFileUpload(fileId)).data
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-};
+export const completeSmallFileUpload = async (fileId: string) =>
+  call("completeSmallFileUpload", fileId);
 
-export const initiateMultipartUpload = async (parameters: UploadFileParams) => {
-  try {
-    const initiateMultipartUpload = httpsCallable(functions, "initiateMultipartUpload");
-    console.log("Parameters: ", parameters);
-    const result: any = (await initiateMultipartUpload(parameters)).data;
-    console.log("Result: ", result);
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-};
+export const initiateMultipartUpload = async (parameters: UploadFileParams) =>
+  call("initiateMultipartUpload", parameters);
 
-export const generateUploadPartURL = async (parameters: UploadPartParams) => {
-  try {
-    const generateUploadPartURL = httpsCallable(functions, "generateUploadPartURL");
-    console.log("Parameters: ", parameters);
-    const result: any = (await generateUploadPartURL(parameters)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-};
+export const generateUploadPartURL = async (parameters: UploadPartParams) =>
+  call("generateUploadPartURL", parameters);
 
-export const completeMultipartUpload = async (parameters: CompleteMultiPartParams) => {
-  try {
-    const completeMultipartUpload = httpsCallable(functions, "completeMultipartUpload");
-    console.log("Parameters: ", parameters);
-    const result: any = (await completeMultipartUpload(parameters)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-};
+export const completeMultipartUpload = async (parameters: CompleteMultiPartParams) =>
+  call("completeMultipartUpload", parameters);
 
-export const abortMultipartUpload = async (parameters: AbortMultiPartUploadParams) => {
-  try {
-    console.log("Trying to abort");
-    const abortMultipartUpload = httpsCallable(functions, "abortMultipartUpload");
-    console.log("Parameters: ", parameters);
-    const result: any = (await abortMultipartUpload(parameters)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-};
-export const getFileInfo = async (parameters: DownloadInfoParams) => {
-  try {
-    console.log("Trying to get file information");
-    const getFileInfo = httpsCallable(functions, "getFileDownloadInfo");
-    console.log("Parameters: ", parameters);
-    const result: any = (await getFileInfo(parameters)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
-export const generatePublicDownloadLink = async (parameters: GenerateDownloadLinkParams) => {
-  try {
-    console.log("Generating download link for file");
-    const generatePublicDownloadLink = httpsCallable(functions, "generatePublicDownloadLink");
-    console.log("Parameters: ", parameters);
-    const result: any = (await generatePublicDownloadLink(parameters)).data;
-    console.log(result)
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
+export const abortMultipartUpload = async (parameters: AbortMultiPartUploadParams) =>
+  call("abortMultipartUpload", parameters);
+
+export const getFileInfo = async (parameters: DownloadInfoParams) =>
+  call("getFileDownloadInfo", parameters);
+
+export const generatePublicDownloadLink = async (parameters: GenerateDownloadLinkParams) =>
+  call("generatePublicDownloadLink", parameters);
+
+interface FilesResult {
+  folders: Folder[];
+  files: File[];
+  error?: string;
 }
 
-const getAllFilesOfUserFromDB = async (userId: string) => {
+const getAllFilesOfUserFromDB = async (userId: string): Promise<FilesResult> => {
   try {
     const filesCollectionRef = collection(db, `users/${userId}/files`);
     const foldersCollectionRef = collection(db, `users/${userId}/folders`);
@@ -236,18 +200,18 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
     const filesDataPromises: Promise<File | null | undefined>[] = filesSnapshot.docs.map(async (doc) => {
       let data: any = doc.data();
       if (data) {
-        let file: File;
         const shared = data.shared;
         if (!shared && data.status != 'Uploaded') return null;
         if (shared) {
           const docRef = data.sharedFileRef;
+          if (!docRef) return null;
           const sharedFileDoc = await getDoc(docRef);
           data = sharedFileDoc.data();
-          if (data.status != 'Uploaded') return null;
+          if (!data || data.status != 'Uploaded') return null;
         }
+        if (!data.uploadedAt) return null; // half-written doc: skip it, do not crash the page
         const uploadedAtDate = data.uploadedAt.toDate();
-        // eslint-disable-next-line prefer-const
-        file = {
+        const file: File = {
           fileId: doc.id,
           fileName: data.fileName,
           fileType: data.fileType,
@@ -261,27 +225,28 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
         if (shared) sharedFilesIds.push(file.fileId);
         return file;
       }
+      return undefined;
     });
 
     const foldersDataPromises: Promise<Folder | null | undefined>[] = foldersSnapshot.docs.map(async (doc) => {
       let data: any = doc.data();
       if (data) {
-        let folder: Folder;
         const shared = data.shared;
         if (shared) {
           const docRef = data.sharedFolderRef;
+          if (!docRef) return null;
           const sharedFolderDoc = await getDoc(docRef);
           data = sharedFolderDoc.data();
+          if (!data) return null;
         }
         const createdAtDate = data.createdAt?.toDate();
-        // eslint-disable-next-line prefer-const
-        folder = {
+        const folder: Folder = {
           folderId: doc.id,
           folderName: data.folderName,
           parentFolderId: data.parentFolderId,
           createdAt: createdAtDate ? formatDateToDDMMYYYY(createdAtDate) : null,
-          files: data.files,
-          folders: data.folders,
+          files: data.files ?? [],
+          folders: data.folders ?? [],
           collaborators: data.collaborators,
           shared: shared,
           ownerUid: data.ownerUid
@@ -289,6 +254,7 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
         if (shared) sharedFoldersIds.push(folder.folderId);
         return folder;
       }
+      return undefined;
     });
 
     const [filesData, foldersData] = await Promise.all([Promise.all(filesDataPromises), Promise.all(foldersDataPromises)]);
@@ -310,132 +276,41 @@ const getAllFilesOfUserFromDB = async (userId: string) => {
     return result;
   } catch (error) {
     console.error('Error getting documents', error);
-    throw new Error('Failed to fetch files from the db');
+    return { folders: [], files: [], error: "Could not load your files. Check your connection and try again." };
   }
 };
 
-export const getAllFilesOfUser = async () => {
-  try {
-    if (!auth.currentUser?.uid) throw new Error("User must logged in to view files");
-    const result: any = await getAllFilesOfUserFromDB(auth.currentUser?.uid);
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
+export const getAllFilesOfUser = async (): Promise<FilesResult> => {
+  if (!auth.currentUser?.uid) return { folders: [], files: [], error: "Your session has expired. Please sign in again." };
+  return getAllFilesOfUserFromDB(auth.currentUser.uid);
 }
 
-export const renameFile = async (parameters: RenameFileParams) => {
-  try {
-    const renameFile = httpsCallable(functions, "renameFile");
-    const result: any = (await renameFile(parameters)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
+export const renameFile = async (parameters: RenameFileParams) =>
+  call("renameFile", parameters);
 
-export const deleteFile = async (fileId: string) => {
-  try {
-    const deleteFile = httpsCallable(functions, "deleteFile");
-    const result: any = (await deleteFile(fileId)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
+export const deleteFile = async (fileId: string) =>
+  call("deleteFile", fileId);
 
-export const deleteFolder = async (folderId: string) => {
-  try {
-    const deleteFolder = httpsCallable(functions, "deleteFolder");
-    const result: any = (await deleteFolder(folderId)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
+export const deleteFolder = async (folderId: string) =>
+  call("deleteFolder", folderId);
 
-export const createFolder = async (parameters: CreateFolderParams) => {
-  try {
-    const createFolder = httpsCallable(functions, "createFolder");
-    const result: any = (await createFolder(parameters)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
+export const createFolder = async (parameters: CreateFolderParams) =>
+  call("createFolder", parameters);
 
-export const moveFileToFolder = async (parameters: MoveFileToFolderParams) => {
-  try {
-    const moveFileToFolder = httpsCallable(functions, "moveFileToFolder");
-    const result: any = (await moveFileToFolder(parameters)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
+export const moveFileToFolder = async (parameters: MoveFileToFolderParams) =>
+  call("moveFileToFolder", parameters);
 
-export const renameFolder = async (parameters: RenameFolderParams) => {
-  try {
-    const renameFolder = httpsCallable(functions, "renameFolder");
-    const result: any = (await renameFolder(parameters)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
+export const renameFolder = async (parameters: RenameFolderParams) =>
+  call("renameFolder", parameters);
 
-export const shareFileWithUserByEmail = async (parameters: ShareFileParams) => {
-  try {
-    const shareFileWithUserByEmail = httpsCallable(functions, "shareFileWithUserByEmail");
-    const result: any = (await shareFileWithUserByEmail(parameters)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
+export const shareFileWithUserByEmail = async (parameters: ShareFileParams) =>
+  call("shareFileWithUserByEmail", parameters);
 
-export const acceptFileShareInvitation = async (invitationId: string) => {
-  try {
-    console.log(invitationId);
-    const acceptFileShareInvitation = httpsCallable(functions, "acceptFileShareInvitation");
-    const result: any = (await acceptFileShareInvitation(invitationId)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
+export const acceptFileShareInvitation = async (invitationId: string) =>
+  call("acceptFileShareInvitation", invitationId);
 
-export const shareFolderWithUserByEmail = async (parameters: ShareFolderParams) => {
-  try {
-    const shareFolderWithUserByEmail = httpsCallable(functions, "shareFolderWithUserByEmail");
-    const result: any = (await shareFolderWithUserByEmail(parameters)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
+export const shareFolderWithUserByEmail = async (parameters: ShareFolderParams) =>
+  call("shareFolderWithUserByEmail", parameters);
 
-export const acceptFolderShareInvitation = async (invitationId: string) => {
-  try {
-    console.log(invitationId);
-    const acceptFolderShareInvitation = httpsCallable(functions, "acceptFolderShareInvitation");
-    const result: any = (await acceptFolderShareInvitation(invitationId)).data;
-    return result;
-  } catch (error: any) {
-    console.error(error);
-    return { error: error.details ? error.details.message : error.message };
-  }
-}
-
-
-
+export const acceptFolderShareInvitation = async (invitationId: string) =>
+  call("acceptFolderShareInvitation", invitationId);

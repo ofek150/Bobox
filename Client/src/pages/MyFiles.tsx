@@ -70,23 +70,31 @@ const MyFiles: React.FC = () => {
   const [files, setFiles] = useState<File[] | null>(null);
   const [folders, setFolders] = useState<Folder[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isCreateFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { folderStructure, updateFolderStructure, getFolderWithId } = useFolderStructureContext();
   const [isValidFolder, setIsValidFolder] = useState<boolean>(false);
 
   const fetchFiles = async () => {
+    setLoadError(null);
     try {
       const result = await getAllFilesOfUser();
-      const { folders, files, error } = result;
+      if ('error' in result && result.error) {
+        handleError(result.error);
+        setLoadError(result.error);
+        return;
+      }
+      const { folders, files } = result;
       updateFolderStructure(folders, files);
       setFiles(files);
       setFolders(folders);
-      if (error) {
-        handleError(error);
-      }
     } catch (error: any) {
-      handleError('Failed to fetch files.');
+      const message = 'Failed to load your files. Check your connection and try again.';
+      handleError(message);
+      setLoadError(message);
+    } finally {
+      // Always end the spinner: a failed load must not hang on Loading forever.
       setLoading(false);
     }
   };
@@ -114,7 +122,8 @@ const MyFiles: React.FC = () => {
 
   const handleError = (error: string | null = null) => {
     console.error(error);
-    toast.error(error);
+    const message = error ?? 'Something went wrong. Please try again.';
+    toast.error(message, { id: message });
   };
 
   const handleSuccess = (message: string) => {
@@ -124,21 +133,25 @@ const MyFiles: React.FC = () => {
   const handleEditFileName = async (fileId: string, newFileName: string) => {
     if (!files) return false;
 
-    const parts = newFileName.split('.');
-    const fileExtension = parts.pop();
-    const fileNameWithoutExtension = parts.join('.');
-    const updatedFileName = fileNameWithoutExtension + (fileExtension ? '.' + fileExtension : "");
+    // The last dot segment is an extension only when something precedes it.
+    // (A dotless name like "notes" used to turn into ".notes".)
+    const dot = newFileName.lastIndexOf('.');
+    const base = dot > 0 ? newFileName.slice(0, dot) : newFileName;
+    const ext = dot > 0 ? newFileName.slice(dot) : '';
 
-    newFileName = fileNameWithoutExtension;
-
-    const { success, error } = await renameFile({ fileId, newFileName });
+    const { success, error } = await renameFile({ fileId, newFileName: base });
     if (error || !success) {
       handleError(error);
       return false;
     }
 
     const file = files?.find(file => file.fileId === fileId);
-    handleSuccess(`Renamed "${file?.fileName}" to "${newFileName}"`);
+    // The server re-appends the old extension when the new name has none.
+    const oldExt = (file?.fileName.lastIndexOf('.') ?? -1) > 0
+      ? `.${file!.fileName.slice(file!.fileName.lastIndexOf('.') + 1)}`
+      : '';
+    const updatedFileName = base + (ext || oldExt);
+    handleSuccess(`Renamed "${file?.fileName}" to "${updatedFileName}"`);
 
     setFiles((prevFiles) =>
       prevFiles!.map((file) =>
@@ -222,6 +235,16 @@ const MyFiles: React.FC = () => {
 
   if (loading) {
     return <Loading />;
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-16 text-center">
+        <h1 className="text-lg font-semibold">Could not load your files</h1>
+        <p className="max-w-sm text-sm text-muted-foreground">{loadError}</p>
+        <Button className="mt-2" onClick={fetchFiles}>Try again</Button>
+      </div>
+    );
   }
 
   return (

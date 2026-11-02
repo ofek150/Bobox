@@ -60,7 +60,8 @@ const AccountInformation: React.FC = () => {
 
     const handleError = (error: string | null = null) => {
         console.error(error);
-        toast.error(error);
+        const message = error ?? 'Something went wrong. Please try again.';
+        toast.error(message, { id: message });
     };
 
     if (loading) return <Loading />;

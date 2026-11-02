@@ -2,85 +2,90 @@ import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types.js";
-import { addFileToDB, setFileUploaded, deleteFileFromDB, isUniqueFileName, getFileById, addLinkToDB, updatePrivateLinkDownloadId, getFolderById, getCollaboratorAccessLevel } from "./db.js";
-import { FileEntry } from "./utils/types";
-import { WEBSITE_URL, MAX_FILE_SIZE, SEVEN_DAYS_SECONDS, ACCESS_LEVEL, MAX_FILE_SIZE_STRING } from "./utils/constants.js";
+import { addFileToDB, setFileUploaded, deleteFileFromDB, isUniqueFileName, getFileById, addLinkToDB, updatePrivateLinkDownloadId, getFolderById } from "./db.js";
+import { FileEntry } from "./utils/types";import { WEBSITE_URL, SEVEN_DAYS_SECONDS, ACCESS_LEVEL } from "./utils/constants.js";
+import { internal, requireAccess, requireAuth, requireFields, requireFileSize, requireName, safeExtension } from "./utils/guards.js";
 import { v4 as uuidv4 } from 'uuid';
 import 'dotenv/config'
 
-export const r2 = new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || "",
-  },
-});
+const bucket = () => process.env.R2_BUCKET_NAME as string;
 
-const addFileToDatabase = async (userId: string, data: any) => {
-  //console.log("Data: ", data);
+let s3Client: S3Client | null = null;
+/** Lazily built so env vars resolve at call time (and tests can run without them). */
+export const r2 = (): S3Client => {
+  if (!s3Client) {
+    if (!process.env.R2_ACCOUNT_ID || !process.env.R2_ACCESS_KEY_ID || !process.env.R2_SECRET_ACCESS_KEY) {
+      throw new HttpsError('internal', 'Storage is not configured. Please try again later.');
+    }
+    s3Client = new S3Client({
+      region: "auto",
+      endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+      },
+    });
+  }
+  return s3Client;
+};
+
+const addFileToDatabase = async (userId: string, fileName: string, folderId: string, fileType: string, fileSize: number) => {
   const fileId: string = uuidv4();
-  console.log("File id: ", fileId);
-  const fileExtension = data.fileName.split('.').pop();
-  const fileKey: string = fileExtension ? `${userId}/${fileId}.${fileExtension}` : `${userId}/${fileId}`;
+  const ext = safeExtension(fileName);
+  const fileKey: string = ext ? `${userId}/${fileId}.${ext}` : `${userId}/${fileId}`;
   const fileToAdd: FileEntry = {
     fileId: fileId,
-    parentFolderId: data.folderId,
+    parentFolderId: folderId,
     fileKey: fileKey,
-    fileName: data.fileName,
-    fileType: data.fileType,
-    fileSize: data.fileSize
+    fileName: fileName,
+    fileType: fileType,
+    fileSize: fileSize
   }
-  try {
-    await addFileToDB(userId, fileToAdd);
-  } catch (error: any) {
-    if (error instanceof HttpsError) throw error;
-    throw new Error("Failed to upload file");
-  }
+  await addFileToDB(userId, fileToAdd);
   return { fileKey: fileKey, fileId: fileId };
 }
+
+/** Shared validation for both upload initiations: returns the vetted params. */
+const validateUpload = async (uid: string, data: Record<string, any>) => {
+  const { folderId, fileName, fileType } = data;
+  const fileSize = requireFileSize(data.fileSize);
+  const name = requireName(fileName, 'file');
+  if (folderId === "shared") throw new HttpsError('permission-denied', 'You are not allowed to upload files here');
+  if (typeof fileType !== 'string' || !/^[\w.+/-]{1,127}$/.test(fileType)) {
+    throw new HttpsError('invalid-argument', 'The file type is invalid.');
+  }
+
+  const parentFolder = await getFolderById(uid, folderId);
+  requireAccess(parentFolder ?? null, uid, ACCESS_LEVEL.ADMIN, 'Parent folder not found');
+
+  if (await isUniqueFileName(uid, name, folderId)) throw new HttpsError('already-exists', 'A file with the same name already exists in this folder.');
+  return { folderId: folderId as string, fileName: name, fileType, fileSize };
+};
 
 export const initiateSmallFileUpload = onCall({ cors: true },
 
   async (request: CallableRequest<UploadFileParams>) => {
-    const data = request.data;
-
-    if (!request.auth) throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
-
-    const { fileName, folderId, fileType, fileSize } = data || {};
-    if (!folderId || !fileName || !fileSize || !fileType) throw new HttpsError('invalid-argument', 'Missing arguments');
-
-    if (fileSize > MAX_FILE_SIZE) if (fileSize > MAX_FILE_SIZE) throw new HttpsError('invalid-argument', `The file is bigger than the max allowed file size (${MAX_FILE_SIZE_STRING})`);
-    if (folderId === "shared") throw new HttpsError('permission-denied', 'You are not allowed to upload files here');
+    const uid = requireAuth(request.auth);
+    const data = requireFields(request.data, ['fileName', 'folderId', 'fileType', 'fileSize']);
 
     try {
-
-      const parentFolder = await getFolderById(request.auth.uid, folderId);
-      if (!parentFolder) throw new HttpsError('not-found', 'Parent folder not found');
-
-
-      const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(parentFolder, request.auth.uid);
-      if (parentFolder.ownerUid != request.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new HttpsError('permission-denied', 'You are not allowed to upload files to this folder');
-
-      if (await isUniqueFileName(request.auth.uid, fileName, folderId)) throw new HttpsError('already-exists', 'File with the same name already exist in the current folder!');
-
-      const { fileKey, fileId } = await addFileToDatabase(request.auth.uid, data);
+      const params = await validateUpload(uid, data);
+      const { fileKey, fileId } = await addFileToDatabase(uid, params.fileName, params.folderId, params.fileType, params.fileSize);
 
       const signedUrl = await getSignedUrl(
-        r2,
+        r2(),
         new PutObjectCommand({
-          Bucket: process.env.R2_BUCKET_NAME,
+          Bucket: bucket(),
           Key: fileKey,
-          ContentType: data.fileType
+          ContentType: params.fileType
         })
       );
 
       if (!signedUrl) throw new Error("Failed to generate upload url");
 
       return { uploadUrl: signedUrl, fileId: fileId };
-    } catch (error: any) {
-      if (error instanceof HttpsError) throw error;
-      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
+    } catch (error: unknown) {
+      throw internal('initiateSmallFileUpload', error);
     }
   }
 );
@@ -88,20 +93,17 @@ export const initiateSmallFileUpload = onCall({ cors: true },
 export const completeSmallFileUpload = onCall({ cors: true },
 
   async (request: CallableRequest<string>) => {
-    const fileId = request.data;
-    if (!request.auth) throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
-
-    if (!fileId) throw new HttpsError('invalid-argument', 'Missing arguments');
+    const uid = requireAuth(request.auth);
+    if (!request.data) throw new HttpsError('invalid-argument', 'Missing arguments');
 
     try {
-      if (!await setFileUploaded(request.auth.uid, fileId, 1)) throw new HttpsError('not-found', 'File not found');
+      if (!await setFileUploaded(uid, request.data, 1)) throw new HttpsError('not-found', 'File not found');
 
-      await addPrivateDownloadLink(request.auth.uid, fileId);
+      await addPrivateDownloadLink(uid, request.data);
 
       return { success: true };
-    } catch (error: any) {
-      if (error instanceof HttpsError) throw error;
-      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
+    } catch (error: unknown) {
+      throw internal('completeSmallFileUpload', error);
     }
   }
 );
@@ -109,41 +111,25 @@ export const completeSmallFileUpload = onCall({ cors: true },
 export const initiateMultipartUpload = onCall({ cors: true },
 
   async (request: CallableRequest<UploadFileParams>) => {
-    const data = request.data;
+    const uid = requireAuth(request.auth);
+    const data = requireFields(request.data, ['fileName', 'folderId', 'fileType', 'fileSize']);
 
-    if (!request.auth) throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
-
-    const { fileName, folderId, fileType, fileSize } = data || {};
-    if (!folderId || !fileName || !fileSize || !fileType) {
-      throw new HttpsError('invalid-argument', 'Missing arguments');
-    }
-    if (fileSize > MAX_FILE_SIZE) throw new HttpsError('invalid-argument', `The file is bigger than the max allowed file size (${MAX_FILE_SIZE_STRING})`);
-    if (folderId === "shared") throw new HttpsError('permission-denied', 'You are not allowed to upload files here');
     try {
-
-      const parentFolder = await getFolderById(request.auth.uid, folderId);
-      if (!parentFolder) throw new HttpsError('not-found', 'Parent folder not found');
-
-      const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(parentFolder, request.auth.uid);
-      if (parentFolder.ownerUid != request.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new HttpsError('permission-denied', 'You are not allowed to upload files to this folder');
-
-      if (await isUniqueFileName(request.auth.uid, fileName, folderId)) throw new HttpsError('already-exists', 'File with the same name already exist in the current folder!');
-
-
-      const { fileKey, fileId } = await addFileToDatabase(request.auth.uid, data);
+      const params = await validateUpload(uid, data);
+      const { fileKey, fileId } = await addFileToDatabase(uid, params.fileName, params.folderId, params.fileType, params.fileSize);
 
       const createMultiPartUploadCommand = new CreateMultipartUploadCommand({
-        Bucket: process.env.R2_BUCKET_NAME,
+        Bucket: bucket(),
         Key: fileKey,
+        ContentType: params.fileType,
       });
-      const result = await r2.send(createMultiPartUploadCommand);
+      const result = await r2().send(createMultiPartUploadCommand);
       const uploadId: string | undefined = result.UploadId;
       if (!uploadId) throw new Error("uploadId is empty or undefined");
 
       return { uploadId: uploadId, fileId: fileId };
-    } catch (error: any) {
-      if (error instanceof HttpsError) throw error;
-      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
+    } catch (error: unknown) {
+      throw internal('initiateMultipartUpload', error);
     }
   }
 );
@@ -151,48 +137,29 @@ export const initiateMultipartUpload = onCall({ cors: true },
 export const generateUploadPartURL = onCall({ cors: true },
 
   async (request: CallableRequest<UploadPartParams>) => {
-    const data = request.data;
-    // Ensure the user is authenticated
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "The function must be called while authenticated."
-      );
-    }
-    const { fileId, partNumber, uploadId } = data || {};
-    if (!fileId || !partNumber || !uploadId) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Missing arguments"
-      );
+    const uid = requireAuth(request.auth);
+    const { fileId, partNumber, uploadId } = requireFields(request.data, ['fileId', 'partNumber', 'uploadId']);
+    if (typeof partNumber !== 'number' || !Number.isInteger(partNumber) || partNumber < 1) {
+      throw new HttpsError('invalid-argument', 'The part number is invalid.');
     }
     try {
-      const file = await getFileById(request.auth.uid, fileId);
+      const file = await getFileById(uid, fileId);
       if (!file) throw new HttpsError('not-found', 'File not found');
 
       const uploadPartCommand = new UploadPartCommand({
-        Bucket: process.env.R2_BUCKET_NAME,
+        Bucket: bucket(),
         Key: file.fileKey,
         UploadId: uploadId,
         PartNumber: partNumber,
       })
 
-      const signedUrl = await getSignedUrl(r2, uploadPartCommand);
+      const signedUrl = await getSignedUrl(r2(), uploadPartCommand);
 
       if (!signedUrl) throw new Error("signedUrl is empty or undefined");
 
-      console.log("Upload part url: ", signedUrl);
-
       return { uploadUrl: signedUrl };
-    } catch (error: any) {
-      if (error && error.code && error.code.startsWith("auth/")) {
-        throw new HttpsError("invalid-argument", error.message);
-      }
-      console.log("Failed generate upload part url: ", error.message);
-      throw new HttpsError(
-        "internal",
-        "Failed generate upload part url"
-      );
+    } catch (error: unknown) {
+      throw internal('generateUploadPartURL', error);
     }
   }
 );
@@ -200,44 +167,39 @@ export const generateUploadPartURL = onCall({ cors: true },
 export const completeMultipartUpload = onCall({ cors: true },
 
   async (request: CallableRequest<CompleteMultiPartParams>) => {
-    const data = request.data;
-    // Ensure the user is authenticated
-    if (!request.auth) throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
-    const { uploadId, fileId, uploadResults } = data || {};
-    if (!fileId || !uploadId || !uploadResults || !fileId) {
-      throw new HttpsError('invalid-argument', 'Missing arguments');
+    const uid = requireAuth(request.auth);
+    const { uploadId, fileId, uploadResults } = requireFields(request.data, ['fileId', 'uploadId', 'uploadResults']);
+    if (!Array.isArray(uploadResults) || uploadResults.length === 0 ||
+      uploadResults.some((p) => !p || typeof p.ETag !== 'string' || !Number.isInteger(p.partNumber) || p.partNumber < 1)) {
+      throw new HttpsError('invalid-argument', 'The upload results are invalid.');
     }
     try {
-      const file = await getFileById(request.auth.uid, fileId);
+      const file = await getFileById(uid, fileId);
       if (!file) throw new HttpsError('not-found', 'File not found');
 
       const completeCommand = new CompleteMultipartUploadCommand({
-        Bucket: process.env.R2_BUCKET_NAME,
+        Bucket: bucket(),
         Key: file.fileKey,
         UploadId: uploadId,
         MultipartUpload: {
-          Parts: uploadResults.map(({ ETag, partNumber }) => {
-            console.log("Part number: ", partNumber, " ETag: ", ETag);
-            return ({
-              ETag,
-              PartNumber: partNumber,
-            })
-          }),
+          Parts: uploadResults.map(({ ETag, partNumber }) => ({
+            ETag,
+            PartNumber: partNumber,
+          })),
         },
-      })
+      });
 
-      const result = await r2.send(completeCommand);
-
-      if (result.$metadata.httpStatusCode === 200) {
-        await setFileUploaded(request.auth.uid, data.fileId, data.uploadResults.length);
-        await addPrivateDownloadLink(request.auth.uid, data.fileId);
-        return { success: true };
+      const result = await r2().send(completeCommand);
+      if ((result.$metadata.httpStatusCode ?? 500) >= 300) {
+        throw new Error('R2 rejected the multipart completion');
       }
-      throw new Error('Unexpected error occurred');
 
-    } catch (error: any) {
-      if (error instanceof HttpsError) throw error;
-      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
+      await setFileUploaded(uid, fileId, uploadResults.length);
+      await addPrivateDownloadLink(uid, fileId);
+      return { success: true };
+
+    } catch (error: unknown) {
+      throw internal('completeMultipartUpload', error);
     }
   }
 );
@@ -245,35 +207,26 @@ export const completeMultipartUpload = onCall({ cors: true },
 export const abortMultipartUpload = onCall({ cors: true },
 
   async (request: CallableRequest<AbortMultiPartUploadParams>) => {
-    const data = request.data;
-    // Ensure the user is authenticated
-    if (!request.auth) throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
-
-    const { uploadId, fileId } = data || {};
-    if (!fileId || !uploadId) throw new HttpsError('invalid-argument', 'Missing arguments');
+    const uid = requireAuth(request.auth);
+    const { uploadId, fileId } = requireFields(request.data, ['fileId', 'uploadId']);
     try {
-      const file = await getFileById(request.auth.uid, fileId);
+      const file = await getFileById(uid, fileId);
       if (!file) throw new HttpsError('not-found', 'File not found');
 
       const abortCommand = new AbortMultipartUploadCommand({
-        Bucket: process.env.R2_BUCKET_NAME,
+        Bucket: bucket(),
         Key: file.fileKey,
         UploadId: uploadId,
       });
 
-      const result = await r2.send(abortCommand);
-      if (result.$metadata.httpStatusCode === 204) {
-        await deleteFileFromDB(request.auth.uid, fileId);
-        return { success: true };
-      }
+      await r2().send(abortCommand);
+      // The upload is gone; drop the In-Progress DB entry (quota is
+      // decremented only for files that were actually uploaded).
+      await deleteFileFromDB(uid, fileId);
+      return { success: true };
 
-
-      throw new Error("Unknown error occurred");
-
-
-    } catch (error: any) {
-      if (error instanceof HttpsError) throw error;
-      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
+    } catch (error: unknown) {
+      throw internal('abortMultipartUpload', error);
     }
   }
 );
@@ -281,45 +234,38 @@ export const abortMultipartUpload = onCall({ cors: true },
 export const generatePublicDownloadLink = onCall({ cors: true },
 
   async (request: CallableRequest<GenerateDownloadLinkParams>) => {
-    const data = request.data;
-    // Ensure the user is authenticated
-    if (!request.auth) {
-      throw new HttpsError(
-        'unauthenticated',
-        'The function must be called while authenticated.'
-      );
-    }
-    const { fileId, neverExpires, expiresAt } = data || {};
-    if (!fileId) {
-      throw new HttpsError('invalid-argument', 'Missing arguments');
-    }
+    const uid = requireAuth(request.auth);
+    const { fileId, neverExpires, expiresAt } = requireFields(request.data, ['fileId']);
 
     try {
-      const file = await getFileById(request.auth.uid, fileId);
+      const file = await getFileById(uid, fileId);
       if (!file) throw new HttpsError('not-found', 'File not found');
 
-      let expiresIn: number | null = null;
+      let expiresIn: number;
       const currentDate = new Date();
       const expirationDate = new Date(currentDate);
 
       if (neverExpires) {
-        // Set expiresIn to 7 days (max)
+        // "Never expires" links are capped at 7 days; the expiry is computed
+        // server-side, never taken from the client.
         expiresIn = SEVEN_DAYS_SECONDS;
         expirationDate.setDate(currentDate.getDate() + 7);
-      } else if (data.expiresAt) {
-        const now = new Date();
-        expirationDate.setTime(new Date(data.expiresAt).getTime()); // Reassign without const
-        expiresIn = Math.floor((expirationDate.getTime() - now.getTime()) / 1000);
+      } else if (expiresAt) {
+        const parsed = new Date(expiresAt);
+        if (Number.isNaN(parsed.getTime())) {
+          throw new HttpsError('invalid-argument', 'The expiration date is invalid.');
+        }
+        expirationDate.setTime(parsed.getTime());
+        expiresIn = Math.floor((parsed.getTime() - currentDate.getTime()) / 1000);
 
         if (expiresIn > SEVEN_DAYS_SECONDS) {
-          throw new Error('The expiration date has to be 7 days at max');
+          throw new HttpsError('invalid-argument', 'The expiration date has to be 7 days at max');
         }
-
         if (expiresIn < 0) {
-          throw new Error('Expiration date is in the past');
+          throw new HttpsError('invalid-argument', 'Expiration date is in the past');
         }
       } else {
-        throw new Error('Invalid arguments');
+        throw new HttpsError('invalid-argument', 'Invalid arguments');
       }
 
       const signedUrl = await generateDownloadLink(file.fileKey, expiresIn);
@@ -327,18 +273,16 @@ export const generatePublicDownloadLink = onCall({ cors: true },
       const linkInfo: LinkInfo = {
         downloadLink: signedUrl,
         isPublic: true,
-        isPermanent: neverExpires,
-        expiresAt: expiresAt,
+        isPermanent: false,
+        expiresAt: expirationDate,
       };
 
-      const downloadId = await addLinkToDB(request.auth.uid, fileId, linkInfo);
-      const shareLink = `${WEBSITE_URL}/user/${request.auth.uid}/files/${fileId}?downloadId=${downloadId}`;
+      const downloadId = await addLinkToDB(uid, fileId, linkInfo);
+      const shareLink = `${WEBSITE_URL}/user/${uid}/files/${fileId}?downloadId=${downloadId}`;
 
       return { link: shareLink };
-    } catch (error: any) {
-      console.error('Error:', error.message);
-      if (error instanceof HttpsError) throw error;
-      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
+    } catch (error: unknown) {
+      throw internal('generatePublicDownloadLink', error);
     }
   }
 );
@@ -360,7 +304,6 @@ export const addPrivateDownloadLink = async (userId: string, fileId: string) => 
     expiresAt: expirationDate,
   };
 
-
   const downloadId = await addLinkToDB(userId, fileId, linkInfo);
   await updatePrivateLinkDownloadId(userId, fileId, downloadId);
 
@@ -369,10 +312,10 @@ export const addPrivateDownloadLink = async (userId: string, fileId: string) => 
 
 export const generateDownloadLink = async (fileKey: string, expiresIn: number) => {
   const getObjectCommand = new GetObjectCommand({
-    Bucket: process.env.R2_BUCKET_NAME,
+    Bucket: bucket(),
     Key: fileKey,
   });
-  const signedUrl = await getSignedUrl(r2, getObjectCommand, { expiresIn: expiresIn, });
+  const signedUrl = await getSignedUrl(r2(), getObjectCommand, { expiresIn: expiresIn, });
   if (!signedUrl) throw new Error('Failed to generate download link. Please try again later.');
 
   return signedUrl;
@@ -380,32 +323,34 @@ export const generateDownloadLink = async (fileKey: string, expiresIn: number) =
 
 export const deleteFileFromCloudStorage = async (fileKey: string) => {
   const deleteCommand = new DeleteObjectCommand({
-    Bucket: process.env.R2_BUCKET_NAME,
+    Bucket: bucket(),
     Key: fileKey
   })
 
-  const result = await r2.send(deleteCommand);
-  console.log("Result: ", result);
+  const result = await r2().send(deleteCommand);
 
-  if (result.$metadata.httpStatusCode === 204) return { success: true };
+  if ((result.$metadata.httpStatusCode ?? 500) < 300) return { success: true };
 
   throw new Error("Failed deleting file, please try again later!");
 }
 
+const DELETE_CHUNK = 1000; // S3 DeleteObjects hard limit
+
 export const deleteFilesFromCloudStorage = async (fileKeys: string[]) => {
-  const deleteCommand = new DeleteObjectsCommand({
-    Bucket: process.env.R2_BUCKET_NAME,
-    Delete: {
-      Objects: fileKeys.map((key) => ({ Key: key })),
-      Quiet: false,
-    },
-  });
+  for (let i = 0; i < fileKeys.length; i += DELETE_CHUNK) {
+    const chunk = fileKeys.slice(i, i + DELETE_CHUNK);
+    const deleteCommand = new DeleteObjectsCommand({
+      Bucket: bucket(),
+      Delete: {
+        Objects: chunk.map((key) => ({ Key: key })),
+        Quiet: true,
+      },
+    });
 
-  const result = await r2.send(deleteCommand);
-  console.log("Result: ", result);
-
-  if (result.$metadata.httpStatusCode === 200) return { success: true };
-
-  throw new Error("Failed deleting files, please try again later!");
+    const result = await r2().send(deleteCommand);
+    if ((result.$metadata.httpStatusCode ?? 500) >= 300) {
+      throw new Error("Failed deleting files, please try again later!");
+    }
+  }
+  return { success: true };
 }
-

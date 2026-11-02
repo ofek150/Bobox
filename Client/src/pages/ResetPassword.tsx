@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 
 import { auth, sendPasswordReset } from "../services/firebase";
 import { isValidEmail } from "../utils/validations";
+import { toFriendlyMessage } from "../utils/errors";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,7 +31,7 @@ const ResetPassword: React.FC = () => {
 
     useEffect(() => {
         if (loading) return;
-        if (user) navigate("/dashboard");
+        if (user) navigate("/");
     }, [user, loading, navigate]);
 
     const handleResetPassword = async () => {
@@ -48,7 +49,7 @@ const ResetPassword: React.FC = () => {
         } catch (error) {
             console.error("Password reset error:", error);
             setIsLoading(false);
-            setResetError("Failed to send password reset email. Please check your email address and try again.");
+            setResetError(toFriendlyMessage(error, "Failed to send the reset email. Please check the address and try again."));
         }
     };
 

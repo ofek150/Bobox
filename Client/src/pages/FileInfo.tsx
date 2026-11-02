@@ -5,6 +5,7 @@ import streamSaver from 'streamsaver';
 import { toast } from 'sonner';
 
 import ShowFileInfo from '../components/ShowFileInfo';
+import FileNotFound from '../components/FileNotFound';
 import { DownloadInfoParams, SharedFile } from '../utils/types';
 import { getFileInfo } from '../services/firebase';
 import Loading from '../components/Loading';
@@ -37,14 +38,14 @@ const FileInfo: React.FC = () => {
         downloadId: downloadId!,
       };
 
-      try {
-        const { fileInfo } = await getFileInfo(downloadInfoParams);
+      // getFileInfo never throws: callables return { error } on failure.
+      const { fileInfo, error } = await getFileInfo(downloadInfoParams);
+      if (error) {
+        setError(error);
+      } else {
         setFileInfo(fileInfo);
-      } catch (error: any) {
-        handleError("File information not available. Please try again later.");
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     };
 
     fetchFileInfo();
@@ -53,9 +54,7 @@ const FileInfo: React.FC = () => {
 
   const handleError = (error: string | null = null) => {
     setError(error || "An error occurred while fetching file information");
-    toast.error(error);
-
-    navigate("/user/folders/root");
+    toast.error(error, { id: error ?? 'file-info-error' });
   };
 
   const handleDownload = async () => {
@@ -81,11 +80,11 @@ const FileInfo: React.FC = () => {
 
         await pump()
           .catch(() => {
-            handleError("An error occurred during the download.");
+            handleError("The download failed partway. Please try again.");
           });
 
       } catch (error) {
-        handleError("An error occurred during the download.");
+        handleError("The download failed. Please try again.");
       } finally {
         setDownloading(false);
       }
@@ -94,6 +93,18 @@ const FileInfo: React.FC = () => {
 
   if (loading) {
     return <Loading />;
+  }
+
+  if (error && !fileInfo) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-16">
+        <FileNotFound />
+        <p className="-mt-2 max-w-sm text-center text-sm text-destructive">{error}</p>
+        <Button variant="secondary" asChild>
+          <a href="/user/folders/root">Go to My Storage</a>
+        </Button>
+      </div>
+    );
   }
 
   const kind = fileInfo ? previewKind(fileInfo) : null;

@@ -5,6 +5,7 @@ import React from 'react'
 import Layout from './components/Layout';
 import Loading from './components/Loading';
 import RequireAuth from './components/RequireAuth';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Only the shell and the file browser load eagerly; every other route is a
 // separate chunk so the first paint stays small.
@@ -22,35 +23,37 @@ const App: React.FC = () => {
 
   return (
     <main className="App">
-      <Router>
-        <Suspense fallback={<Loading />}>
-          <Routes>
-            <Route path="/" element={<Layout />}>
+      <ErrorBoundary>
+        <Router>
+          <Suspense fallback={<Loading />}>
+            <Routes>
+              <Route path="/" element={<Layout />}>
 
-              {/* Public routes */}
-              <Route path="/login" element={<AuthPage initialTab={0} />} />
-              <Route path="/signup" element={<AuthPage initialTab={1} />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/auth/action" element={<FirebaseActionHandler />} />
+                {/* Public routes */}
+                <Route path="/login" element={<AuthPage initialTab={0} />} />
+                <Route path="/signup" element={<AuthPage initialTab={1} />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/auth/action" element={<FirebaseActionHandler />} />
 
-              {/* Protected routes */}
-              <Route path="/" element={<RequireAuth />}>
-                <Route path="/" element={<Navigate to={"/user/folders/root"} replace={true} />} />
-                <Route path="/user/folders" element={<Navigate to={"/user/folders/root"} replace={true} />} />
-                <Route path="/upload" element={<Navigate to={"/user/folders/root/upload"} replace={true} />} />
-                <Route path="/user/folders/:folderId" element={<MyFiles />} />
-                <Route path="/account-info" element={<AccountInformation />} />
-                <Route path="/user/folders/:folderId/upload" element={<UploadFile />} />
-                <Route path="/user/:ownerUid/files/:fileId" element={<FileInfo />} />
-                <Route path="/accept_invitation" element={<AcceptInvitation />} />
+                {/* Protected routes */}
+                <Route path="/" element={<RequireAuth />}>
+                  <Route path="/" element={<Navigate to={"/user/folders/root"} replace={true} />} />
+                  <Route path="/user/folders" element={<Navigate to={"/user/folders/root"} replace={true} />} />
+                  <Route path="/upload" element={<Navigate to={"/user/folders/root/upload"} replace={true} />} />
+                  <Route path="/user/folders/:folderId" element={<MyFiles />} />
+                  <Route path="/account-info" element={<AccountInformation />} />
+                  <Route path="/user/folders/:folderId/upload" element={<UploadFile />} />
+                  <Route path="/user/:ownerUid/files/:fileId" element={<FileInfo />} />
+                  <Route path="/accept_invitation" element={<AcceptInvitation />} />
+                </Route>
+
+                {/* Catch all non existent routes */}
+                <Route path="*" element={<NotFoundPage />} />
               </Route>
-
-              {/* Catch all non existent routes */}
-              <Route path="*" element={<NotFoundPage />} />
-            </Route>
-          </Routes>
-        </Suspense>
-      </Router>
+            </Routes>
+          </Suspense>
+        </Router>
+      </ErrorBoundary>
     </main>
   )
 }

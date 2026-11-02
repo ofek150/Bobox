@@ -10,6 +10,7 @@ import {
   signInWithGoogle,
 } from "../services/firebase";
 import { isValidEmail, isValidName } from "../utils/validations";
+import { toFriendlyMessage } from "../utils/errors";
 import PasswordStrengthIndicator from "../components/PasswordStrengthIndicator";
 import { GoogleIcon } from "../components/UI/GoogleIcon";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -118,37 +119,43 @@ const AuthPage: React.FC<AuthPageProps> = ({ initialTab }) => {
   }, [location.state]);
 
   const loginWithGoogle = async () => {
+    setIsLoading(true);
+    setAuthError(null);
     try {
       await signInWithGoogle();
+      // On success the useAuthState effect navigates; keep the spinner on.
     } catch (error: any) {
-      setAuthError(error.code === "auth/popup-closed-by-user" ? "User closed popup." : error.message);
+      setAuthError(toFriendlyMessage(error, "Google sign-in failed. Please try again."));
       setIsLoading(false);
     }
   };
 
   const handleLogin = async () => {
+    if (isLoading) return;
+    setAuthError(null);
+    setIsLoading(true);
     try {
-      if (!isLoading) setIsLoading(true);
       await loginWithEmailAndPassword(email, password);
-      setIsLoading(false);
-      setAuthError(null);
-    } catch (error) {
-      setAuthError("Invalid email or password.");
+      // On success the useAuthState effect navigates; keep the spinner on.
+    } catch (error: any) {
+      setAuthError(toFriendlyMessage(error, "Incorrect email or password."));
       setIsLoading(false);
     }
   };
 
   const handleSignup = async () => {
+    if (isLoading) return;
     if (password !== retypePassword) {
       setAuthError("Passwords do not match. Please retype your password correctly.");
       return;
     }
+    setAuthError(null);
     try {
       setIsLoading(true);
       await registerWithEmailAndPassword(name, email, password, agreeMailPromotions);
       await handleLogin();
     } catch (error: any) {
-      setAuthError(error.message);
+      setAuthError(toFriendlyMessage(error));
       setIsLoading(false);
     }
   };
