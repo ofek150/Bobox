@@ -1,29 +1,47 @@
-# Bobox - File Sharing Platform
+# Bobox
 
-![Bobox Logo](https://github.com/ofek150/Bobox/blob/main/BoboxLogo.png?raw=true)
+![Bobox Logo](BoboxLogo.png)
 
-Bobox is a file sharing platform that leverages modern technologies to provide users with a seamless experience for uploading, organizing, and collaborating on files and folders. The frontend is built with React, TypeScript, and MaterialUI, offering a clean and responsive user interface. The backend utilizes Firebase, including Firestore for the database and Cloud Functions for scalable server-side logic. Additionally, Cloudflare R2 is employed for efficient object storage.
+Bobox is a file sharing platform for uploading, organizing and collaborating on files and folders — a soft, friendly UI (light & dark), in-app previews, and a serverless backend.
+
+**Live:** https://bobox.netlify.app
 
 ## Features
 
-- **Upload Files:** Easily upload files of various types and sizes to the platform.
-- **Organize in Folders:** Create folders to systematically arrange your files.
-- **Collaborate with Others:** Enable seamless teamwork by collaborating on folders and files.
-- **Generate Public Links:** Users can generate public links to share files they uploaded.
+- **Upload files** of various sizes — direct-to-storage uploads via presigned URLs, with a drag-and-drop zone and progress
+- **Organize in folders** — nested folders, a breadcrumb path bar, search and filters
+- **Collaborate** — share files and folders by email with access levels; shared items appear in a dedicated Shared area
+- **Public links** — generate expiring public download links for any file
+- **In-app previews** — images, video, audio, PDF and text files open inside Bobox, no popups
+- **Touch-first UX** — long-press (mobile) and right-click (desktop) open per-row action menus with haptic feedback; pages, lists and popups are fully animated (with `prefers-reduced-motion` support)
 
-## Technologies
+## Tech stack
 
-- **React:** A JavaScript library for building user interfaces.
-- **TypeScript:** A superset of JavaScript that adds static typing to the language.
-- **MaterialUI:** A popular React UI framework for creating clean and responsive designs.
-- **Firebase:** A comprehensive suite of cloud services for building web and mobile applications.
-- **Cloudflare R2:** Object storage service providing efficient and reliable storage.
-- **Amazon S3 SDK:** Utilized for compatibility with Amazon S3, ensuring seamless integration with their API.
+**Client** — React 19, TypeScript, Vite 7, Tailwind CSS v4 + shadcn/ui (Radix primitives), React Router 6, Sonner toasts. The calm-sage design system lives in theme tokens (`Client/src/index.css`), so light/dark and palette changes are token-level.
 
-## Try it Out
+**Backend** — Firebase: Auth, Firestore (metadata), Cloud Functions (Node 18, presigned URLs, sharing, links). Cloudflare R2 object storage, accessed through the S3 API from the client via presigned URLs.
 
-Visit [Bobox Website](https://bobox.netlify.app) to experience the platform.
+**Deploy** — Netlify (builds from this repo via `netlify.toml`, auto-deploy on push to `main`) + Firebase Functions.
+
+## Repo layout
+
+- `Client/` — the web app (pnpm)
+- `Server/functions/` — Firebase Cloud Functions + Firestore rules (npm)
+
+## Getting started
+
+```bash
+cd Client
+pnpm install
+pnpm dev        # http://localhost:3000
+```
+
+The client talks to the live Firebase project by default; `Client/.env.example` documents the env vars for pointing at emulators.
+
+## Logo & design
+
+The logo (sage box tile, amber lid) and its SVG design concepts live in `design/logo/`.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+MIT — see [LICENSE](LICENSE).
