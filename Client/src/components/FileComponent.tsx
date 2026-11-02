@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
     Download,
     ExternalLink,
+    Eye,
     FolderInput,
     MoreVertical,
     Pencil,
@@ -19,6 +20,7 @@ import { generatePublicDownloadLink, getFileInfo, shareFileWithUserByEmail } fro
 import MoveToFileFolderDialog from './MoveFileOrFolderDialog';
 import ConfirmDialog from './UI/ConfirmDialog';
 import ShareDialog from './UI/ShareDialog';
+import PreviewDialog, { previewKind } from './UI/PreviewDialog';
 import { FileIcon } from './UI/FileTypeIcon';
 import { Button } from '@/components/ui/button';
 import {
@@ -60,6 +62,8 @@ const FileComponent: React.FC<FileComponentProps> = ({
     const [openMoveToFolderDialog, setOpenMoveToFolderDialog] = useState(false);
     const [openShareDialog, setOpenShareDialog] = useState(false);
     const [downloading, setDownloading] = useState(false);
+    const [openPreviewDialog, setOpenPreviewDialog] = useState(false);
+    const [previewFile, setPreviewFile] = useState<SharedFile | null>(null);
     const navigate = useNavigate();
 
     const fileExtension = file.fileName.split('.').pop();
@@ -117,6 +121,15 @@ const FileComponent: React.FC<FileComponentProps> = ({
     const handleDownloadClick = async () => {
         const fileDownloadInfo = await fetchFileInfo();
         if (fileDownloadInfo) await downloadFile(fileDownloadInfo);
+    };
+
+    const handlePreviewClick = async () => {
+        if (!previewKind(file)) return;
+        const info = await fetchFileInfo();
+        if (info) {
+            setPreviewFile(info);
+            setOpenPreviewDialog(true);
+        }
     };
 
     const handleItemClick = () => {
@@ -196,6 +209,12 @@ const FileComponent: React.FC<FileComponentProps> = ({
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52">
+                        {previewKind(file) && (
+                            <DropdownMenuItem onClick={handlePreviewClick}>
+                                <Eye />
+                                Preview
+                            </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={handleItemClick}>
                             <ExternalLink />
                             Open
@@ -262,6 +281,13 @@ const FileComponent: React.FC<FileComponentProps> = ({
                 allowPublicLink
                 onInvite={handleShareFile}
                 onGenerateLink={handleGenerateLink}
+            />
+
+            <PreviewDialog
+                open={openPreviewDialog}
+                onOpenChange={setOpenPreviewDialog}
+                fileInfo={previewFile}
+                onDownload={handleDownloadClick}
             />
 
             <ConfirmDialog

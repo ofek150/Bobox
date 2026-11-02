@@ -8,10 +8,10 @@ import ShowFileInfo from '../components/ShowFileInfo';
 import { DownloadInfoParams, SharedFile } from '../utils/types';
 import { getFileInfo } from '../services/firebase';
 import Loading from '../components/Loading';
+import PreviewDialog, { previewKind } from '../components/UI/PreviewDialog';
 import { FileIcon } from '../components/UI/FileTypeIcon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 const FileInfo: React.FC = () => {
   const { ownerUid, fileId } = useParams();
@@ -22,7 +22,7 @@ const FileInfo: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [openPreview, setOpenPreview] = useState(false);
 
   useEffect(() => {
     const fetchFileInfo = async () => {
@@ -96,7 +96,7 @@ const FileInfo: React.FC = () => {
     return <Loading />;
   }
 
-  const isImage = fileInfo?.fileType?.startsWith('image/');
+  const kind = fileInfo ? previewKind(fileInfo) : null;
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-10">
@@ -114,10 +114,10 @@ const FileInfo: React.FC = () => {
                   Download
                 </Button>
               )}
-              {isImage && (
-                <Button variant="secondary" onClick={() => setShowPreviewModal(true)} className="w-full">
+              {kind && (
+                <Button variant="secondary" onClick={() => setOpenPreview(true)} className="w-full">
                   <Eye />
-                  View image
+                  Preview
                 </Button>
               )}
             </div>
@@ -125,18 +125,12 @@ const FileInfo: React.FC = () => {
         </Card>
       )}
 
-      <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogTitle className="sr-only">{fileInfo?.fileName}</DialogTitle>
-          {fileInfo?.downloadLink && (
-            <img
-              src={fileInfo.downloadLink}
-              alt={fileInfo.fileName}
-              className="max-h-[70vh] w-full rounded-lg object-contain"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <PreviewDialog
+        open={openPreview}
+        onOpenChange={setOpenPreview}
+        fileInfo={fileInfo}
+        onDownload={handleDownload}
+      />
     </div>
   );
 };
