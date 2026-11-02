@@ -231,7 +231,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({
         const params: ShareFolderParams = { email, folderId: targetFolderId, accessLevel };
         const { success, error } = await shareFolderWithUserByEmail(params);
         if (success) toast.success('User has been invited. Please check your email for the invitation.');
-        else toast.error(`Error inviting user: ${error}`);
+        else toast.error(error ?? 'Could not send the invitation. Please try again.', { id: error ?? 'share-failed' });
     };
 
     const openFolderActions = (id: string, name: string, action: 'rename' | 'share' | 'delete') => {

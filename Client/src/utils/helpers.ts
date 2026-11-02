@@ -10,7 +10,7 @@ export const determinePartSize = (fileSize: number) => {
 }
 
 export const formatFileSize = (sizeInBytes: number): string => {
-    if (sizeInBytes < 0) {
+    if (typeof sizeInBytes !== 'number' || !Number.isFinite(sizeInBytes) || sizeInBytes < 0) {
         throw new Error('File size should be a non-negative number');
     }
 

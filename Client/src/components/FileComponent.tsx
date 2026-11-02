@@ -81,13 +81,17 @@ const FileComponent: React.FC<FileComponentProps> = ({
             fileId: file.fileId,
             downloadId: file.privateLinkDownloadId,
         };
-        try {
-            const { fileInfo } = await getFileInfo(downloadInfoParams);
-            return fileInfo;
-        } catch (error: any) {
-            toast.error(error.message || 'An error occurred while fetching file information.');
+        // getFileInfo never throws: callables return { error } on failure.
+        const { fileInfo, error } = await getFileInfo(downloadInfoParams);
+        if (error) {
+            toast.error(error, { id: error });
             return null;
         }
+        if (!fileInfo) {
+            toast.error('This file is no longer available.', { id: 'file-gone' });
+            return null;
+        }
+        return fileInfo;
     };
 
     const downloadFile = async (fileInfo: SharedFile) => {
@@ -113,7 +117,8 @@ const FileComponent: React.FC<FileComponentProps> = ({
 
             await pump();
         } catch (error: any) {
-            toast.error(`An error occurred during the download: ${error.message}`);
+            console.error('Download failed:', error);
+            toast.error('The download failed. Please try again.', { id: 'download-failed' });
         } finally {
             setDownloading(false);
         }
@@ -153,7 +158,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
         const params: ShareFileParams = { email, fileId: file.fileId, accessLevel };
         const { success, error } = await shareFileWithUserByEmail(params);
         if (success) toast.success('User has been invited. Please check your email for the invitation.');
-        else toast.error(`Error inviting user: ${error}`);
+        else toast.error(error ?? 'Could not send the invitation. Please try again.', { id: error ?? 'share-failed' });
     };
 
     const handleGenerateLink = async (neverExpires: boolean, expiresAt: Date | null) => {

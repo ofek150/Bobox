@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { copyToClipboard } from '../../utils/errors';
 
 interface ShareDialogProps {
     open: boolean;
@@ -79,10 +80,13 @@ const ShareDialog: React.FC<ShareDialogProps> = ({
 
     const handleCopy = async () => {
         if (!shareLink) return;
-        await navigator.clipboard.writeText(shareLink);
-        setCopied(true);
-        toast.success('Link copied to clipboard');
-        setTimeout(() => setCopied(false), 2000);
+        if (await copyToClipboard(shareLink)) {
+            setCopied(true);
+            toast.success('Link copied to clipboard');
+            setTimeout(() => setCopied(false), 2000);
+        } else {
+            toast('Copy failed — select the link text and copy it manually.');
+        }
     };
 
     return (

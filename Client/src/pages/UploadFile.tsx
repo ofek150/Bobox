@@ -12,6 +12,7 @@ import CircularProgressWithLabel from "../components/UI/CircularProgressWithLabe
 import { FileIcon } from "../components/UI/FileTypeIcon";
 import NotFoundPage from "./NotFoundPage";
 import { determinePartSize, formatFileSize } from "../utils/helpers";
+import { copyToClipboard, toFriendlyMessage } from "../utils/errors";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -28,7 +29,9 @@ const UploadFile: React.FC = () => {
     const [multiPartUploading, setMultiPartUploading] = useState(false);
     const [abortUploadData, setAbortUploadData] = useAbortUploadData();
     const [isCancelled, setIsCancelled] = useState(false);
-    const abortController = new AbortController();
+    // One controller per upload: created at upload start, aborted on cancel.
+    // (A per-render controller used to leave the cancel button aborting a dead controller.)
+    const abortControllerRef = useRef<AbortController | null>(null);
     const isCancelledRef = useRef(isCancelled);
     const [expiryDays, setExpiryDays] = useState<number>(1);
     const [dragging, setDragging] = useState(false);
@@ -60,6 +63,10 @@ const UploadFile: React.FC = () => {
 
     const selectFile = (file: File | null | undefined) => {
         if (!file) return;
+        if (file.size > LARGE_FILE_MAX_SIZE) {
+            toast.error(`"${file.name}" is ${formatFileSize(file.size)} — the maximum is ${MAX_FILE_SIZE_STRING}.`, { id: 'file-too-big' });
+            return;
+        }
         setSelectedFile(file);
         setUploaded(false);
         setShareLink(null);
@@ -76,7 +83,7 @@ const UploadFile: React.FC = () => {
     };
 
     const uploadSmallFile = async (fileParameters: UploadFileParams) => {
-        if (!selectedFile || !selectedFile.name || !selectedFile.size || !selectedFile.type) return;
+        if (!selectedFile) return;
         const { uploadUrl, fileId, error } = await initiateSmallFileUpload(fileParameters);
         if (error) {
             handleUploadError(error);
@@ -92,8 +99,9 @@ const UploadFile: React.FC = () => {
                     }
                 },
                 headers: {
-                    "Content-Type": selectedFile.type
-                }
+                    "Content-Type": fileParameters.fileType
+                },
+                signal: abortControllerRef.current?.signal
             };
 
             const response = await axios.put(uploadUrl, selectedFile, config);
@@ -103,20 +111,16 @@ const UploadFile: React.FC = () => {
             }
             else {
                 if (error) {
-                    throw Error(error.meessage);
+                    throw new Error(error);
                 }
                 else {
-                    throw Error("Unknown error occured while uploading the file, please try again later!");
+                    throw new Error("The upload did not finish. Please try again.");
                 }
             }
         } catch (error: any) {
             console.error('Error uploading file:', error);
-            if (error && error.message) {
-                handleUploadError(error.message);
-            }
-            else {
-                handleUploadError("Unknown error occured while uploading the file, please try again later!");
-            }
+            if (axios.isCancel(error)) return; // cancelled via the Cancel button
+            handleUploadError(toFriendlyMessage(error, "The upload failed. Please try again."));
         }
     }
 
@@ -154,7 +158,7 @@ const UploadFile: React.FC = () => {
                     return true;
                 }
             } catch (error: any) {
-                if (error && error.code === 'ECONNABORTED') throw new Error("Upload aborted");
+                if (axios.isCancel(error) || error?.code === 'ECONNABORTED') throw new Error("Upload aborted");
                 console.error(`Upload part ${i} attempt ${retryCount + 1} failed:`, error);
                 retryCount++;
             }
@@ -185,6 +189,14 @@ const UploadFile: React.FC = () => {
         const expectedNumParts = Math.ceil(fileParameters.fileSize / partSize);
         const partProgressArray = Array(expectedNumParts).fill(0);
 
+        // Several parts can fail at once: abort the server-side upload only once.
+        let serverAborted = false;
+        const abortServerUpload = async () => {
+            if (serverAborted) return;
+            serverAborted = true;
+            await abortMultipartUpload({ uploadId, fileId });
+        };
+
         for (let offset = 0, i = 1; offset < fileParameters.fileSize; offset += partSize, i++) {
             if (isCancelledRef.current) {
                 return;
@@ -199,35 +211,30 @@ const UploadFile: React.FC = () => {
             const { uploadUrl, error } = await generateUploadPartURL(uploadPartParameters);
             if (error) {
                 handleUploadError(error);
+                await abortServerUpload();
                 return;
             }
             uploadPromises.push(
-                uploadPart(uploadUrl, parts, chunk, i, abortController, (partProgress) => {
+                uploadPart(uploadUrl, parts, chunk, i, abortControllerRef.current ?? new AbortController(), (partProgress) => {
                     partProgressArray[i - 1] = partProgress;
 
                     const overallProgress = (partProgressArray.reduce((sum, value) => sum + value, 0) / expectedNumParts);
                     setProgress(overallProgress);
-                }).catch(async (error: any) => {
-                    if (error & error.message) {
-                        console.error("Failed to upload file", error.message);
-                        handleUploadError(error.message);
-                    }
-                    else {
-                        handleUploadError()
-                    }
-
-                    await abortMultipartUpload(abortUploadData);
-                    return;
+                }).catch(async (error: unknown) => {
+                    if (isCancelledRef.current) return; // Cancel button handles the rest
+                    console.error("Failed to upload file", error);
+                    handleUploadError(toFriendlyMessage(error, "The upload failed. Please try again."));
+                    await abortServerUpload();
                 })
             );
         }
         try {
             await Promise.all(uploadPromises);
 
-        } catch (error: any) {
-            if (error & error.message) console.error("Failed to upload file", error.message);
-            await abortMultipartUpload(abortUploadData);
-            handleUploadError(error);
+        } catch (error: unknown) {
+            console.error("Failed to upload file", error);
+            await abortServerUpload();
+            handleUploadError(toFriendlyMessage(error, "The upload failed. Please try again."));
             return;
         }
         parts.sort((a: any, b: any) => a.partNumber - b.partNumber);
@@ -240,17 +247,23 @@ const UploadFile: React.FC = () => {
         if (isCancelledRef.current) {
             return;
         }
+        if (parts.length !== expectedNumParts) {
+            // A part vanished (aborted mid-flight): do not complete a partial upload.
+            handleUploadError("The upload was interrupted. Please try again.");
+            await abortServerUpload();
+            return;
+        }
         const result: any = await completeMultipartUpload(completeMultipartUploadParameters);
 
         if (result.error) {
-            handleUploadError(error);
+            handleUploadError(result.error);
             return;
         }
         finishUpload(fileId);
     }
 
     const handleUpload = async () => {
-        if (selectedFile && selectedFile.name && selectedFile.size && selectedFile.type) {
+        if (selectedFile && selectedFile.name && selectedFile.size) {
             setUploaded(false);
             if (selectedFile.size > LARGE_FILE_MAX_SIZE) {
                 handleUploadError(`The file is bigger than the max allowed file size (${MAX_FILE_SIZE_STRING})`);
@@ -258,6 +271,7 @@ const UploadFile: React.FC = () => {
             }
             setIsCancelled(false);
             isCancelledRef.current = false;
+            abortControllerRef.current = new AbortController();
             setShareLink(null);
             uploadedFileNameRef.current = selectedFile.name;
             setUploading(true);
@@ -265,7 +279,9 @@ const UploadFile: React.FC = () => {
             const fileParameters: UploadFileParams = {
                 fileName: selectedFile.name,
                 folderId: folderId ?? "",
-                fileType: selectedFile.type,
+                // Some browsers report an empty MIME for uncommon types; the
+                // server accepts a generic binary type, and uploads work.
+                fileType: selectedFile.type || 'application/octet-stream',
                 fileSize: selectedFile.size
             };
 
@@ -283,7 +299,7 @@ const UploadFile: React.FC = () => {
     };
 
     const handleCancel = async () => {
-        abortController.abort();
+        abortControllerRef.current?.abort();
         setUploading(false);
         setProgress(0);
         setIsCancelled(true);
@@ -330,8 +346,8 @@ const UploadFile: React.FC = () => {
     };
 
     const handleError = (error: string | null = null) => {
-        const message: string = error ? error : 'Unexpected error occured, please try again later!';
-        toast.error(message);
+        const message: string = error ? error : 'Something went wrong. Please try again.';
+        toast.error(message, { id: message });
     }
 
     const handleUploadError = (error: string | null = null) => {
@@ -344,10 +360,13 @@ const UploadFile: React.FC = () => {
 
     const copyLink = async () => {
         if (!shareLink) return;
-        await navigator.clipboard.writeText(shareLink);
-        setCopied(true);
-        toast.success('Link copied to clipboard');
-        setTimeout(() => setCopied(false), 2000);
+        if (await copyToClipboard(shareLink)) {
+            setCopied(true);
+            toast.success('Link copied to clipboard');
+            setTimeout(() => setCopied(false), 2000);
+        } else {
+            toast('Copy failed — select the link text and copy it manually.');
+        }
     };
 
     const reset = () => {
