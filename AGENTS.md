@@ -1,54 +1,51 @@
 # Bobox
 
-File-sharing platform (React 18 + Vite + MUI v5 client, Firebase Cloud Functions backend, Cloudflare R2 object storage). Two independent packages, no workspace root: `Client/` and `Server/functions/`. Personal project, last touched ~2023; current goal is a full UI overhaul (UI library swap allowed).
+File-sharing platform: React 18 + Vite + Tailwind/shadcn client (migrating off MUI v5), Firebase Cloud Functions backend, Cloudflare R2 object storage. Two independent packages, no workspace root: `Client/` and `Server/functions/`. Personal project, dormant since 2024; the active work is a full UI overhaul on branch `feat/ui-overhaul-shadcn`.
 
 ## Layout
-- `Client/` — Vite + React + TS app. Deployed to Netlify (`bobox.netlify.app`, SPA rewrites in `Client/netlify.toml`).
-- `Server/functions/` — Firebase v1 (ESM, Node 18 engine) https callable functions + one auth trigger. Firestore rules in `Server/firestore.rules`; project `bobox-fe3c8` (`Server/.firebaserc`).
-- `Client/src/utils/` and `Server/functions/src/utils/` (`types.ts`, `constants.ts`, `helpers.ts`) are **manual duplicates**. There is no shared package: a wire-format change must be edited in both copies.
+- `Client/` — Vite + React + TS app. shadcn/ui components live in `Client/src/components/ui`, theme tokens in `Client/src/index.css`.
+- `Server/functions/` — Firebase v1 (ESM, Node 18 engine) https callables + one auth trigger. Rules in `Server/firestore.rules`; project `bobox-fe3c8` (`Server/.firebaserc`).
+- `Client/src/utils/` and `Server/functions/src/utils/` (`types.ts`, `constants.ts`, `helpers.ts`) are **manual duplicates** — a wire-format change must be edited in both.
+- The Netlify site builds from a **private GitLab repo** (`gitlab.com/ofek150/bobox`, base dir `Client`, cmd `yarn build`), not from the GitHub origin. Pushing GitHub alone does not deploy. Switching the site to GitHub + `pnpm build` is a planned step at the end of the overhaul.
 
 ## Commands
-Run from the package directory. Use `yarn` in `Server/functions/` (its lockfile is `yarn.lock`); npm in `Client/` (no lockfile committed). There is **no test suite** in either package.
-
-**On ofek's PC:** the agent shell exports `NODE_ENV=production`, so plain `npm install` silently **omits devDependencies** (`vite`, `tsc`, `eslint` end up missing, and `npm install` then reports "up to date"). Use `npm install --include=dev`, and launch Vite with `env -u NODE_ENV npm run dev -- --host 0.0.0.0` (port 3000 → `https://3000-pc.ifrah.dev`). `Client/.env` exists locally, pulled from Netlify (see Local development).
+Client uses **pnpm 10.14** (`packageManager` field; corepack is enabled on this PC). `Server/functions/` uses **npm** with `yarn.lock` present — leave it. There is **no test suite** in either package.
 
 Client (`cd Client`):
-- `npm run dev` — Vite dev server, fixed on port **3000**
-- `npm run build` — `tsc && vite build`; this is the only typecheck. Passes on `main` (bundle ~1 MB, all MUI)
-- `npm run lint` — eslint with `--max-warnings 0` (build does NOT lint; run both to verify). **Red on `main` already**: 4 pre-existing errors (3 × `react-hooks/rules-of-hooks` in `FolderStructureContext.tsx` / `AcceptInvitation.tsx` / one UI file, 1 × `ban-types` in `utils/types.ts`) + 12 warnings. Don't chase those during UI work; don't add new ones. Pipe output to a file when checking — `| tail` masks the exit code.
+- `pnpm dev` — Vite dev server on port **3000**, `host: true` already set (`https://3000-pc.ifrah.dev`)
+- `pnpm build` — `tsc && vite build`; this is the only typecheck
+- `pnpm lint` — eslint `--max-warnings 0`. **Red on the base commit**: 4 pre-existing errors (3 × `react-hooks/rules-of-hooks`, 1 × `ban-types` in `utils/types.ts`) + warnings. Don't chase them, don't add new ones. Redirect output to a file to check — piping to `tail` masks the exit code.
+- `npx shadcn@latest add <name>` — works because the CLI detects pnpm and runs `pnpm add`. Under npm it dies: this PC's npm is patched for RFC npm/rfcs#868 and rejects the CLI's `--allow-scripts` flag in any project install (`~/.local/node/lib/node_modules/npm/lib/utils/resolve-allow-scripts.js`). No `~/.npmrc` change fixes that.
+- The agent shell exports `NODE_ENV=production`: with npm this silently skips devDependencies, and it makes Vite run oddly. Launch Vite as `env -u NODE_ENV pnpm dev`.
 
-Functions (`cd Server/functions`):
-- `npm run build` — `tsc` to `lib/` (gitignored; `lib/index.js` is the entrypoint)
-- `npm run lint` — Google eslint config
-- `npm run serve` — build + `firebase emulators:start --only functions`
-- `npm run deploy` — deploys functions to the live Firebase project; firebase.json `predeploy` runs functions lint + build first, so a lint failure blocks deploy
+Functions (`cd Server/functions`): `npm run build` (tsc → gitignored `lib/`), `npm run lint` (Google config), `npm run serve` (emulators, functions only), `npm run deploy` (predeploy runs lint + build, so lint failures block deploy).
 
 ## Local development
-- `Client/src/services/firebase.ts` connects to the Firebase emulators **only when `VITE_USE_FIREBASE_EMULATORS=1`** (Firestore `:8080`, Functions `:5001` — not the default 5000, Auth `:9099`; start with `firebase emulators:start --only auth,firestore,functions` from `Server/`). With the flag unset, the dev app talks to the **real** `bobox-fe3c8` project, so you can log in with a real account and see real files. `Client/.env.example` documents every var.
-- `Client/.env` must define `VITE_API_KEY`, `VITE_AUTH_DOMAIN`, `VITE_PROJECT_ID`, `VITE_STORAGE_BUCKET`, `VITE_MESSAGING_SENDER_ID`, `VITE_APP_ID`, `VITE_MEASUREMENT_ID` (Firebase web config). Missing values compile fine and break at runtime.
-- `Server/functions/.env` must define `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `_FIREBASE_*` (underscore-prefixed), and `SENDER_EMAIL_ADDRESS` / `SENDER_EMAIL_PASSWORD` (SMTP invites via nodemailer). Loaded by `import 'dotenv/config'`.
-- `.env` is gitignored repo-wide, and **no credential copies exist in the repo**. Source of truth: the Netlify site's environment variables. Netlify CLI is installed and logged in on this machine; site id `cfd4c299-f0d1-4e04-a2ee-35668f31ebd3`:
+- `Client/src/services/firebase.ts` connects to Firebase emulators **only when `VITE_USE_FIREBASE_EMULATORS=1`** (Firestore `:8080`, Functions `:5001` — not the default 5000, Auth `:9099`; `firebase emulators:start --only auth,firestore,functions` from `Server/`). Unset = the dev app uses the **real** `bobox-fe3c8` project, so real logins and real files work in dev. `Client/.env.example` lists every var.
+- `Client/.env` needs the 7 `VITE_*` Firebase web-config keys; missing ones compile fine and break at runtime.
+- `Server/functions/.env` needs `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `_FIREBASE_*` (underscore-prefixed), `SENDER_EMAIL_ADDRESS` / `SENDER_EMAIL_PASSWORD` (SMTP invites). Loaded by `import 'dotenv/config'`.
+- `.env` is gitignored repo-wide and no credential copies live in the repo. Source of truth is the Netlify site. Netlify CLI is installed and logged in; site `cfd4c299-f0d1-4e04-a2ee-35668f31ebd3`:
   `netlify api getEnvVars --data '{"account_id":"62e18fd0c154f71ceccba807","filter":"all","site_id":"cfd4c299-f0d1-4e04-a2ee-35668f31ebd3"}'`
-  (the `site_id` param is rejected by `getSiteEnvVars`; use `account_id` = team id above). Never print the values. Firebase console / R2 dashboard: log in together with the user, ask for tokens via the secret card, or regenerate keys with their approval.
+  (`getSiteEnvVars` rejects `site_id`; use `account_id` = team id). Never print values. Firebase console / R2: log in with the user, ask for tokens via the secret card, or regenerate with approval.
+- Google sign-in cannot be tested in the OpenChamber browser panel (Google blocks it as insecure); use an email/password account for dev testing.
 
 ## Architecture notes
-- Every client→server call goes through `Client/src/services/firebase.ts` as an `httpsCallable` named exactly like the export in `Server/functions/src/index.ts`; function names are the API contract between the packages.
-- Uploads: client gets presigned S3 URLs from the functions and talks to R2 directly (small-file vs. multipart thresholds in `Client/src/utils/constants.ts`). Downloads likewise.
-- Firestore shape: `users/{uid}/files` and `users/{uid}/folders`. A synthetic folder with id `"shared"` is built client-side in `getAllFilesOfUserFromDB` from `shared: true` entries; uploads/creates into it are rejected server-side.
-- Global file/folder tree state lives in `FolderStructureContext` (`Client/src/contexts/` + `Client/src/hooks/useFolderStructure.ts`); pages read it via `useFolderStructureContext()`.
+- Every client→server call goes through `Client/src/services/firebase.ts` as an `httpsCallable` named exactly like the export in `Server/functions/src/index.ts`; those names are the API contract.
+- Uploads/downloads: the client gets presigned S3 URLs from the functions and talks to R2 directly; size tiers in `Client/src/utils/constants.ts`.
+- Firestore: `users/{uid}/files`, `users/{uid}/folders`. A synthetic folder with id `"shared"` is built client-side in `getAllFilesOfUserFromDB` from `shared: true` entries; server-side rejects writes into it.
+- Global file/folder tree state: `FolderStructureContext` + `useFolderStructure`; pages read it via `useFolderStructureContext()`.
 
-## UI overhaul notes
-**Decided direction: migrate to shadcn/ui + Tailwind and drop MUI.** Verified starting state:
-- 23 files under `Client/src` import `@mui/*`; 8 use notistack toasts (`useSnackbar`). `@mui/x-date-pickers` is only referenced by the `LocalizationProvider` in `main.tsx` — no page uses a date picker, so it drops out for free. No file imports `@emotion/*` directly.
-- All MUI theming is centralized in `Client/src/theme.tsx` (createTheme + heavy `styleOverrides`).
-- `tsconfig.json` / `vite.config.ts` have **no `paths` alias and no `@/` imports**; shadcn setup needs an `@/*` alias added to both (`tsconfig.json` + `resolve.alias` in `vite.config.ts`) before `components/ui/*` can be installed.
-- Tailwind v4 on Vite 4 uses the `@tailwindcss/vite` plugin (CSS-first config, no `tailwind.config.js` required).
-- Provider stack to replace in `main.tsx`: `ThemeProvider` → `LocalizationProvider` → notistack `SnackbarProvider` → `FolderStructureProvider` → `App`. Only `FolderStructureProvider` is app state; the rest is UI.
-- Dead weight to remove during the migration: `@preact/signals-react` (unused), the `@fontsource/roboto` package + the Google Fonts `@import` in `index.css` (Roboto is loaded twice — pick one), the 4 Google sign-in PNGs in `Client/src/assets/google/` (use an icon).
-- Bundle is ~1.07 MB / 302 kB gzipped, essentially all MUI — the migration is the fix.
-- Bind dev servers to `0.0.0.0` (Vite sets port 3000, host defaults to localhost) if the preview must be reachable.
+## UI overhaul state
+Direction: **shadcn/ui + Tailwind, soft & friendly, light + dark, comfortable density**, MUI fully out.
+- Done: Vite 4→7 + plugin-react 4.7 (Tailwind v4's plugin needs Vite ≥5.2), pnpm, `@/*` alias in `tsconfig.json` + `vite.config.ts`, shadcn (radix/nova preset, 27 components), Bobox palette + 0.875rem radius in `src/index.css`, next-themes toggle, shadcn Navbar/Layout.
+- MUI is now **dev-fragile**: importing `createTheme` from `@mui/material` crashes the dev server under Vite 7 pre-bundling (`createTheme_default is not a function`); `Client/src/theme.tsx` is unreferenced and must go with MUI. Un-migrated pages render with plain MUI defaults, so migrate pages rather than re-adding MUI theming.
+- Removing MUI from `optimizeDeps` is a dead end — `@emotion`/`hoist-non-react-statics`/`prop-types` CJS default-import interop breaks unoptimized. Keep default pre-bundling.
+- MUI usage to finish: 23 files import `@mui/*` (shell files done, pages pending), 8 files use notistack `useSnackbar` → move to `sonner` `toast` (`<Toaster>` is already mounted in `main.tsx`).
+- `lucide-react` 1.x renamed icons: no `FolderShared` (use `FolderUsers`); check `Object.keys(require('lucide-react'))` before guessing.
+- Also delete when done: `@preact/signals-react` (unused), `dayjs` (unused), `@fontsource/roboto`, the Google sign-in PNGs in `Client/src/assets/google/`.
+- Roboto Variable is the single font, imported in `src/index.css`.
 
 ## Conventions
-- ESLint disables `no-unused-vars` and `no-explicit-any` repo-wide (client) — don't "fix" pre-existing `any` noise as a side effect of UI work.
-- Commits go directly to `main`; no CI workflows exist.
-- Netlify + Firebase deploys are live production; never run `npm run deploy` / `netlify deploy` without explicit confirmation.
+- Work on a `feat/*` branch and use **conventional commits** (`feat(client):`, `build(client):`, `docs:`, `chore:`); one commit per logical step. `main` is the integration branch; no CI workflows exist.
+- ESLint disables `no-unused-vars` and `no-explicit-any` (client) — don't clean up pre-existing `any` noise as a side effect of UI work.
+- Netlify + Firebase deploy to live production; never deploy, change build settings, or switch the deploy repo without explicit approval.
