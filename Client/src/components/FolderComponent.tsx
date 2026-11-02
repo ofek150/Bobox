@@ -42,9 +42,6 @@ interface FolderComponentProps {
     handleMoveFile?: (fileId: string, currentFolderId: string, newFolderId: string) => void;
     handleEditFolderName?: (folderId: string, newFolderName: string) => void;
     handleDeleteFolder?: (folderId: string) => void;
-    onFolderClick?: (folderId: string) => void;
-    onFolderDoubleClick?: (folderId: string, folderName: string) => void;
-    selectFolder: boolean;
     onUploadClick?: () => void;
     onCreateFolderClick?: () => void;
 }
@@ -150,10 +147,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({
     handleEditFolderName,
     handleDeleteFile,
     handleDeleteFolder,
-    selectFolder,
     handleMoveFile,
-    onFolderClick,
-    onFolderDoubleClick,
     onUploadClick,
     onCreateFolderClick,
 }: FolderComponentProps) => {
@@ -162,7 +156,6 @@ const FolderComponent: React.FC<FolderComponentProps> = ({
     const [loading, setLoading] = useState(true);
     const [folder, setFolder] = useState<Folder | null>(null);
     const [invalidFolderId, setInvalidFolderId] = useState(false);
-    const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openShareDialog, setOpenShareDialog] = useState(false);
@@ -214,7 +207,6 @@ const FolderComponent: React.FC<FolderComponentProps> = ({
         ];
 
         const visible = entries.filter((entry) => {
-            if (selectFolder) return entry.type === ITEM_TYPE.FOLDER;
             if (filterItemType === FILTER_ITEMS_TYPE.FOLDERS_ONLY) return entry.type === ITEM_TYPE.FOLDER;
             if (filterItemType === FILTER_ITEMS_TYPE.FILES_ONLY) return entry.type === ITEM_TYPE.FILE;
             return true;
@@ -232,7 +224,7 @@ const FolderComponent: React.FC<FolderComponentProps> = ({
 
         return visible;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [folder, folderStructure, filterItemType, sortType, selectFolder]);
+    }, [folder, folderStructure, filterItemType, sortType]);
 
     const handleShareFolder = async (email: string, accessLevel: ACCESS_LEVEL) => {
         if (!targetFolderId) return;
@@ -258,11 +250,6 @@ const FolderComponent: React.FC<FolderComponentProps> = ({
         setTargetFolderId(null);
     };
 
-    const handleFolderSelectClick = (clickedFolderId: string) => {
-        setSelectedFolderId(clickedFolderId);
-        onFolderClick?.(clickedFolderId);
-    };
-
     if (invalidFolderId) return <NotFoundPage />;
     if (loading || !folder) {
         return (
@@ -274,35 +261,6 @@ const FolderComponent: React.FC<FolderComponentProps> = ({
 
     const isVirtual = folder.folderId === 'root' || folder.folderId === 'shared';
     const title = folder.folderId === 'root' ? 'My Storage' : folder.folderId === 'shared' ? 'Shared Storage' : folder.folderName;
-
-    // Picker mode (used by "move to folder"): plain selectable rows.
-    if (selectFolder) {
-        const pickerFolders = items
-            .filter((item) => item.type === ITEM_TYPE.FOLDER)
-            .map((item) => { const data = item.data as Folder; return { id: data.folderId, name: data.folderName, shared: data.shared }; });
-        return (
-            <div className="flex flex-col gap-1">
-                {pickerFolders.map((entry) => (
-                    <button
-                        key={entry.id}
-                        type="button"
-                        onClick={() => handleFolderSelectClick(entry.id)}
-                        onDoubleClick={() => onFolderDoubleClick?.(entry.id, entry.name)}
-                        className={cn(
-                            'flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground',
-                            selectedFolderId === entry.id && 'bg-secondary text-secondary-foreground hover:bg-secondary'
-                        )}
-                    >
-                        <FolderIconBadge shared={entry.shared} className="size-5" />
-                        <span className="truncate font-medium">{entry.name}</span>
-                    </button>
-                ))}
-                {items.length === 0 && (
-                    <p className="px-2 py-6 text-center text-sm text-muted-foreground">No folders here</p>
-                )}
-            </div>
-        );
-    }
 
     return (
         <div className="flex w-full flex-col gap-4">

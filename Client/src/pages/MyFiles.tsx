@@ -246,7 +246,6 @@ const MyFiles: React.FC = () => {
         {folderStructure && folderId && isValidFolder ? (
           <FolderComponent
             folderId={folderId}
-            selectFolder={false}
             handleEditFileName={handleEditFileName}
             handleDeleteFile={handleDeleteFile}
             handleDeleteFolder={handleDeleteFolder}
