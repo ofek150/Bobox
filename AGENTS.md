@@ -42,7 +42,7 @@ Direction: **shadcn/ui + Tailwind, soft & friendly, light + dark, comfortable de
 - File browser: row-based list in `FolderComponent`/`FileComponent` with kebab dropdowns, `ShareDialog`/`ConfirmDialog`/`FileTypeIcon` under `components/UI/`, sticky mobile action bar in `MyFiles`.
 - Routes are `React.lazy`-split in `App.tsx`; the main chunk is ~190 kB gzip (Firebase SDK dominates). `src/assets/Logo.png` is 160×160 (~10 kB).
 - `pnpm lint`: 1 pre-existing error left (`ban-types` in `utils/types.ts`) + 7 warnings; the 3 `rules-of-hooks` errors were fixed with the page rewrites. Don't add new ones.
-- The shadcn components (radix/nova preset) are React-19-style function components: under React 18 dev you get "Function components cannot be given refs" warnings from Radix Slots — dev noise, harmless, don't chase.
+- The app runs **React 19** (upgraded 2026-11-02): the shadcn components (radix/nova preset) are React-19-style function components (ref as a prop) and Radix Slot needs that ref. On React 18 the ref was silently dropped, so every Radix popup (kebab menus, selects) opened unanchored/off-screen — invisible taps on mobile. Don't downgrade React or hand-write React-18-style components expecting refs; `usehooks-ts`'s `react ^18` peer warning is expected and safe.
 - `lucide-react` 1.x renamed icons: no `FolderShared` (use `FolderUsers`); check `Object.keys(require('lucide-react'))` before guessing.
 - Roboto Variable is the single font, imported in `src/index.css`.
 
