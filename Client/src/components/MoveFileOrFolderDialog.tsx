@@ -5,7 +5,7 @@ import { File, Folder as FolderType } from '../utils/types'
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FolderIconBadge } from './UI/FileTypeIcon';
+import { FolderIconBadge } from './common/FileTypeIcon';
 import { cn } from '@/lib/utils';
 
 interface MoveToFileFolderDialogProps {

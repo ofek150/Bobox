@@ -9,10 +9,10 @@ import { shareFolderWithUserByEmail } from '../services/firebase';
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import FileComponent from './FileComponent';
 import NotFoundPage from '../pages/NotFoundPage';
-import ConfirmDialog from './UI/ConfirmDialog';
-import ShareDialog from './UI/ShareDialog';
-import FilterBar from './UI/FilterBar';
-import { FolderIconBadge } from './UI/FileTypeIcon';
+import ConfirmDialog from './common/ConfirmDialog';
+import ShareDialog from './common/ShareDialog';
+import FilterBar from './common/FilterBar';
+import { FolderIconBadge } from './common/FileTypeIcon';
 import { useContextMenuGesture } from '../hooks/useContextMenuGesture';
 import { Button } from '@/components/ui/button';
 import {
