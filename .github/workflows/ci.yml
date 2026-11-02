@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
           cache: yarn
           cache-dependency-path: Server/functions/yarn.lock
       - run: yarn install --frozen-lockfile
@@ -62,15 +62,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
           cache: yarn
           cache-dependency-path: Server/functions/yarn.lock
       - run: yarn install --frozen-lockfile
         working-directory: Server/functions
-      - name: Switch to Node 22 for the firebase CLI (functions runtime stays 18)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
       - name: Rebuild functions .env from secrets
         working-directory: Server/functions
         run: |
