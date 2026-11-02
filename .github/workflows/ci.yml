@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          corepack: true
+      - run: corepack enable
       - run: pnpm install --frozen-lockfile
         working-directory: Client
       - run: pnpm build
@@ -29,6 +29,7 @@ jobs:
         with:
           node-version: 20
           cache: yarn
+          cache-dependency-path: Server/functions/yarn.lock
       - run: yarn install --frozen-lockfile
         working-directory: Server/functions
       - run: yarn build
