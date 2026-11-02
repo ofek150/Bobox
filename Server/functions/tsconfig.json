@@ -6,7 +6,9 @@
     "sourceMap": true,
     "strict": true,
     "target": "es2017",
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true
   },
   "compileOnSave": true,
   "include": [
