@@ -13,10 +13,16 @@ export interface UploadPartParams {
     partNumber: number;
 }
 
+/** One finished multipart part as reported by the client (ETag + part number). */
+export interface CompletedPart {
+    ETag: string;
+    partNumber: number;
+}
+
 export interface CompleteMultiPartParams {
     uploadId: string;
     fileId: string
-    uploadResults: any[];
+    uploadResults: CompletedPart[];
 }
 
 export interface AbortMultiPartUploadParams {
@@ -27,7 +33,8 @@ export interface AbortMultiPartUploadParams {
 export interface GenerateDownloadLinkParams {
     fileId: string;
     neverExpires: boolean;
-    expiresAt: any;
+    /** Client-sent expiry: ISO string / epoch ms / Date. Validated server-side. */
+    expiresAt: string | number | Date | null;
 }
 
 export interface FileEntry {
@@ -43,7 +50,8 @@ export interface SharedFile {
     fileName: string;
     fileType: string;
     fileSize: number;
-    uploadedAt: Date;
+    /** ISO-ish Date#toString() of the upload time. */
+    uploadedAt: string;
     downloadId: string;
     downloadLink: string;
 }
@@ -52,7 +60,7 @@ export interface LinkInfo {
     downloadLink: string;
     isPublic: boolean;
     isPermanent: boolean
-    expiresAt: any | null;
+    expiresAt: Date;
 }
 
 export interface DownloadInfoParams {
