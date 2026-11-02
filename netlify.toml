@@ -1,0 +1,15 @@
+# Netlify builds the Client package from the repo root (monorepo layout).
+# pnpm is picked up from package.json's "packageManager" field via corepack.
+[build]
+  base = "Client"
+  command = "pnpm build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Client-side SPA routing: every path serves the app.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
