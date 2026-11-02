@@ -35,6 +35,37 @@ jobs:
       - run: yarn build
         working-directory: Server/functions
 
+  # Unit gates: the pure logic (validators, guards, error mapping, formatters)
+  # and the critical page states run here on every PR and push.
+  client-test:
+    name: client-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        working-directory: Client
+      - run: pnpm test
+        working-directory: Client
+
+  functions-test:
+    name: functions-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: Server/functions/yarn.lock
+      - run: yarn install --frozen-lockfile
+        working-directory: Server/functions
+      - run: npx vitest run
+        working-directory: Server/functions
+
   # Deploy the Cloud Functions after a green functions build on main.
   # The live functions get their credentials from Server/functions/.env at
   # deploy time, so CI rebuilds that file from repo secrets before deploying -
