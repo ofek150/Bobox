@@ -21,7 +21,7 @@ Bobox is a file sharing platform for uploading, organizing and collaborating on 
 
 **Client** — React 19, TypeScript, Vite 7, Tailwind CSS v4 + shadcn/ui (Radix primitives), React Router 6, Sonner toasts. The calm-sage design system lives in theme tokens (`Client/src/index.css`), so light/dark and palette changes are token-level.
 
-**Backend** — Firebase: Auth, Firestore (metadata), Cloud Functions (Node 18, presigned URLs, sharing, links). Cloudflare R2 object storage, accessed through the S3 API from the client via presigned URLs.
+**Backend** — Firebase: Auth, Firestore (metadata), Cloud Functions **v2 / 2nd gen** (Node 22, callables on Cloud Run with a 2M-invocation/month free tier). Cloudflare R2 object storage, accessed through the S3 API from the client via presigned URLs. Spend guardrails: project budget alerts at ₪1/month, Artifact Registry image cleanup (1 day), and a Firestore daily usage cap (set in the console, hard-stops past it).
 
 **Deploy** — Netlify (builds from this repo via `netlify.toml`, auto-deploy on push to `main`) + Firebase Functions (deployed manually with `npm run deploy` from `Server/functions/`). GitHub Actions CI (`client-build`, `functions-build`) gates every PR and push to `main`.
 
