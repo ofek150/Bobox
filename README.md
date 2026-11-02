@@ -1,5 +1,7 @@
 # Bobox
 
+[![CI](https://github.com/ofek150/Bobox/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ofek150/Bobox/actions/workflows/ci.yml)
+
 ![Bobox Logo](BoboxLogo.png)
 
 Bobox is a file sharing platform for uploading, organizing and collaborating on files and folders — a soft, friendly UI (light & dark), in-app previews, and a serverless backend.
@@ -21,7 +23,7 @@ Bobox is a file sharing platform for uploading, organizing and collaborating on 
 
 **Backend** — Firebase: Auth, Firestore (metadata), Cloud Functions (Node 18, presigned URLs, sharing, links). Cloudflare R2 object storage, accessed through the S3 API from the client via presigned URLs.
 
-**Deploy** — Netlify (builds from this repo via `netlify.toml`, auto-deploy on push to `main`) + Firebase Functions.
+**Deploy** — Netlify (builds from this repo via `netlify.toml`, auto-deploy on push to `main`) + Firebase Functions (deployed manually with `npm run deploy` from `Server/functions/`). GitHub Actions CI (`client-build`, `functions-build`) gates every PR and push to `main`.
 
 ## Repo layout
 
