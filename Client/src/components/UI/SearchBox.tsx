@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { useFolderStructureContext } from "../../contexts/FolderStructureContext";
-import TextField from "@mui/material/TextField";
-import FolderIcon from "@mui/icons-material/Folder";
-import FolderSharedIcon from '@mui/icons-material/FolderShared';
-import DescriptionIcon from "@mui/icons-material/Description";
-import { Box, List, ListItem, ListItemText, Typography } from "@mui/material";
+import { FileText, Folder, FolderUsers } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { formatFileSize } from "../../utils/helpers";
-import { File, Folder } from "../../utils/types";
 import { useDebounce } from 'usehooks-ts';
+
+import { useFolderStructureContext } from "../../contexts/FolderStructureContext";
+import { formatFileSize } from "../../utils/helpers";
+import { File, Folder as FolderType } from "../../utils/types";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface SearchBoxProps {
   placeholder?: string;
@@ -20,7 +19,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce<string>(searchTerm, 500);
   const [filesResults, setFileResults] = useState<File[]>([]);
-  const [folderResults, setFolderResults] = useState<Folder[]>([]);
+  const [folderResults, setFolderResults] = useState<FolderType[]>([]);
 
   const { getAllFilesWithName, getAllFoldersWithName } = useFolderStructureContext();
   const navigate = useNavigate();
@@ -45,91 +44,75 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     };
 
     getResults();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearchTerm]);
-
-  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(event.target.value);
-  };
 
   const navigateToFileInfo = async (file: File) => {
     const link = `/user/${file.ownerUid}/files/${file.fileId}?downloadId=${file.privateLinkDownloadId}`;
     navigate(link);
   };
 
+  const hasResults = folderResults.length > 0 || filesResults.length > 0;
+
   return (
-    <Box sx={{ width: "100%", maxWidth: "600px", margin: "auto" }}>
-      <TextField
+    <div className="mx-auto w-full max-w-2xl">
+      <Input
+        type="search"
         value={searchTerm}
-        onChange={handleSearchChange}
+        onChange={(event) => setSearchTerm(event.target.value)}
         placeholder={placeholder}
-        variant="outlined"
-        fullWidth
-        InputProps={{
-          sx: {
-            borderRadius: 3,
-            backgroundColor: "rgba(0, 0, 0, 0.02)",
-          },
-        }}
+        aria-label={placeholder}
+        className="h-12 rounded-xl text-base"
       />
 
-      <div>
-        {folderResults.length === 0 && filesResults.length === 0 && searchTerm.length > 0 && (
-          <div>
-            <Typography variant="subtitle1" sx={{ mt: 2, ml: 2, fontWeight: 500 }}>
-              No results
-            </Typography>
-          </div>
-        )}
-        <List>
-          {folderResults.length > 0 && (
-            <>
-              {folderResults.map((folder) => (
-                <ListItem
-                  key={folder.folderId}
-                  button
-                  onClick={() => {
-                    navigate(`/user/folders/${folder.folderId}`);
-                    clearResults();
-                  }}
-                >
-                  {folder.shared ? <FolderSharedIcon style={{ marginRight: "8px" }} /> : <FolderIcon style={{ marginRight: "8px" }} />}
-                  <ListItemText
-                    primary={folder.folderName}
-                    secondary={folder.folderId === "root" || folder.folderId === "shared" ? "" : `Created at: ${folder.createdAt}`}
-                    sx={{ mr: 10 }}
-                  />
-                  {folder.shared && (
-                    <ListItemText secondary="Shared" sx={{ ml: 5 }} />
-                  )}
-                </ListItem>
-              ))}
-            </>
+      {searchTerm.length > 0 && (
+        <div className="mt-3 flex flex-col gap-1">
+          {!hasResults && (
+            <p className="px-2 py-1 font-medium text-muted-foreground">No results</p>
           )}
-          {filesResults.length > 0 && (
-            <>
-              {filesResults.map((file) => (
-                <ListItem
-                  key={file.fileId}
-                  button
-                  onClick={() => {
-                    navigateToFileInfo(file);
-                  }}
-                >
-                  <DescriptionIcon style={{ marginRight: "8px" }} />
-                  <ListItemText
-                    primary={file.fileName}
-                    secondary={`Size: ${formatFileSize(
-                      file.fileSize
-                    )} | Uploaded At: ${file.uploadedAt}`}
-                    sx={{ mr: 10 }}
-                  />
-                </ListItem>
-              ))}
-            </>
-          )}
-        </List>
-      </div>
-    </Box>
+
+          {folderResults.map((folder) => (
+            <Button
+              key={folder.folderId}
+              variant="ghost"
+              className="h-auto justify-start gap-3 rounded-lg py-2.5 text-left"
+              onClick={() => {
+                navigate(`/user/folders/${folder.folderId}`);
+                clearResults();
+              }}
+            >
+              {folder.shared ? <FolderUsers className="shrink-0" /> : <Folder className="shrink-0" />}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{folder.folderName}</span>
+                {folder.folderId !== "root" && folder.folderId !== "shared" && (
+                  <span className="block truncate text-xs font-normal text-muted-foreground">
+                    Created at: {folder.createdAt}
+                  </span>
+                )}
+              </span>
+              {folder.shared && <span className="shrink-0 text-xs text-muted-foreground">Shared</span>}
+            </Button>
+          ))}
+
+          {filesResults.map((file) => (
+            <Button
+              key={file.fileId}
+              variant="ghost"
+              className="h-auto justify-start gap-3 rounded-lg py-2.5 text-left"
+              onClick={() => navigateToFileInfo(file)}
+            >
+              <FileText className="shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{file.fileName}</span>
+                <span className="block truncate text-xs font-normal text-muted-foreground">
+                  Size: {formatFileSize(file.fileSize)} | Uploaded At: {file.uploadedAt}
+                </span>
+              </span>
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 

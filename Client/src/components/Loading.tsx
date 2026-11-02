@@ -1,11 +1,9 @@
-import { CircularProgress, useTheme } from '@mui/material';
-import React from 'react';
+import { Loader2 } from 'lucide-react';
 
 const Loading: React.FC = () => {
-    const theme = useTheme();
     return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: theme.palette.background.default }}>
-            <CircularProgress />
+        <div className="flex min-h-screen items-center justify-center bg-background">
+            <Loader2 aria-label="Loading" className="size-10 animate-spin text-primary" />
         </div>
     );
 };

@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
-import { useFolderStructureContext } from "../../contexts/FolderStructureContext";
+import React, { Fragment, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, List, ListItem, MenuItem, Popover } from "@mui/material";
-import FolderIcon from "@mui/icons-material/Folder";
-import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
+import { ChevronRight, Folder, MoreHorizontal } from "lucide-react";
+
+import { useFolderStructureContext } from "../../contexts/FolderStructureContext";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface PathBarProps {
     folderId: string;
@@ -18,24 +19,16 @@ interface FolderObject {
 const PathBar: React.FC<PathBarProps> = ({ folderId }) => {
     const { getFolderWithId } = useFolderStructureContext();
     const [folderPathObjects, setFolderPathObjects] = useState<FolderObject[]>([]);
-    const [lastThreeFolders, setLastThreeFolders] = useState<FolderObject[]>([]);
-    const [popoverAnchor, setPopoverAnchor] = useState<HTMLButtonElement | null>(null);
-
-    const handleEllipsisClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-        setPopoverAnchor(event.currentTarget);
-    };
-
-    const handlePopoverClose = () => {
-        setPopoverAnchor(null);
-    };
+    const [open, setOpen] = useState(false);
 
     const navigate = useNavigate();
 
-    const navigateToFolder = (folderId: string) => {
-        navigate(`/user/folders/${folderId}`);
+    const navigateToFolder = (id: string) => {
+        setOpen(false);
+        navigate(`/user/folders/${id}`);
     }
 
-    const getFolderPathObjects = (folderId: string): FolderObject[] => {
+    const getFolderPathObjects = (id: string): FolderObject[] => {
         const folderObjects: FolderObject[] = [];
 
         const populateFolderObjects = (currentFolderId: string) => {
@@ -53,66 +46,63 @@ const PathBar: React.FC<PathBarProps> = ({ folderId }) => {
             }
         };
 
-        populateFolderObjects(folderId);
+        populateFolderObjects(id);
 
         return folderObjects;
     };
 
     useEffect(() => {
         const parentFolderId = getFolderWithId(folderId)?.parentFolderId;
-        const folderPathObjects = getFolderPathObjects(parentFolderId);
-        setFolderPathObjects(folderPathObjects);
-        setLastThreeFolders(folderPathObjects.slice(-3))
+        setFolderPathObjects(getFolderPathObjects(parentFolderId));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [folderId])
 
+    // Long paths collapse into a popover so the bar never overflows a phone screen.
+    const hiddenFolders = folderPathObjects.slice(0, -3);
+    const visibleFolders = folderPathObjects.slice(-3);
+
+    if (folderPathObjects.length === 0) return null;
 
     return (
-        <List sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', listStyle: 'none', padding: 0 }}>
-            {folderPathObjects.length > 3 && (
-                <ListItem key={"ellipsis"}>
-                    <Button variant='text' onClick={handleEllipsisClick} sx={{ fontSize: '1.2rem', textTransform: 'none', fontWeight: 500 }}>
-                        ...
-                    </Button>
-                    <KeyboardArrowRightIcon />
-                    <Popover
-                        open={Boolean(popoverAnchor)}
-                        anchorEl={popoverAnchor}
-                        onClose={handlePopoverClose}
-                        anchorOrigin={{
-                            vertical: 'bottom',
-                            horizontal: 'center',
-                        }}
-                        transformOrigin={{
-                            vertical: 'top',
-                            horizontal: 'center',
-                        }}
-                    >
-                        {folderPathObjects.slice(0, folderPathObjects.length - 3).map((folderPathObject: FolderObject) => (
-                            <MenuItem key={folderPathObject.folderId} onClick={() => { navigateToFolder(folderPathObject.folderId); handlePopoverClose(); }} sx={{ fontWeight: 500 }}>
-                                <FolderIcon style={{ marginRight: "8px" }} />
-                                {folderPathObject.folderName}
-                            </MenuItem>
-                        ))}
-                    </Popover>
-                </ListItem>
-            )}
-            {lastThreeFolders.map((folderPathObject: FolderObject, index: number) => (
-                <React.Fragment key={folderPathObject.folderId}>
-                    <ListItem key={folderPathObject.folderId}>
-                        <Button key={folderPathObject.folderId + "_button"} variant='text' onClick={() => { navigateToFolder(folderPathObject.folderId) }} sx={{ fontSize: '1.3rem', fontWeight: 700, textTransform: 'none', padding: '0.2rem', whiteSpace: 'nowrap' }}>
-                            {folderPathObject.folderName}
+        <nav aria-label="Folder path" className="flex min-w-0 items-center gap-0.5 overflow-x-auto whitespace-nowrap">
+            {hiddenFolders.length > 0 && (
+                <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" aria-label={`Show ${hiddenFolders.length} parent folders`}>
+                            <MoreHorizontal />
                         </Button>
-                    </ListItem>
-                    <ListItem key={folderPathObject.folderId + "_selector"}>
-                        {index < lastThreeFolders.length - 1 && (
-                            <KeyboardArrowRightIcon />
-                            // <Typography sx={{ fontSize: '1.5rem', fontWeight: 500 }}>/</Typography>
-                        )}
-                    </ListItem>
-                </React.Fragment>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-auto min-w-52 p-1.5">
+                        {hiddenFolders.map((folderPathObject: FolderObject) => (
+                            <Button
+                                key={folderPathObject.folderId}
+                                variant="ghost"
+                                className="block w-full truncate text-left"
+                                onClick={() => navigateToFolder(folderPathObject.folderId)}
+                            >
+                                <Folder />
+                                {folderPathObject.folderName}
+                            </Button>
+                        ))}
+                    </PopoverContent>
+                </Popover>
+            )}
+            {visibleFolders.map((folderPathObject: FolderObject, index: number) => (
+                <Fragment key={folderPathObject.folderId}>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="max-w-40 truncate font-semibold"
+                        onClick={() => navigateToFolder(folderPathObject.folderId)}
+                    >
+                        {folderPathObject.folderName}
+                    </Button>
+                    {index < visibleFolders.length - 1 && (
+                        <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                    )}
+                </Fragment>
             ))}
-
-        </List>
+        </nav>
     );
 
 };

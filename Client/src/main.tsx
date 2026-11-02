@@ -5,21 +5,17 @@ import './index.css'
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from '@/components/ui/sonner';
 import { FolderStructureProvider } from './contexts/FolderStructureContext.tsx';
-import { SnackbarProvider } from 'notistack';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     {/* next-themes drives the Tailwind/shadcn theme via class="dark" on <html>.
-        notistack stays until the pages move to sonner; the MUI provider is gone
-        (MUI v5 + Vite 7 ESM interop breaks createTheme), so not-yet-migrated
-        pages render with the plain MUI defaults. */}
+        The MUI ThemeProvider is gone: MUI v5 + Vite 7 pre-bundling crashes on
+        createTheme, so pages not migrated yet render with plain MUI defaults. */}
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <SnackbarProvider maxSnack={3} autoHideDuration={3000}>
-        <FolderStructureProvider>
-          <App />
-          <Toaster position="bottom-right" richColors closeButton />
-        </FolderStructureProvider>
-      </SnackbarProvider>
+      <FolderStructureProvider>
+        <App />
+        <Toaster position="bottom-right" richColors closeButton />
+      </FolderStructureProvider>
     </ThemeProvider>
   </React.StrictMode>,
 )

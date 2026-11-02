@@ -1,19 +1,12 @@
 import React, { useState } from 'react';
-import {
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    List,
-    ListItem,
-    ListItemText
-} from '@mui/material';
+import { ArrowLeft, Folder } from 'lucide-react';
+
 import FolderComponent from './FolderComponent';
-import { File, Folder } from '../utils/types'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import FolderIcon from "@mui/icons-material/Folder";
+import { File, Folder as FolderType } from '../utils/types'
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 interface MoveToFileFolderDialogProps {
     open: boolean;
@@ -57,7 +50,7 @@ const MoveToFileFolderDialog: React.FC<MoveToFileFolderDialogProps> = ({ file, o
             setShownFolderId("storage");
             return;
         }
-        const folder: Folder = getFolderWithId(folderId);
+        const folder: FolderType = getFolderWithId(folderId);
         if (!folder) return;
         setShownFolderId(folderId);
         setShownFolderName(folder.folderName);
@@ -65,47 +58,53 @@ const MoveToFileFolderDialog: React.FC<MoveToFileFolderDialogProps> = ({ file, o
     };
 
     const handleGoBack = () => {
-        const folder: Folder = getFolderWithId(shownFolderId);
+        const folder: FolderType = getFolderWithId(shownFolderId);
         if (!folder) return;
         folder.folderId === "root" ? goToFolder("storage") : goToFolder(folder.parentFolderId);
     }
 
+    const folderRowClass = (selected: boolean) =>
+        cn(
+            'flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground',
+            selected && 'bg-secondary text-secondary-foreground hover:bg-secondary'
+        );
+
     return (
-        <Dialog open={open} onClose={handleClose}>
-            <DialogTitle>
-                {shownFolderId !== "storage" &&
-                    <ArrowBackIcon
-                        style={{ cursor: 'pointer', marginRight: '8px' }}
-                        onClick={handleGoBack} />
-                }
-                {shownFolderName}
-            </DialogTitle>
-            <DialogContent>
-                <List>
-                    {shownFolderId === "storage" &&
-                        <ListItem key={"root"} selected={selectedFolderId === "root"}
+        <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
+            <DialogContent className="max-h-[85vh] gap-4 sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        {shownFolderId !== "storage" && (
+                            <Button variant="ghost" size="icon" aria-label="Go back" onClick={handleGoBack}>
+                                <ArrowLeft />
+                            </Button>
+                        )}
+                        {shownFolderName}
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                    {shownFolderId === "storage" && (
+                        <button
+                            type="button"
+                            className={folderRowClass(selectedFolderId === "root")}
                             onDoubleClick={() => handleFolderDoubleClick("root", "root")}
                             onClick={() => handleFolderClick("root")}
-                            sx={{
-                                ':hover': {
-                                    backgroundColor: '#e0e0e0', // Change the background color on hover
-                                },
-                            }}
                         >
-                            <FolderIcon style={{ marginRight: "8px" }} />
-                            <ListItemText primary={"root"} />
-
-                        </ListItem>
-                    }
+                            <Folder className="shrink-0" />
+                            root
+                        </button>
+                    )}
                     {shownFolderId && shownFolderId != "storage" && <FolderComponent folderId={shownFolderId} selectFolder={true} onFolderClick={handleFolderClick} onFolderDoubleClick={handleFolderDoubleClick} />}
-                </List>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="secondary" onClick={handleClose}>Cancel</Button>
+                    <Button onClick={handleMoveFile} disabled={!selectedFolderId}>
+                        Move To Selected
+                    </Button>
+                </DialogFooter>
             </DialogContent>
-            <DialogActions>
-                <Button onClick={handleClose} color="secondary">Cancel</Button>
-                <Button onClick={handleMoveFile} color="primary">
-                    Move To Selected
-                </Button>
-            </DialogActions>
         </Dialog>
     );
 };
