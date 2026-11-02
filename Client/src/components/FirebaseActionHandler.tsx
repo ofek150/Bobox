@@ -1,7 +1,7 @@
-import { Alert, Box, Container } from '@mui/material';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { verifyPasswordResetCode } from 'firebase/auth';
 import React, { useEffect, useState } from 'react';
-import { useLocation, } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { auth } from '../services/firebase';
 import ResetPasswordForm from '../pages/ResetPasswordForm';
 import Loading from './Loading';
@@ -43,6 +43,7 @@ const FirebaseActionHandler: React.FC = () => {
         };
 
         handleAction();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [actionCode, continueUrl, lang, mode]);
 
     const handleResetPassword = async () => {
@@ -55,23 +56,21 @@ const FirebaseActionHandler: React.FC = () => {
         }
     };
 
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-            <Container maxWidth="sm" sx={{ flex: 1 }}>
-                <Box mt={4}>
-                    {error ? (
-                        <Alert severity="error" sx={{ mb: 2 }}>
-                            {error}
-                        </Alert>
-                    ) : mode === 'resetPassword' && accountEmail ? (
-                        <ResetPasswordForm actionCode={actionCode!} accountEmail={accountEmail} />
-                    ) : (
-                        <Loading />
-                    )}
-                </Box>
-            </Container>
-        </div>
-    );
+    if (error) {
+        return (
+            <div className="flex flex-1 items-center justify-center px-4 py-10">
+                <Alert variant="destructive" className="max-w-sm">
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            </div>
+        );
+    }
+
+    if (mode === 'resetPassword' && accountEmail) {
+        return <ResetPasswordForm actionCode={actionCode!} accountEmail={accountEmail} />;
+    }
+
+    return <Loading />;
 };
 
 export default FirebaseActionHandler;

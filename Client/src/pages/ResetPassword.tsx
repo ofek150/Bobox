@@ -1,25 +1,24 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { Loader2, Mail } from "lucide-react";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
-import { auth, sendPasswordReset } from "../services/firebase";
-import {
-    Typography,
-    Container,
-    TextField,
-    Button,
-    Box,
-    CircularProgress,
-    Link as MuiLink,
-    Alert,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogContentText,
-    DialogActions,
-} from "@mui/material";
 
+import { auth, sendPasswordReset } from "../services/firebase";
 import { isValidEmail } from "../utils/validations";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const ResetPassword: React.FC = () => {
     const [email, setEmail] = useState("");
@@ -35,18 +34,16 @@ const ResetPassword: React.FC = () => {
     }, [user, loading, navigate]);
 
     const handleResetPassword = async () => {
-        try {
-            if (!isValidEmail(email)) {
-                setResetError("Invalid email format. Please enter a valid email address.");
-                return;
-            }
+        if (!isValidEmail(email)) {
+            setResetError("Invalid email format. Please enter a valid email address.");
+            return;
+        }
 
+        try {
             setIsLoading(true);
             await sendPasswordReset(email);
             setIsLoading(false);
             setResetError(null);
-
-            // Open the dialog to inform the user that the instructions will be sent to the email address
             setDialogOpen(true);
         } catch (error) {
             console.error("Password reset error:", error);
@@ -55,63 +52,66 @@ const ResetPassword: React.FC = () => {
         }
     };
 
-    const handleDialogClose = () => {
-        setDialogOpen(false);
-    };
-
     return (
-        <div style={{ flex: 1 }}>
-            <Box style={{ flex: 1 }}>
-                <Container maxWidth="xs">
-                    <Box mt={4}>
-                        <Typography variant="h4" gutterBottom sx={{ marginBottom: '4rem', textAlign: 'center' }}>
-                            Reset Password
-                        </Typography>
-                        <TextField
-                            fullWidth
-                            type="text"
-                            label="Email Address"
-                            variant="outlined"
+        <div className="flex flex-1 items-center justify-center px-4 py-10">
+            <Card className="w-full max-w-sm">
+                <CardHeader>
+                    <CardTitle className="text-center text-2xl">Reset password</CardTitle>
+                    <CardDescription className="text-center">
+                        Enter your email and we'll send you a link to choose a new password.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                    <div className="relative">
+                        <Mail className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Label htmlFor="reset-email" className="sr-only">Email address</Label>
+                        <Input
+                            id="reset-email"
+                            type="email"
+                            inputMode="email"
+                            autoComplete="email"
+                            placeholder="name@example.com"
+                            className="pl-8"
                             value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            sx={{ mb: 2 }}
+                            onChange={(event) => setEmail(event.target.value)}
+                            onKeyDown={(event) => { if (event.key === "Enter") handleResetPassword(); }}
+                            aria-invalid={resetError !== null}
                         />
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            color="primary"
-                            onClick={handleResetPassword}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? <CircularProgress size={24} color="inherit" /> : "Send password reset email"}
-                        </Button>
-                        {resetError && (
-                            <Alert severity="error" sx={{ mb: 2, marginTop: '0.8rem' }}>
-                                {resetError}
-                            </Alert>
-                        )}
-                        <Box mt={2} textAlign="center">
-                            <MuiLink component={Link} to="/signup" variant="body2">
-                                Don't have an account? Register now.
-                            </MuiLink>
-                        </Box>
-                    </Box>
-                </Container>
-            </Box>
-            {/* Dialog for account existence */}
-            <Dialog open={dialogOpen} onClose={handleDialogClose}>
-                <DialogTitle>Password Reset Email Sent</DialogTitle>
-                <DialogContent>
-                    <DialogContentText>
-                        An account with the email address "{email}" is associated with us.
-                        Instructions to reset the password have been sent to this email address.
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleDialogClose} color="primary">
-                        OK
+                    </div>
+
+                    {resetError && (
+                        <Alert variant="destructive">
+                            <AlertDescription>{resetError}</AlertDescription>
+                        </Alert>
+                    )}
+
+                    <Button onClick={handleResetPassword} disabled={isLoading} className="w-full">
+                        {isLoading ? <Loader2 className="animate-spin" /> : null}
+                        Send reset email
                     </Button>
-                </DialogActions>
+
+                    <p className="text-center text-sm text-muted-foreground">
+                        Don't have an account?{" "}
+                        <Link to="/signup" className="font-medium text-foreground underline-offset-4 hover:underline">
+                            Register now
+                        </Link>
+                    </p>
+                </CardContent>
+            </Card>
+
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Reset email sent</DialogTitle>
+                        <DialogDescription>
+                            An account with the email address "{email}" is associated with us.
+                            Instructions to reset the password have been sent to this email address.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button onClick={() => setDialogOpen(false)}>OK</Button>
+                    </DialogFooter>
+                </DialogContent>
             </Dialog>
         </div>
     );
