@@ -11,7 +11,9 @@ yarn-error.log*
 
 # No bundled stuff in git
 dist
-lib
+# Firebase Functions compiled output (tsc -> lib/). Must stay scoped: a bare
+# `lib` pattern also hid Client/src/lib (shadcn utils) from git.
+/Server/functions/lib/
 
 # No rollup stuff
 .rts2_cache*
