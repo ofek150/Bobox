@@ -1,20 +1,18 @@
 import React from 'react';
-import { Box, Container, Paper, Typography } from '@mui/material';
+import { FileQuestion } from 'lucide-react';
 
 const FileNotFound: React.FC = () => {
     return (
-        <Box style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <Container maxWidth="xs">
-                <Paper elevation={3} sx={{ py: 2, px: 1, borderRadius: 5, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                    <Typography variant="h4" gutterBottom sx={{ mb: 2, fontWeight: 'bold' }}>
-                        404 Not Found
-                    </Typography>
-                    <Typography variant="body1" sx={{ mb: 2 }}>
-                        The requested file could not be found.
-                    </Typography>
-                </Paper>
-            </Container>
-        </Box>
+        <div className="flex flex-1 items-center justify-center px-4 py-16">
+            <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+                <FileQuestion className="size-12 text-muted-foreground/60" />
+                <h1 className="text-2xl font-bold">File not found</h1>
+                <p className="text-muted-foreground">
+                    The requested file could not be found. It may have been deleted,
+                    or the link you followed has expired.
+                </p>
+            </div>
+        </div>
     );
 };
 

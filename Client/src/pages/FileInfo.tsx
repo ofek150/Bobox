@@ -1,12 +1,17 @@
 import React, { useEffect, useState } from 'react';
+import { Download, Eye, Loader2 } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import streamSaver from 'streamsaver';
+import { toast } from 'sonner';
+
 import ShowFileInfo from '../components/ShowFileInfo';
 import { DownloadInfoParams, SharedFile } from '../utils/types';
 import { getFileInfo } from '../services/firebase';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Box, Button, Container, Paper, Modal } from '@mui/material';
 import Loading from '../components/Loading';
-import streamSaver from 'streamsaver';
-import { enqueueSnackbar } from 'notistack';
+import PreviewDialog, { previewKind } from '../components/UI/PreviewDialog';
+import { FileIcon } from '../components/UI/FileTypeIcon';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 
 const FileInfo: React.FC = () => {
   const { ownerUid, fileId } = useParams();
@@ -16,11 +21,11 @@ const FileInfo: React.FC = () => {
   const [fileInfo, setFileInfo] = useState<SharedFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [openPreview, setOpenPreview] = useState(false);
 
   useEffect(() => {
     const fetchFileInfo = async () => {
-      console.log("Retrieving file info...");
       if (!ownerUid || !fileId || !downloadId) {
         navigate("/user/folders/root");
         return;
@@ -34,7 +39,6 @@ const FileInfo: React.FC = () => {
 
       try {
         const { fileInfo } = await getFileInfo(downloadInfoParams);
-        console.log(fileInfo);
         setFileInfo(fileInfo);
       } catch (error: any) {
         handleError("File information not available. Please try again later.");
@@ -44,21 +48,19 @@ const FileInfo: React.FC = () => {
     };
 
     fetchFileInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownerUid, fileId, downloadId]);
-
 
   const handleError = (error: string | null = null) => {
     setError(error || "An error occurred while fetching file information");
-    enqueueSnackbar(error, {
-      variant: 'error',
-      preventDuplicate: true
-    });
+    toast.error(error);
 
     navigate("/user/folders/root");
   };
 
   const handleDownload = async () => {
     if (fileInfo && fileInfo.downloadLink) {
+      setDownloading(true);
       try {
         const res = await fetch(fileInfo.downloadLink);
         if (!res || !res.body) throw new Error("download failed");
@@ -84,49 +86,52 @@ const FileInfo: React.FC = () => {
 
       } catch (error) {
         handleError("An error occurred during the download.");
+      } finally {
+        setDownloading(false);
       }
     }
-  };
-
-  const openPreviewModal = () => {
-    setShowPreviewModal(true);
-  };
-
-  const closePreviewModal = () => {
-    setShowPreviewModal(false);
   };
 
   if (loading) {
     return <Loading />;
   }
 
+  const kind = fileInfo ? previewKind(fileInfo) : null;
+
   return (
-    <Box style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-      {fileInfo &&
-        <Container maxWidth="xs">
-          <Paper elevation={3} sx={{ py: 2, px: 1, borderRadius: 5, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-            <ShowFileInfo {...fileInfo!} />
-            {fileInfo?.fileType && fileInfo.fileType.startsWith('image/') && (
-              <>
-                <Button variant="outlined" color="primary" onClick={openPreviewModal} sx={{ mt: 4, mb: 1 }}>
-                  View Image
+    <div className="flex flex-1 items-center justify-center px-4 py-10">
+      {fileInfo && (
+        <Card className="w-full max-w-sm">
+          <CardContent className="flex flex-col items-center gap-5 pt-8">
+            <span className="flex size-16 items-center justify-center rounded-2xl bg-secondary">
+              <FileIcon fileName={fileInfo.fileName} className="size-8" />
+            </span>
+            <ShowFileInfo {...fileInfo} />
+            <div className="flex w-full flex-col gap-2">
+              {!error && (
+                <Button onClick={handleDownload} disabled={downloading} className="w-full">
+                  {downloading ? <Loader2 className="animate-spin" /> : <Download />}
+                  Download
                 </Button>
-                <Modal open={showPreviewModal} onClose={closePreviewModal}>
-                  <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bgcolor: 'background.paper', boxShadow: 24, p: 4, maxWidth: '80vw', maxHeight: '80vh', overflow: 'auto' }}>
-                    <img src={fileInfo.downloadLink} alt={fileInfo.fileName} style={{ width: '100%', height: 'auto' }} />
-                  </Box>
-                </Modal>
-              </>
-            )}
-            {!error && (
-              <Button variant="contained" color="primary" onClick={handleDownload} sx={{ my: 1 }}>
-                Download
-              </Button>
-            )}
-          </Paper>
-        </Container>
-      }
-    </Box>
+              )}
+              {kind && (
+                <Button variant="secondary" onClick={() => setOpenPreview(true)} className="w-full">
+                  <Eye />
+                  Preview
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <PreviewDialog
+        open={openPreview}
+        onOpenChange={setOpenPreview}
+        fileInfo={fileInfo}
+        onDownload={handleDownload}
+      />
+    </div>
   );
 };
 

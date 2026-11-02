@@ -4,9 +4,11 @@ import Navbar from "./UI/Navbar";
 
 const Layout: React.FC = () => {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div className="flex min-h-screen flex-col bg-background text-foreground">
             <Navbar />
-            <Outlet />
+            <main className="flex-1">
+                <Outlet />
+            </main>
         </div>
     )
 }

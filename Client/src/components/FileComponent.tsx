@@ -1,43 +1,46 @@
-import React, { useEffect, useState, MouseEvent } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    ListItem,
-    ListItemText,
-    ListItemSecondaryAction,
-    IconButton,
-    Menu,
-    MenuItem,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    TextField,
-    FormControlLabel,
-    Typography,
-    Box,
-    Select,
-    OutlinedInput,
-    Checkbox,
-    Divider,
-    Card,
-} from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import DriveFileMove from '@mui/icons-material/DriveFileMove';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import ShareIcon from '@mui/icons-material/Share';
-import DownloadIcon from '@mui/icons-material/Download';
-import DescriptionIcon from "@mui/icons-material/Description";
-import { formatFileSize } from '../utils/helpers';
-import { DownloadInfoParams, File, GenerateDownloadLinkParams, ShareFileParams, SharedFile, Variant } from '../utils/types';
-import MoveToFileFolderDialog from './MoveFileOrFolderDialog';
-import { generatePublicDownloadLink, getFileInfo, shareFileWithUserByEmail } from '../services/firebase';
-import { ACCESS_LEVEL } from '../utils/constants';
-import { isValidEmail } from '../utils/validations';
-import { enqueueSnackbar } from 'notistack';
+    Download,
+    ExternalLink,
+    Eye,
+    FolderInput,
+    MoreVertical,
+    Pencil,
+    Share2,
+    Trash2,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import streamSaver from 'streamsaver';
+import { toast } from 'sonner';
 
+import { File, DownloadInfoParams, GenerateDownloadLinkParams, ShareFileParams, SharedFile } from '../utils/types';
+import { ACCESS_LEVEL } from '../utils/constants';
+import { formatFileSize } from '../utils/helpers';
+import { generatePublicDownloadLink, getFileInfo, shareFileWithUserByEmail } from '../services/firebase';
+import MoveToFileFolderDialog from './MoveFileOrFolderDialog';
+import ConfirmDialog from './UI/ConfirmDialog';
+import ShareDialog from './UI/ShareDialog';
+import PreviewDialog, { previewKind } from './UI/PreviewDialog';
+import { FileIcon } from './UI/FileTypeIcon';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 interface FileComponentProps {
     file: File;
@@ -57,16 +60,11 @@ const FileComponent: React.FC<FileComponentProps> = ({
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [openMoveToFolderDialog, setOpenMoveToFolderDialog] = useState(false);
-    const [anchorPosition, setAnchorPosition] = useState<{ top: number; left: number } | null>(null);
     const [openShareDialog, setOpenShareDialog] = useState(false);
-    const [shareEmail, setShareEmail] = useState('');
-    const [accessLevel, setAccessLevel] = useState(ACCESS_LEVEL.ADMIN);
+    const [downloading, setDownloading] = useState(false);
+    const [openPreviewDialog, setOpenPreviewDialog] = useState(false);
+    const [previewFile, setPreviewFile] = useState<SharedFile | null>(null);
     const navigate = useNavigate();
-
-    const [expiryDays, setExpiryDays] = useState<number>(1);
-    const [neverExpires, setNeverExpires] = useState(false);
-    const [expiryDate, setExpiryDate] = useState<Date | null>(null);
-    const [shareLink, setShareLink] = useState<string | null>(null);
 
     const fileExtension = file.fileName.split('.').pop();
 
@@ -76,23 +74,7 @@ const FileComponent: React.FC<FileComponentProps> = ({
         setFileNameWithoutExtension(parts.join('.'));
     }, [file]);
 
-    useEffect(() => {
-        if (!neverExpires) {
-            const newExpiryDate = new Date();
-            newExpiryDate.setDate(newExpiryDate.getDate() + expiryDays);
-            setExpiryDate(newExpiryDate);
-        }
-    }, [expiryDays, neverExpires]);
-
-
-    const handleError = (error: string | null = null) => {
-        enqueueSnackbar(error, {
-            variant: 'error',
-            preventDuplicate: true
-        });
-    };
-
-    const fetchFileInfo = async () => {
+    const fetchFileInfo = async (): Promise<SharedFile | null> => {
         const downloadInfoParams: DownloadInfoParams = {
             ownerUid: file.ownerUid,
             fileId: file.fileId,
@@ -102,80 +84,56 @@ const FileComponent: React.FC<FileComponentProps> = ({
             const { fileInfo } = await getFileInfo(downloadInfoParams);
             return fileInfo;
         } catch (error: any) {
-            handleError(error.message || "An error occurred while fetching file information.");
+            toast.error(error.message || 'An error occurred while fetching file information.');
             return null;
         }
     };
 
     const downloadFile = async (fileInfo: SharedFile) => {
-        if (fileInfo && fileInfo.downloadLink) {
-            try {
-                const res = await fetch(fileInfo.downloadLink);
+        if (!fileInfo?.downloadLink) return;
+        setDownloading(true);
+        try {
+            const res = await fetch(fileInfo.downloadLink);
+            if (!res || !res.body) throw new Error('Download failed');
 
-                if (!res || !res.body) {
-                    throw new Error("Download failed");
+            const fileStream = streamSaver.createWriteStream(fileInfo.fileName);
+            const writer = fileStream.getWriter();
+            const reader = res.body.getReader();
+
+            const pump = async (): Promise<void> => {
+                const { value, done } = await reader.read();
+                if (done) {
+                    writer.close();
+                } else {
+                    writer.write(value);
+                    return writer.ready.then(pump);
                 }
+            };
 
-                //const totalSize = parseInt(res.headers.get("Content-Length") || "0", 10);
-
-                const fileStream = streamSaver.createWriteStream(fileInfo.fileName);
-                const writer = fileStream.getWriter();
-
-                const reader = res.body.getReader();
-
-                let bytesRead = 0;
-
-                const pump: any = async () => {
-                    const { value, done } = await reader.read();
-
-                    if (done) {
-                        writer.close();
-                    } else {
-                        bytesRead += value.byteLength;
-                        writer.write(value);
-
-                        //const progress = (bytesRead / totalSize) * 100;
-                        //console.log(`Download progress: ${progress.toFixed(2)}%`);
-
-                        return writer.ready.then(pump);
-                    }
-                };
-
-                await pump();
-            } catch (error: any) {
-                handleError(`An error occurred during the download: ${error.message}`);
-            }
+            await pump();
+        } catch (error: any) {
+            toast.error(`An error occurred during the download: ${error.message}`);
+        } finally {
+            setDownloading(false);
         }
     };
-
 
     const handleDownloadClick = async () => {
         const fileDownloadInfo = await fetchFileInfo();
-        if (fileDownloadInfo && fileDownloadInfo.downloadLink) {
-            downloadFile(fileDownloadInfo);
-        }
-        handleCloseMenu();
+        if (fileDownloadInfo) await downloadFile(fileDownloadInfo);
     };
 
+    const handlePreviewClick = async () => {
+        if (!previewKind(file)) return;
+        const info = await fetchFileInfo();
+        if (info) {
+            setPreviewFile(info);
+            setOpenPreviewDialog(true);
+        }
+    };
 
     const handleItemClick = () => {
-        console.log("Owner uid: ", file.ownerUid);
-        const link = `/user/${file.ownerUid}/files/${file.fileId}?downloadId=${file.privateLinkDownloadId}`;
-        navigate(link);
-    };
-
-    const handleContextMenu = (e: MouseEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        setAnchorPosition({ top: e.clientY, left: e.clientX });
-    };
-
-    const handleCloseMenu = () => {
-        setAnchorPosition(null);
-    };
-
-    const handleEditClick = () => {
-        handleCloseMenu();
-        setOpenEditDialog(true);
+        navigate(`/user/${file.ownerUid}/files/${file.fileId}?downloadId=${file.privateLinkDownloadId}`);
     };
 
     const handleSaveClick = async () => {
@@ -190,325 +148,163 @@ const FileComponent: React.FC<FileComponentProps> = ({
         }
     };
 
-    const handleCancelClick = () => {
-        setOpenEditDialog(false);
-    };
-
-    const handleDeleteClick = () => {
-        setOpenDeleteDialog(true);
-        handleCloseMenu();
-    };
-
-    const handleDeleteConfirmation = () => {
-        handleDeleteFile(file.fileId);
-        setOpenDeleteDialog(false);
-    };
-
-    const handleCancelDelete = () => {
-        setOpenDeleteDialog(false);
-    };
-
-    const handleMoveClick = () => {
-        setOpenMoveToFolderDialog(true);
-        handleCloseMenu();
-    };
-
     const handleShareFile = async (email: string, accessLevel: ACCESS_LEVEL) => {
-        const params: ShareFileParams = {
-            email: email,
-            fileId: file.fileId,
-            accessLevel: accessLevel,
-        };
+        const params: ShareFileParams = { email, fileId: file.fileId, accessLevel };
         const { success, error } = await shareFileWithUserByEmail(params);
-
-        let message = "";
-        let variant: Variant = undefined;
-        if (success) {
-            message = 'User has been invited. Please check your email for the invitation.';
-            variant = 'success';
-        } else {
-            message = `Error inviting user: ${error}`
-            variant = 'error';
-        }
-        enqueueSnackbar(message, {
-            variant: variant,
-            preventDuplicate: true
-        });
+        if (success) toast.success('User has been invited. Please check your email for the invitation.');
+        else toast.error(`Error inviting user: ${error}`);
     };
 
-
-    const handleDialogInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFileNameWithoutExtension(e.target.value);
+    const handleGenerateLink = async (neverExpires: boolean, expiresAt: Date | null) => {
+        const params: GenerateDownloadLinkParams = { fileId: file.fileId, neverExpires, expiresAt };
+        return await generatePublicDownloadLink(params);
     };
-
-    const handleShareClick = () => {
-        setOpenShareDialog(true);
-        handleCloseMenu();
-    };
-
-    const handleShareDialogClose = () => {
-        setOpenShareDialog(false);
-        setShareEmail('');
-        setAccessLevel(ACCESS_LEVEL.ADMIN);
-        setNeverExpires(false);
-        setExpiryDays(1);
-    };
-
-    const handleShareInviteClick = () => {
-        if (!isValidEmail(shareEmail)) {
-            const message = `Invalid email address: ${shareEmail}`;
-            enqueueSnackbar(message, {
-                variant: 'error',
-                preventDuplicate: true
-            });
-            return;
-        }
-
-        handleShareFile(shareEmail, accessLevel);
-        handleShareDialogClose();
-    };
-
-    const getNextWeekDate = () => {
-        const today = new Date();
-        const nextWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
-        return nextWeek;
-    }
-
-    const handleGenerateDownloadLink = async () => {
-        const generateDownloadLinkParams: GenerateDownloadLinkParams = {
-            fileId: file.fileId,
-            neverExpires: neverExpires,
-            expiresAt: neverExpires ? null : expiryDate ? expiryDate : getNextWeekDate(),
-        };
-        const { link, error } = await generatePublicDownloadLink(generateDownloadLinkParams);
-        if (error) {
-            return;
-        }
-        setShareLink(link);
-        console.log('shareLink:', link);
-    }
-
-    const copyLink = () => {
-        if (!shareLink) return;
-        navigator.clipboard.writeText(shareLink).then(() => {
-            console.log('Link copied to clipboard:', shareLink);
-        });
-    }
 
     return (
-        <Card sx={{ mb: '0.8rem' }}>
-            <ListItem
-                button
-                onContextMenu={handleContextMenu}
-                onClick={handleItemClick}
-                selected={Boolean(anchorPosition)}
+        <>
+            <div
+                className={cn(
+                    'flex items-center gap-2 rounded-xl border bg-card py-2 pr-1.5 pl-3 transition-colors hover:bg-accent/50',
+                    downloading && 'opacity-70'
+                )}
             >
-                <DescriptionIcon style={{ marginRight: "8px" }} />
-                <ListItemText
-                    primary={displayedFileName}
-                    secondary={`Size: ${formatFileSize(file.fileSize)} | Uploaded At: ${file.uploadedAt}`}
-                    sx={{ mr: 15 }}
-                />
-                <ListItemSecondaryAction>
-                    <IconButton edge="end" aria-label="Edit" onClick={handleEditClick}>
-                        <EditIcon />
-                    </IconButton>
-                    <IconButton edge="end" aria-label="Delete" onClick={handleDeleteClick} sx={{ ml: 1.2, mr: 1 }}>
-                        <DeleteIcon />
-                    </IconButton>
-                    <div
-                        role="button"
-                        aria-label="More"
-                        onClick={(e: React.MouseEvent<HTMLDivElement>) => handleContextMenu(e)}
-                        onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => handleContextMenu(e)}
-                        style={{ display: 'inline' }}
-                    >
-                        <IconButton edge="end">
-                            <MoreVertIcon />
-                        </IconButton>
-                    </div>
-                </ListItemSecondaryAction>
-            </ListItem>
-
-            <Menu
-                open={Boolean(anchorPosition)}
-                onClose={handleCloseMenu}
-                anchorReference="anchorPosition"
-                anchorPosition={anchorPosition as { top: number; left: number }}
-            >
-                <MenuItem onClick={handleEditClick}>
-                    <EditIcon fontSize="small" sx={{ mr: 1 }} />
-                    Edit File Name
-                </MenuItem>
-                <MenuItem onClick={handleDeleteClick}>
-                    <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
-                    Delete
-                </MenuItem>
-                <MenuItem onClick={handleMoveClick}>
-                    <DriveFileMove fontSize="small" sx={{ mr: 1 }} />
-                    Move
-                </MenuItem>
-                <MenuItem onClick={handleShareClick}>
-                    <ShareIcon fontSize="small" sx={{ mr: 1 }} />
-                    Share
-                </MenuItem>
-                <MenuItem onClick={handleDownloadClick}>
-                    <DownloadIcon fontSize="small" sx={{ mr: 1 }} />
-                    Download
-                </MenuItem>
-            </Menu>
-
-            {/* Share Dialog */}
-            <Dialog open={openShareDialog} onClose={handleShareDialogClose}>
-                <DialogTitle>Share File</DialogTitle>
-                <DialogContent>
-                    {/* Collaborators Section */}
-                    <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, fontSize: '1.1rem' }}>
-                        Add Collaborators
-                    </Typography>
-                    <TextField
-                        label="Email"
-                        type="email"
-                        fullWidth
-                        value={shareEmail}
-                        onChange={(e) => setShareEmail(e.target.value)}
-                        sx={{ mb: 2 }}
-                    />
-                    <TextField
-                        label="Access Level"
-                        select
-                        fullWidth
-                        value={accessLevel}
-                        onChange={(e: React.ChangeEvent<{ value: unknown }>) => setAccessLevel(e.target.value as ACCESS_LEVEL)}
-                        sx={{ mb: 2 }}
-                    >
-                        <MenuItem value={ACCESS_LEVEL.ADMIN}>Admin</MenuItem>
-                        <MenuItem value={ACCESS_LEVEL.OPERATOR}>Operator</MenuItem>
-                        <MenuItem value={ACCESS_LEVEL.VIEWER}>Viewer</MenuItem>
-                    </TextField>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={handleShareInviteClick}
-                        sx={{ mb: 2, mt: 2, display: 'block', margin: 'auto' }}
-                    >
-                        Invite Collaborator
-                    </Button>
-
-                    {/* Divider */}
-                    <Divider sx={{ my: 2 }} />
-
-                    {/* Public Link Section */}
-                    <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500, fontSize: '1.1rem' }}>
-                        Create Public Link
-                    </Typography>
-                    <FormControlLabel
-                        control={
-                            <Checkbox
-                                checked={neverExpires}
-                                onChange={(e) => setNeverExpires(e.target.checked)}
-                                color="primary"
-                            />
-                        }
-                        label="Never Expires"
-                        sx={{ mb: 2 }}
-                    />
-                    {!shareLink && (
-                        <>
-                            {!neverExpires && (
-                                <Box sx={{ mb: 2 }}>
-                                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                                        Link expiry days
-                                    </Typography>
-                                    <Select
-                                        value={expiryDays}
-                                        onChange={(e) => setExpiryDays(e.target.value as number)}
-                                        displayEmpty
-                                        input={<OutlinedInput label="Link expiry days" />}
-                                        sx={{ width: "100%" }}
-                                    >
-                                        {[1, 2, 3, 4, 5, 6, 7].map((days) => (
-                                            <MenuItem key={days} value={days}>
-                                                {days} day{days !== 1 ? "s" : ""}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </Box>
+                <button
+                    type="button"
+                    onClick={handleItemClick}
+                    className="flex min-w-0 flex-1 items-center gap-3 py-1.5 text-left"
+                >
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                        <FileIcon fileName={file.fileName} className="size-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5">
+                            <span className="truncate font-medium">{displayedFileName}</span>
+                            {file.shared && (
+                                <span className="shrink-0 rounded-md bg-chart-2/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-chart-2 uppercase">
+                                    Shared
+                                </span>
                             )}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                            {formatFileSize(file.fileSize)} · Uploaded {file.uploadedAt}
+                        </span>
+                    </span>
+                </button>
 
-                            <Button
-                                variant="contained"
-                                color="primary"
-                                onClick={handleGenerateDownloadLink}
-                                sx={{ mb: 2, mt: 2, display: 'block', margin: 'auto' }}
-                            >
-                                Generate Public Link
-                            </Button>
-                        </>
-                    )}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Download ${displayedFileName}`}
+                    onClick={handleDownloadClick}
+                    disabled={downloading}
+                    className="hidden sm:inline-flex"
+                >
+                    <Download />
+                </Button>
 
-                    {/* Display the generated download link */}
-                    {shareLink && (
-                        <>
-                            <Typography variant="subtitle2" color="textPrimary" sx={{ mb: 2, mt: 2, textAlign: 'center' }}>
-                                Share this link with others to view the uploaded file.
-                            </Typography>
-                            <Button variant="outlined" onClick={copyLink} sx={{ display: 'block', margin: 'auto' }}>
-                                Copy link to Clipboard
-                            </Button>
-                        </>
-                    )}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" aria-label={`More actions for ${displayedFileName}`}>
+                            <MoreVertical />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                        {previewKind(file) && (
+                            <DropdownMenuItem onClick={handlePreviewClick}>
+                                <Eye />
+                                Preview
+                            </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={handleItemClick}>
+                            <ExternalLink />
+                            Open
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleDownloadClick}>
+                            <Download />
+                            Download
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setOpenEditDialog(true)}>
+                            <Pencil />
+                            Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setOpenMoveToFolderDialog(true)}>
+                            <FolderInput />
+                            Move to folder
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setOpenShareDialog(true)}>
+                            <Share2 />
+                            Share
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                            onClick={() => setOpenDeleteDialog(true)}
+                        >
+                            <Trash2 />
+                            Delete
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+
+            {/* Rename dialog */}
+            <Dialog open={openEditDialog} onOpenChange={setOpenEditDialog}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Rename file</DialogTitle>
+                        <DialogDescription>Only the name changes; the file type stays the same.</DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-2">
+                        <Label htmlFor="file-name">Name</Label>
+                        <div className="flex items-center gap-2">
+                            <Input
+                                id="file-name"
+                                autoFocus
+                                value={fileNameWithoutExtension}
+                                onChange={(event) => setFileNameWithoutExtension(event.target.value)}
+                                onKeyDown={(event) => { if (event.key === 'Enter') handleSaveClick(); }}
+                            />
+                            {fileExtension && <span className="text-sm text-muted-foreground">.{fileExtension}</span>}
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setOpenEditDialog(false)}>Cancel</Button>
+                        <Button onClick={handleSaveClick} disabled={!fileNameWithoutExtension.trim()}>Save</Button>
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleShareDialogClose} color="secondary">
-                        Cancel
-                    </Button>
-                </DialogActions>
             </Dialog>
 
+            <ShareDialog
+                open={openShareDialog}
+                onOpenChange={setOpenShareDialog}
+                allowPublicLink
+                onInvite={handleShareFile}
+                onGenerateLink={handleGenerateLink}
+            />
 
+            <PreviewDialog
+                open={openPreviewDialog}
+                onOpenChange={setOpenPreviewDialog}
+                fileInfo={previewFile}
+                onDownload={handleDownloadClick}
+            />
 
+            <ConfirmDialog
+                open={openDeleteDialog}
+                onOpenChange={setOpenDeleteDialog}
+                title="Delete file?"
+                description={`"${displayedFileName}" will be permanently deleted. This cannot be undone.`}
+                onConfirm={() => handleDeleteFile(file.fileId)}
+            />
 
-            {/* Edit Dialog */}
-            <Dialog open={openEditDialog} onClose={handleCancelClick}>
-                <DialogTitle>Edit File Name</DialogTitle>
-                <DialogContent>
-                    <TextField value={fileNameWithoutExtension} onChange={handleDialogInputChange} autoFocus fullWidth />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCancelClick} color="secondary">
-                        Cancel
-                    </Button>
-                    <Button onClick={handleSaveClick} color="primary">
-                        Save
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* Delete Dialog */}
-            <Dialog open={openDeleteDialog} onClose={handleCancelDelete}>
-                <DialogTitle>Confirm Deletion</DialogTitle>
-                <DialogContent>
-                    <p>Are you sure you want to delete this file?</p>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCancelDelete} color="secondary">
-                        Cancel
-                    </Button>
-                    <Button onClick={handleDeleteConfirmation} color="primary">
-                        Delete
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* Move to Folder Dialog */}
             <MoveToFileFolderDialog
                 open={openMoveToFolderDialog}
                 onClose={() => setOpenMoveToFolderDialog(false)}
                 onMoveFile={handleMoveFile}
                 file={file}
             />
-        </Card>
+        </>
     );
 };
 

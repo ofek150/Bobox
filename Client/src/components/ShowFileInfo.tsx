@@ -1,19 +1,30 @@
 import React from 'react';
 import { SharedFile } from '../utils/types';
-import { Box, Typography } from '@mui/material';
 import { formatFileSize } from '../utils/helpers';
 
 const ShowFileInfo: React.FC<SharedFile> = ({ fileName, fileSize, uploadedAt }) => {
   const formattedDate = new Date(uploadedAt).toLocaleDateString('en-GB');
 
   return (
-    <Box >
-      <Typography variant='h4' sx={{ mb: 4, textAlign: 'center' }}><b>File Info</b></Typography>
-      <Typography variant='body2'><b>File Name:</b> {fileName}</Typography>
-      <Typography variant='body2'><b>File Size:</b> {formatFileSize(fileSize)}</Typography>
-      {/* <Typography variant='body2'><b>File Type:</b> {fileType}</Typography> */}
-      {formattedDate != "Invalid Date" && (<Typography variant='body2'><b>Uploaded at:</b> {formattedDate}</Typography>)}
-    </Box>
+    <div>
+      <h2 className="mb-4 text-center text-2xl font-bold sm:text-3xl">File Info</h2>
+      <dl className="flex flex-col gap-1 text-sm">
+        <div className="flex flex-wrap gap-x-1.5">
+          <dt className="font-bold">File Name:</dt>
+          <dd className="min-w-0 break-words">{fileName}</dd>
+        </div>
+        <div className="flex flex-wrap gap-x-1.5">
+          <dt className="font-bold">File Size:</dt>
+          <dd>{formatFileSize(fileSize)}</dd>
+        </div>
+        {formattedDate != "Invalid Date" && (
+          <div className="flex flex-wrap gap-x-1.5">
+            <dt className="font-bold">Uploaded at:</dt>
+            <dd>{formattedDate}</dd>
+          </div>
+        )}
+      </dl>
+    </div>
   );
 };
 

@@ -91,3 +91,6 @@ release-artifacts-*
 
 # Local Netlify folder
 .netlify
+
+# OpenChamber session artifacts (screenshots etc.)
+.openchamber/

@@ -1,23 +1,38 @@
-import React, { useEffect, useState, MouseEvent } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useFolderStructureContext } from '../contexts/FolderStructureContext';
-import { Folder, File, ShareFolderParams, Variant } from '../utils/types';
-import { Box, Button, Card, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItem, ListItemSecondaryAction, ListItemText, Menu, MenuItem, TextField, Typography } from '@mui/material';
-import Loading from './Loading';
-import FileComponent from './FileComponent';
-import FolderIcon from "@mui/icons-material/Folder";
-import FolderSharedIcon from '@mui/icons-material/FolderShared';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import ShareIcon from '@mui/icons-material/Share';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
+import { ArrowLeft, FolderInput, MoreVertical, Pencil, Share2, Trash2, FolderPlus, Upload } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { Folder, File, ShareFolderParams } from '../utils/types';
 import { ACCESS_LEVEL, FILTER_ITEMS_TYPE, SORT_TYPE, ITEM_TYPE } from '../utils/constants';
 import { shareFolderWithUserByEmail } from '../services/firebase';
-import { isValidEmail } from '../utils/validations';
+import { useFolderStructureContext } from '../contexts/FolderStructureContext';
+import FileComponent from './FileComponent';
 import NotFoundPage from '../pages/NotFoundPage';
-import { enqueueSnackbar } from 'notistack';
+import ConfirmDialog from './UI/ConfirmDialog';
+import ShareDialog from './UI/ShareDialog';
 import FilterBar from './UI/FilterBar';
-import ArrowBackIcon from '@mui/icons-material/ArrowBackIos';
+import { FolderIconBadge } from './UI/FileTypeIcon';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 interface FolderComponentProps {
     folderId: string;
@@ -29,417 +44,337 @@ interface FolderComponentProps {
     onFolderClick?: (folderId: string) => void;
     onFolderDoubleClick?: (folderId: string, folderName: string) => void;
     selectFolder: boolean;
+    onUploadClick?: () => void;
+    onCreateFolderClick?: () => void;
 }
 
-interface FolderComponentState {
-    clickedFolderId: string | null;
-}
+type ListItemEntry =
+    | { type: ITEM_TYPE.FOLDER; key: string; name: string; date: string | null; data: Folder }
+    | { type: ITEM_TYPE.FILE; key: string; name: string; date: string | null; data: File };
 
-const FolderComponent: React.FC<FolderComponentProps> = ({ folderId, handleEditFileName, handleEditFolderName, handleDeleteFile, handleDeleteFolder, selectFolder, handleMoveFile, onFolderClick, onFolderDoubleClick }: FolderComponentProps) => {
+/** Dates arrive as "DD/MM/YYYY"; this makes them sortable as strings. */
+const toSortableDate = (value: string | null): string => {
+    if (!value) return '';
+    const parts = value.split('/');
+    return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value;
+};
+
+const FolderComponent: React.FC<FolderComponentProps> = ({
+    folderId,
+    handleEditFileName,
+    handleEditFolderName,
+    handleDeleteFile,
+    handleDeleteFolder,
+    selectFolder,
+    handleMoveFile,
+    onFolderClick,
+    onFolderDoubleClick,
+    onUploadClick,
+    onCreateFolderClick,
+}: FolderComponentProps) => {
     const navigate = useNavigate();
     const { folderStructure, getFolderWithId } = useFolderStructureContext();
     const [loading, setLoading] = useState(true);
-    const [folder, setFolder] = useState<any>(null);
+    const [folder, setFolder] = useState<Folder | null>(null);
     const [invalidFolderId, setInvalidFolderId] = useState(false);
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
-    const [openEditDialog, setOpenEditDialog] = useState(false);
-    const [currFolderName, setCurrFolderName] = useState("");
-    const [anchorPosition, setAnchorPosition] = useState<{ top: number; left: number } | null>(null);
 
+    const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openShareDialog, setOpenShareDialog] = useState(false);
-    const [shareEmail, setShareEmail] = useState('');
-    const [accessLevel, setAccessLevel] = useState(ACCESS_LEVEL.ADMIN);
+    const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+    const [targetFolderId, setTargetFolderId] = useState<string | null>(null);
+    const [currFolderName, setCurrFolderName] = useState("");
 
     const [sortType, setSortType] = useState<SORT_TYPE>(SORT_TYPE.BY_DATE_DESC);
     const [filterItemType, setFilterItemType] = useState<FILTER_ITEMS_TYPE>(FILTER_ITEMS_TYPE.BOTH);
 
-    const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-
-    const handleGoBack = () => {
-        navigate(-1);
-    };
-
-
-    const [state, setState] = useState<FolderComponentState>({
-        clickedFolderId: null,
-    });
-
     useEffect(() => {
-        if (folderId) {
-            const folder = getFolderWithId(folderId);
-            if (!folder) {
-                setInvalidFolderId(true);
-                return;
-            }
-
-            setFolder(folder);
-            setInvalidFolderId(false);
+        if (!folderId) return;
+        const found = getFolderWithId(folderId);
+        if (!found) {
+            setInvalidFolderId(true);
+            return;
         }
-    }, [folderId, folderStructure]);
+        setFolder(found);
+        setInvalidFolderId(false);
+    }, [folderId, folderStructure, getFolderWithId]);
 
     useEffect(() => {
         if (folder) setLoading(false);
     }, [folder]);
 
-    const handleShareFolder = async (folderId: string, email: string, accessLevel: ACCESS_LEVEL) => {
-        const params: ShareFolderParams = {
-            email: email,
-            folderId: folderId,
-            accessLevel: accessLevel,
-        };
-        const { success, error } = await shareFolderWithUserByEmail(params);
-        let message = "";
-        let variant: Variant = undefined;
-        if (success) {
-            message = 'User has been invited. Please check your email for the invitation.';
-            variant = 'success';
-        } else {
-            message = `Error inviting user: ${error}`
-            variant = 'error';
-        }
-        enqueueSnackbar(message, {
-            variant: variant,
-            preventDuplicate: true
+    const items = useMemo<ListItemEntry[]>(() => {
+        if (!folder) return [];
+
+        // getFolderWithId returns the enriched node: fileObjects / folderObjects.
+        const enriched = folder as unknown as { fileObjects?: File[]; folderObjects?: Folder[] };
+        const folders = enriched.folderObjects ?? [];
+        const files = enriched.fileObjects ?? [];
+
+        const entries: ListItemEntry[] = [
+            ...folders.map((entry): ListItemEntry => ({
+                type: ITEM_TYPE.FOLDER,
+                key: entry.folderId,
+                name: entry.folderName,
+                date: entry.createdAt,
+                data: entry,
+            })),
+            ...files.map((entry): ListItemEntry => ({
+                type: ITEM_TYPE.FILE,
+                key: entry.fileId,
+                name: entry.fileName,
+                date: entry.uploadedAt,
+                data: entry,
+            })),
+        ];
+
+        const visible = entries.filter((entry) => {
+            if (selectFolder) return entry.type === ITEM_TYPE.FOLDER;
+            if (filterItemType === FILTER_ITEMS_TYPE.FOLDERS_ONLY) return entry.type === ITEM_TYPE.FOLDER;
+            if (filterItemType === FILTER_ITEMS_TYPE.FILES_ONLY) return entry.type === ITEM_TYPE.FILE;
+            return true;
         });
-    };
 
+        const byName = (a: ListItemEntry, b: ListItemEntry) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        const byDate = (a: ListItemEntry, b: ListItemEntry) => toSortableDate(a.date).localeCompare(toSortableDate(b.date));
 
-    const handleShareClick = () => {
-        setOpenShareDialog(true);
-        handleCloseMenu();
-    };
-
-    const handleShareDialogClose = () => {
-        setOpenShareDialog(false);
-        setShareEmail('');
-        setAccessLevel(ACCESS_LEVEL.ADMIN);
-    };
-
-    const handleShareInviteClick = () => {
-        if (!state.clickedFolderId) return;
-        if (!isValidEmail(shareEmail)) {
-            const message = `Invalid email address: ${shareEmail}`;
-            enqueueSnackbar(message, {
-                variant: 'error',
-                preventDuplicate: true
-            });
-            return;
+        switch (sortType) {
+            case SORT_TYPE.BY_NAME_ASC: visible.sort(byName); break;
+            case SORT_TYPE.BY_NAME_DESC: visible.sort((a, b) => -byName(a, b)); break;
+            case SORT_TYPE.BY_DATE_ASC: visible.sort(byDate); break;
+            case SORT_TYPE.BY_DATE_DESC: visible.sort((a, b) => -byDate(a, b)); break;
         }
 
-        handleShareFolder(state.clickedFolderId, shareEmail, accessLevel);
-        handleShareDialogClose();
+        return visible;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [folder, folderStructure, filterItemType, sortType, selectFolder]);
+
+    const handleShareFolder = async (email: string, accessLevel: ACCESS_LEVEL) => {
+        if (!targetFolderId) return;
+        const params: ShareFolderParams = { email, folderId: targetFolderId, accessLevel };
+        const { success, error } = await shareFolderWithUserByEmail(params);
+        if (success) toast.success('User has been invited. Please check your email for the invitation.');
+        else toast.error(`Error inviting user: ${error}`);
     };
 
-    const handleEditClick = (folderId: string | null) => {
-        if (!folderId) return;
-        handleCloseMenu();
-        const selectedFolder: Folder = getFolderWithId(folderId);
-        if (!selectedFolder) return;
-        setCurrFolderName(selectedFolder.folderName);
-        setSelectedFolderId(folderId);
-        setOpenEditDialog(true);
+    const openFolderActions = (id: string, name: string, action: 'rename' | 'share' | 'delete') => {
+        setTargetFolderId(id);
+        setCurrFolderName(name);
+        if (action === 'rename') setOpenEditDialog(true);
+        if (action === 'share') setOpenShareDialog(true);
+        if (action === 'delete') setOpenDeleteDialog(true);
     };
 
     const handleSaveClick = () => {
-        if (!selectedFolderId) return;
-        if (handleEditFolderName) handleEditFolderName(selectedFolderId, currFolderName);
+        if (!targetFolderId) return;
+        handleEditFolderName?.(targetFolderId, currFolderName);
         setOpenEditDialog(false);
         setCurrFolderName("");
-        setSelectedFolderId("");
+        setTargetFolderId(null);
     };
 
-    const handleCancelClick = () => {
-        setOpenEditDialog(false);
-        setCurrFolderName("");
-        setSelectedFolderId("");
-    };
-
-    const handleDialogInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setCurrFolderName(e.target.value);
-    };
-
-    const handleFolderClick = (clickedFolderId: string) => {
+    const handleFolderSelectClick = (clickedFolderId: string) => {
         setSelectedFolderId(clickedFolderId);
-        onFolderClick && onFolderClick(clickedFolderId);
+        onFolderClick?.(clickedFolderId);
     };
 
-    const handleFolderDoubleClick = (doubleClickedFolderId: string, doubleClickedFolderName: string) => {
-        onFolderDoubleClick && onFolderDoubleClick(doubleClickedFolderId, doubleClickedFolderName);
-    };
-
-    const handleContextMenu = (e: MouseEvent<HTMLDivElement>, folderId: string) => {
-        e.preventDefault();
-        setAnchorPosition({ top: e.clientY, left: e.clientX });
-        setState({ clickedFolderId: folderId });
-    };
-
-    const handleCloseMenu = () => {
-        setAnchorPosition(null);
-    };
-
-
-
-    const handleDeleteClick = (folderId: string | null) => {
-        if (!folderId) return;
-        handleCloseMenu();
-        const selectedFolder: Folder = getFolderWithId(folderId);
-        if (!selectedFolder) return;
-        setCurrFolderName(selectedFolder.folderName);
-        setSelectedFolderId(folderId);
-        setOpenDeleteDialog(true);
-    };
-
-    const handleDeleteConfirmation = () => {
-        if (handleDeleteFolder && selectedFolderId) {
-            handleDeleteFolder(selectedFolderId);
-            setOpenDeleteDialog(false);
-        }
-    };
-
-    const handleCancelDelete = () => {
-        setOpenDeleteDialog(false);
-    };
-
-    const renderFolderList = (head: { [key: string]: any }) => {
-        const items: JSX.Element[] = [];
-
-        const folders: any = Array.from(head.folderObjects.values());
-        const files: any = Array.from(head.fileObjects.values());
-        const allItems: any = selectFolder ? [...folders] : [...folders, ...files];
-
-
-        const allItemsWithType = allItems
-            .filter((item: any) => {
-                if (filterItemType === FILTER_ITEMS_TYPE.FOLDERS_ONLY) {
-                    return !files.includes(item);
-                } else if (filterItemType === FILTER_ITEMS_TYPE.FILES_ONLY) {
-                    return !folders.includes(item);
-                }
-                return true; // Include both folders and files when filterItemType is not specified
-            })
-            .map((item: any) => {
-                if (folders.includes(item)) {
-                    return { ...item, type: ITEM_TYPE.FOLDER };
-                } else if (files.includes(item)) {
-                    return { ...item, type: ITEM_TYPE.FILE };
-                } else {
-                    return item;
-                }
-            });
-
-        switch (sortType) {
-            case SORT_TYPE.BY_NAME_DESC:
-                allItemsWithType.sort((a: any, b: any) => {
-                    const aName = a.type === ITEM_TYPE.FOLDER ? a.folderName : a.fileName;
-                    const bName = b.type === ITEM_TYPE.FOLDER ? b.folderName : b.fileName;
-                    return aName.localeCompare(bName);
-                });
-                break;
-            case SORT_TYPE.BY_NAME_ASC:
-                allItemsWithType.sort((a: any, b: any) => {
-                    const aName = a.type === ITEM_TYPE.FOLDER ? a.folderName : a.fileName;
-                    const bName = b.type === ITEM_TYPE.FOLDER ? b.folderName : b.fileName;
-                    return bName.localeCompare(aName);
-                });
-                break;
-            case SORT_TYPE.BY_DATE_DESC:
-                allItemsWithType.sort((a: any, b: any) => {
-                    const aDate = a.type === ITEM_TYPE.FOLDER ? a.createdAt : a.uploadedAt;
-                    const bDate = b.type === ITEM_TYPE.FOLDER ? b.createdAt : b.uploadedAt;
-                    return aDate.localeCompare(bDate);
-                });
-                break;
-            case SORT_TYPE.BY_DATE_ASC:
-                allItemsWithType.sort((a: any, b: any) => {
-                    const aDate = a.type === ITEM_TYPE.FOLDER ? a.createdAt : a.uploadedAt;
-                    const bDate = b.type === ITEM_TYPE.FOLDER ? b.createdAt : b.uploadedAt;
-                    return bDate.localeCompare(aDate);
-                });
-                break;
-        }
-
-
-
-        allItemsWithType.forEach((item: any) => {
-
-            if (selectFolder && item.type === ITEM_TYPE.FILE) return;
-            items.push(selectFolder ? (
-                <ListItem
-                    key={item.folderId}
-                    // selected={selectedFolderId === folder.folderId}
-                    onDoubleClick={() => handleFolderDoubleClick(item.folderId, item.folderName)}
-                    onClick={() => handleFolderClick(item.folderId)}
-                    sx={{
-                        ':hover': {
-                            backgroundColor: 'rgba(0, 0, 0, 0.08)', // Change the background color on hover
-                        },
-                        width: '1C00%',
-                        backgroundColor: selectedFolderId === item.folderId ? 'rgba(0, 0, 0, 0.25)' : 'inherit', // Change the background color when selected
-                    }}
-                >
-                    <FolderIcon style={{ marginRight: "8px" }} />
-                    <ListItemText primary={item.folderName} />
-                </ListItem>
-
-            ) : item.type === ITEM_TYPE.FOLDER ? (
-                <Card sx={{ mb: '0.8rem' }} key={"card_" + item.folderId}>
-                    <ListItem button
-                        //selected={Boolean(anchorPosition)}
-                        onContextMenu={(e) => { handleContextMenu(e, item.folderId) }} key={item.folderId} onClick={() => navigate(`/user/folders/${item.folderId}`)}>
-                        {item.shared ? <FolderSharedIcon style={{ marginRight: "8px" }} /> : <FolderIcon style={{ marginRight: "8px" }} />}
-                        <ListItemText primary={item.folderName} secondary={`Created at: ${item.createdAt}`} sx={{ mr: 10 }} />
-                        <ListItemSecondaryAction>
-                            <IconButton edge="end" aria-label="Edit" onClick={() => handleEditClick(item.folderId)}>
-                                <EditIcon />
-                            </IconButton>
-                            <IconButton edge="end" aria-label="Delete" onClick={() => handleDeleteClick(item.folderId)} sx={{ ml: 1.2, mr: 1 }}>
-                                <DeleteIcon />
-                            </IconButton>
-                            <div
-                                role="button"
-                                aria-label="More"
-                                onClick={(e) => { handleContextMenu(e, item.folderId) }}
-                                onContextMenu={(e) => { handleContextMenu(e, item.folderId) }}
-                                style={{ display: 'inline' }}
-                            >
-                                <IconButton edge="end">
-                                    <MoreVertIcon />
-                                </IconButton>
-                            </div>
-                        </ListItemSecondaryAction>
-                    </ListItem>
-                </Card>
-            ) : (
-                <FileComponent key={item.fileId} file={item as File} handleEditFileName={handleEditFileName!} handleDeleteFile={handleDeleteFile!} handleMoveFile={handleMoveFile!} />
-            ))
-        });
-
-
-        return items;
-    }
     if (invalidFolderId) return <NotFoundPage />;
+    if (loading || !folder) {
+        return (
+            <div className="flex flex-col gap-2 p-1">
+                {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+            </div>
+        );
+    }
 
-    if (loading) {
-        return <Loading />;
+    const isVirtual = folder.folderId === 'root' || folder.folderId === 'shared';
+    const title = folder.folderId === 'root' ? 'My Storage' : folder.folderId === 'shared' ? 'Shared Storage' : folder.folderName;
+
+    // Picker mode (used by "move to folder"): plain selectable rows.
+    if (selectFolder) {
+        const pickerFolders = items
+            .filter((item) => item.type === ITEM_TYPE.FOLDER)
+            .map((item) => { const data = item.data as Folder; return { id: data.folderId, name: data.folderName, shared: data.shared }; });
+        return (
+            <div className="flex flex-col gap-1">
+                {pickerFolders.map((entry) => (
+                    <button
+                        key={entry.id}
+                        type="button"
+                        onClick={() => handleFolderSelectClick(entry.id)}
+                        onDoubleClick={() => onFolderDoubleClick?.(entry.id, entry.name)}
+                        className={cn(
+                            'flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground',
+                            selectedFolderId === entry.id && 'bg-secondary text-secondary-foreground hover:bg-secondary'
+                        )}
+                    >
+                        <FolderIconBadge shared={entry.shared} className="size-5" />
+                        <span className="truncate font-medium">{entry.name}</span>
+                    </button>
+                ))}
+                {items.length === 0 && (
+                    <p className="px-2 py-6 text-center text-sm text-muted-foreground">No folders here</p>
+                )}
+            </div>
+        );
     }
 
     return (
-        <Box>
-            {!selectFolder && (
-                <Box sx={{ display: 'flex', alignItems: 'flex-end', mb: 4, justifyContent: 'center' }}>
-                    {folderId !== 'root' && folderId !== 'shared' &&
-                        <IconButton onClick={handleGoBack} sx={{ color: 'primary.main', mr: 1 }}>
-                            <ArrowBackIcon />
-                        </IconButton>
-                    }
-                    <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mt: 2, mb: 0, textAlign: 'center' }}>
-                        {folder
-                            ? folder.folderId === 'root'
-                                ? 'My Storage'
-                                : folder.folderId === 'shared'
-                                    ? 'Shared Storage'
-                                    : folder.folderName
-                            : null}
-                    </Typography>
-                </Box>
+        <div className="flex w-full flex-col gap-4">
+            <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                    {!isVirtual && (
+                        <Button variant="ghost" size="icon" aria-label="Go back" onClick={() => navigate(-1)}>
+                            <ArrowLeft />
+                        </Button>
+                    )}
+                    <div className="min-w-0">
+                        <h1 className="truncate text-xl font-bold sm:text-2xl">{title}</h1>
+                        <p className="text-xs text-muted-foreground sm:text-sm">
+                            {items.length} {items.length === 1 ? 'item' : 'items'}
+                        </p>
+                    </div>
+                </div>
 
-            )}
-            {!selectFolder && <FilterBar setType={setFilterItemType} setSortBy={setSortType} sortBy={sortType} filterType={filterItemType} />}
-            <List>
-                {renderFolderList(folder)}
-            </List>
+                <FilterBar setType={setFilterItemType} setSortBy={setSortType} sortBy={sortType} filterType={filterItemType} />
+            </div>
 
-            <Menu
-                open={Boolean(anchorPosition)}
-                onClose={handleCloseMenu}
-                anchorReference="anchorPosition"
-                anchorPosition={anchorPosition as { top: number; left: number }}
-            >
-                <MenuItem onClick={() => handleEditClick(state.clickedFolderId)}>
-                    <EditIcon fontSize="small" sx={{ mr: 1 }} />
-                    Edit Folder Name
-                </MenuItem>
-                <MenuItem onClick={() => handleDeleteClick(state.clickedFolderId)}>
-                    <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
-                    Delete
-                </MenuItem>
-                <MenuItem onClick={handleShareClick}>
-                    <ShareIcon fontSize="small" sx={{ mr: 1 }} />
-                    Share
-                </MenuItem>
-            </Menu>
+            <div className="flex flex-col gap-2">
+                {items.map((item) =>
+                    item.type === ITEM_TYPE.FOLDER ? (
+                        <div
+                            key={item.key}
+                            className="flex items-center gap-2 rounded-xl border bg-card py-2 pr-1.5 pl-3 transition-colors hover:bg-accent/50"
+                        >
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/user/folders/${item.data.folderId}`)}
+                                className="flex min-w-0 flex-1 items-center gap-3 py-1.5 text-left"
+                            >
+                                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                                    <FolderIconBadge shared={(item.data as Folder).shared} className="size-5" />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="truncate font-medium">{item.name}</span>
+                                        {(item.data as Folder).shared && (
+                                            <span className="shrink-0 rounded-md bg-chart-2/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-chart-2 uppercase">
+                                                Shared
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                        {item.date ? `Created ${item.date}` : 'Shared with you'}
+                                    </span>
+                                </span>
+                            </button>
 
-            <Dialog open={openEditDialog} onClose={handleCancelClick}>
-                <DialogTitle>Edit Folder Name</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        value={currFolderName}
-                        onChange={handleDialogInputChange}
-                        autoFocus
-                        fullWidth
-                    />
+                            {/* Collaborators cannot rename or delete folders they don't own. */}
+                            {(item.data as Folder).ownerUid && (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" aria-label={`More actions for ${item.name}`}>
+                                            <MoreVertical />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-52">
+                                        <DropdownMenuItem onClick={() => navigate(`/user/folders/${item.data.folderId}`)}>
+                                            <FolderInput />
+                                            Open
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => openFolderActions(item.data.folderId, item.name, 'rename')}>
+                                            <Pencil />
+                                            Rename
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => openFolderActions(item.data.folderId, item.name, 'share')}>
+                                            <Share2 />
+                                            Share
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                            onClick={() => openFolderActions(item.data.folderId, item.name, 'delete')}
+                                        >
+                                            <Trash2 />
+                                            Delete
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
+                        </div>
+                    ) : (
+                        <FileComponent
+                            key={item.key}
+                            file={item.data as File}
+                            handleEditFileName={handleEditFileName!}
+                            handleDeleteFile={handleDeleteFile!}
+                            handleMoveFile={handleMoveFile!}
+                        />
+                    )
+                )}
+
+                {items.length === 0 && (
+                    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
+                        <p className="text-sm font-medium">This folder is empty</p>
+                        <p className="max-w-sm text-sm text-muted-foreground">
+                            Upload files to keep them here, or create a folder to stay organized.
+                        </p>
+                        <div className="hidden flex-wrap justify-center gap-2 sm:flex">
+                            {onUploadClick && (
+                                <Button onClick={onUploadClick}>
+                                    <Upload />
+                                    Upload files
+                                </Button>
+                            )}
+                            {onCreateFolderClick && (
+                                <Button variant="secondary" onClick={onCreateFolderClick}>
+                                    <FolderPlus />
+                                    New folder
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Rename dialog */}
+            <Dialog open={openEditDialog} onOpenChange={setOpenEditDialog}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Rename folder</DialogTitle>
+                        <DialogDescription>Everyone you share it with will see the new name.</DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-2">
+                        <Label htmlFor="folder-name">Name</Label>
+                        <Input
+                            id="folder-name"
+                            autoFocus
+                            value={currFolderName}
+                            onChange={(event) => setCurrFolderName(event.target.value)}
+                            onKeyDown={(event) => { if (event.key === 'Enter') handleSaveClick(); }}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setOpenEditDialog(false)}>Cancel</Button>
+                        <Button onClick={handleSaveClick} disabled={!currFolderName.trim()}>Save</Button>
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCancelClick} color="secondary">
-                        Cancel
-                    </Button>
-                    <Button onClick={handleSaveClick} color="primary">
-                        Save
-                    </Button>
-                </DialogActions>
             </Dialog>
 
-            {/* Share Dialog */}
-            <Dialog open={openShareDialog} onClose={handleShareDialogClose}>
-                <DialogTitle>Add Collaborators</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        label="Email"
-                        type="email"
-                        fullWidth
-                        value={shareEmail}
-                        onChange={(e) => setShareEmail(e.target.value)}
-                        sx={{ mb: 2, mt: 1 }}
-                    />
-                    <TextField
-                        label="Access Level"
-                        select
-                        fullWidth
-                        value={accessLevel}
-                        onChange={(e: React.ChangeEvent<{ value: unknown }>) => setAccessLevel(e.target.value as ACCESS_LEVEL)}
+            <ShareDialog
+                open={openShareDialog}
+                onOpenChange={setOpenShareDialog}
+                onInvite={handleShareFolder}
+            />
 
-                    >
-                        <MenuItem value={ACCESS_LEVEL.ADMIN}>Admin</MenuItem>
-                        <MenuItem value={ACCESS_LEVEL.OPERATOR}>Operator</MenuItem>
-                        <MenuItem value={ACCESS_LEVEL.VIEWER}>Viewer</MenuItem>
-                    </TextField>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleShareDialogClose} color="secondary">
-                        Cancel
-                    </Button>
-                    <Button onClick={handleShareInviteClick} color="primary">
-                        Invite
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* Delete Dialog */}
-            <Dialog open={openDeleteDialog} onClose={handleCancelDelete}>
-                <DialogTitle>Confirm Deletion</DialogTitle>
-                <DialogContent>
-                    <p>Are you sure you want to delete this folder?</p>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCancelDelete} color="secondary">
-                        Cancel
-                    </Button>
-                    <Button onClick={handleDeleteConfirmation} color="primary">
-                        Delete
-                    </Button>
-                </DialogActions>
-            </Dialog>
-        </Box >
+            <ConfirmDialog
+                open={openDeleteDialog}
+                onOpenChange={setOpenDeleteDialog}
+                title="Delete folder?"
+                description={`"${currFolderName}" and everything inside it will be deleted. This cannot be undone.`}
+                onConfirm={() => targetFolderId && handleDeleteFolder?.(targetFolderId)}
+            />
+        </div>
     );
 };
 

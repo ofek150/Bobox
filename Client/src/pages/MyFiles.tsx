@@ -1,18 +1,26 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { FolderPlus, Upload } from 'lucide-react';
+import { toast } from 'sonner';
+
 import { deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFileToFolder, renameFolder, deleteFolder } from '../services/firebase';
 import { File, Folder } from '../utils/types';
-import { Container, Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button, Fab, Typography, Box, useMediaQuery } from '@mui/material';
 import Loading from '../components/Loading';
-import { useNavigate, useParams } from 'react-router-dom';
-import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
-import PublishIcon from '@mui/icons-material/Publish';
 import FolderComponent from '../components/FolderComponent';
-import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import SearchBox from '../components/UI/SearchBox';
-import { enqueueSnackbar } from 'notistack';
 import PathBar from '../components/UI/PathBar';
-
-import theme from '../theme';
+import { useFolderStructureContext } from '../contexts/FolderStructureContext';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface CreateFolderDialogProps {
   open: boolean;
@@ -24,36 +32,41 @@ const CreateFolderDialog: React.FC<CreateFolderDialogProps> = ({ open, onClose, 
   const [folderName, setFolderName] = useState('');
 
   const handleCreateFolder = () => {
-    onCreateFolder(folderName);
+    if (!folderName.trim()) return;
+    onCreateFolder(folderName.trim());
     setFolderName('');
     onClose();
   };
 
   return (
-    <Dialog open={open} onClose={onClose}>
-      <DialogTitle>Create Folder</DialogTitle>
-      <DialogContent>
-        <TextField
-          autoFocus
-          margin="dense"
-          id="folderName"
-          label="Folder Name"
-          fullWidth
-          value={folderName}
-          onChange={(e) => setFolderName(e.target.value)}
-        />
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) { setFolderName(''); onClose(); } }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>New folder</DialogTitle>
+          <DialogDescription>Give the folder a name and it will appear here.</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="new-folder-name">Folder name</Label>
+          <Input
+            id="new-folder-name"
+            autoFocus
+            placeholder="Projects"
+            value={folderName}
+            onChange={(event) => setFolderName(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') handleCreateFolder(); }}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleCreateFolder} disabled={!folderName.trim()}>Create folder</Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleCreateFolder}>Create</Button>
-      </DialogActions>
     </Dialog>
   );
 };
 
 const MyFiles: React.FC = () => {
   const { folderId } = useParams();
-  const [_folderId] = useState(folderId);
   const [files, setFiles] = useState<File[] | null>(null);
   const [folders, setFolders] = useState<Folder[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,7 +74,6 @@ const MyFiles: React.FC = () => {
   const navigate = useNavigate();
   const { folderStructure, updateFolderStructure, getFolderWithId } = useFolderStructureContext();
   const [isValidFolder, setIsValidFolder] = useState<boolean>(false);
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const fetchFiles = async () => {
     try {
@@ -81,26 +93,36 @@ const MyFiles: React.FC = () => {
 
   useEffect(() => {
     fetchFiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (folders) {
       updateFolderStructure(folders, files);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files, folders]);
 
   useEffect(() => {
     if (folderStructure.size > 0) {
       setLoading(false);
-
       const folder = getFolderWithId(folderId ?? '')
       if (folder) setIsValidFolder(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderStructure]);
+
+  const handleError = (error: string | null = null) => {
+    console.error(error);
+    toast.error(error);
+  };
+
+  const handleSuccess = (message: string) => {
+    toast.success(message);
+  };
 
   const handleEditFileName = async (fileId: string, newFileName: string) => {
     if (!files) return false;
-    console.log("Renaming file with fileId: " + fileId + " to " + newFileName);
 
     const parts = newFileName.split('.');
     const fileExtension = parts.pop();
@@ -116,7 +138,7 @@ const MyFiles: React.FC = () => {
     }
 
     const file = files?.find(file => file.fileId === fileId);
-    handleSuccess(`The name was changed from "${file?.fileName}" to "${newFileName}"`);
+    handleSuccess(`Renamed "${file?.fileName}" to "${newFileName}"`);
 
     setFiles((prevFiles) =>
       prevFiles!.map((file) =>
@@ -128,7 +150,6 @@ const MyFiles: React.FC = () => {
 
   const handleEditFolderName = async (folderId: string, newFolderName: string) => {
     if (!folders) return;
-    console.log("Renaming folder with folderId: " + folderId + " to " + newFolderName);
 
     const { success, error } = await renameFolder({ folderId, newFolderName });
     if (error || !success) {
@@ -137,7 +158,7 @@ const MyFiles: React.FC = () => {
     }
 
     const folder = getFolderWithId(folderId);
-    handleSuccess(`The name was changed from "${folder?.folderName}" to "${newFolderName}"`);
+    handleSuccess(`Renamed "${folder?.folderName}" to "${newFolderName}"`);
 
     setFolders((prevFolders) =>
       prevFolders!.map((folder) =>
@@ -149,7 +170,6 @@ const MyFiles: React.FC = () => {
 
   const handleDeleteFile = async (fileId: string) => {
     if (!files) return;
-    console.log("Deleting file with fileId: " + fileId);
 
     const { success, error } = await deleteFile(fileId);
     if (error || !success) {
@@ -157,13 +177,12 @@ const MyFiles: React.FC = () => {
       return;
     }
     const file = files?.find(file => file.fileId === fileId);
-    handleSuccess(`The file with the name "${file?.fileName}" was successfully deleted`);
+    handleSuccess(`"${file?.fileName}" was deleted`);
     setFiles((prevFiles) => prevFiles!.filter((file) => file.fileId !== fileId));
   };
 
   const handleDeleteFolder = async (folderId: string) => {
     if (!folders) return;
-    console.log("Deleting folder with foldereId: " + folderId);
 
     const { success, error } = await deleteFolder(folderId);
     if (error || !success) {
@@ -171,28 +190,9 @@ const MyFiles: React.FC = () => {
       return;
     }
     const folder = getFolderWithId(folderId);
-    handleSuccess(`The folder with the name "${folder?.folderName}" was successfullly deleted`);
+    handleSuccess(`"${folder?.folderName}" was deleted`);
     await fetchFiles();
   };
-
-  const handleError = (error: string | null = null) => {
-    console.error(error);
-    enqueueSnackbar(error, {
-      variant: 'error',
-      preventDuplicate: true
-    });
-  };
-
-  const handleSuccess = (message: string) => {
-    enqueueSnackbar(message, {
-      variant: 'success',
-      preventDuplicate: true
-    });
-  };
-
-  if (loading) {
-    return <Loading />;
-  }
 
   const handleCreateFolder = async (folderName: string) => {
     const { success, error } = await createFolder({ folderName, parentFolderId: folderId ? folderId : "" });
@@ -200,7 +200,7 @@ const MyFiles: React.FC = () => {
       handleError(error);
       return;
     }
-    handleSuccess(`A folder with the name "${folderName}" was successfully created`);
+    handleSuccess(`Folder "${folderName}" was created`);
     await fetchFiles();
   };
 
@@ -210,10 +210,9 @@ const MyFiles: React.FC = () => {
       handleError(error);
       return;
     }
-    const currentFolder = getFolderWithId(currentFolderId);
     const newFolder = getFolderWithId(newFolderId);
     const file = files?.find(file => file.fileId === fileId);
-    handleSuccess(`The file with the name ${file?.fileName}" was successfully moved from "${currentFolder?.folderName}" to "${newFolder?.folderName}"`);
+    handleSuccess(`"${file?.fileName}" moved to "${newFolder?.folderName}"`);
     await fetchFiles();
   };
 
@@ -221,43 +220,72 @@ const MyFiles: React.FC = () => {
     navigate(`/user/folders/${folderId}/upload`);
   };
 
+  if (loading) {
+    return <Loading />;
+  }
+
   return (
-    <Container maxWidth="md" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', pb: 10 }}>
-      <SearchBox placeholder="Search files and folders" />
+    <div className="mx-auto w-full max-w-3xl px-4 pt-4 pb-28 sm:pb-10">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <SearchBox placeholder="Search files and folders" />
+          <div className="hidden shrink-0 gap-2 sm:flex">
+            <Button variant="secondary" onClick={() => setCreateFolderDialogOpen(true)}>
+              <FolderPlus />
+              New folder
+            </Button>
+            <Button onClick={handleUploadClick}>
+              <Upload />
+              Upload
+            </Button>
+          </div>
+        </div>
 
-      <Box sx={{ alignSelf: 'center' }}>
-        {folderStructure && folderId && isValidFolder && !isMobile && <PathBar folderId={folderId} />}
-      </Box>
-      {
-        folderStructure && folderId && isValidFolder ?
-          <>
-            <FolderComponent folderId={folderId} selectFolder={false} handleEditFileName={handleEditFileName} handleDeleteFile={handleDeleteFile} handleDeleteFolder={handleDeleteFolder} handleEditFolderName={handleEditFolderName} handleMoveFile={handleMoveFile} />
-          </>
-          : <Typography variant="h4" sx={{ my: 5, fontWeight: 500 }}>Folder not found</Typography>
-      }
-      <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', width: '100%', textAlign: 'center' }}>
-        <Fab
-          color="primary"
-          style={{ marginBottom: '16px', marginRight: '8px' }}
-          onClick={() => setCreateFolderDialogOpen(true)}
-        >
-          <CreateNewFolderIcon />
-        </Fab>
+        {folderStructure && folderId && isValidFolder && <PathBar folderId={folderId} />}
 
-        <Fab
-          color="primary"
-          style={{ marginBottom: '16px' }}
-          onClick={handleUploadClick}
-        >
-          <PublishIcon />
-        </Fab>
+        {folderStructure && folderId && isValidFolder ? (
+          <FolderComponent
+            folderId={folderId}
+            selectFolder={false}
+            handleEditFileName={handleEditFileName}
+            handleDeleteFile={handleDeleteFile}
+            handleDeleteFolder={handleDeleteFolder}
+            handleEditFolderName={handleEditFolderName}
+            handleMoveFile={handleMoveFile}
+            onUploadClick={handleUploadClick}
+            onCreateFolderClick={() => setCreateFolderDialogOpen(true)}
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-12 text-center">
+            <h1 className="text-lg font-semibold">Folder not found</h1>
+            <p className="text-sm text-muted-foreground">
+              It may have been deleted, or the link is wrong.
+            </p>
+            <Button variant="secondary" asChild className="mt-2">
+              <a href="/user/folders/root">Go to My Storage</a>
+            </Button>
+          </div>
+        )}
       </div>
+
+      {/* Sticky action bar: keeps the primary actions in thumb reach on phones. */}
+      <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center gap-2 border-t bg-background/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden">
+        <Button variant="secondary" className="flex-1" onClick={() => setCreateFolderDialogOpen(true)}>
+          <FolderPlus />
+          New folder
+        </Button>
+        <Button className="flex-1" onClick={handleUploadClick}>
+          <Upload />
+          Upload
+        </Button>
+      </div>
+
       <CreateFolderDialog
         open={isCreateFolderDialogOpen}
         onClose={() => setCreateFolderDialogOpen(false)}
         onCreateFolder={handleCreateFolder}
       />
-    </Container >
+    </div>
   );
 };
 

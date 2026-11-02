@@ -3,8 +3,7 @@ import { Navigate, useSearchParams } from "react-router-dom";
 import { acceptFileShareInvitation, acceptFolderShareInvitation } from "../services/firebase";
 import NotFoundPage from "./NotFoundPage";
 import Loading from "../components/Loading";
-import { enqueueSnackbar } from "notistack";
-import { Variant } from "../utils/types";
+import { toast } from "sonner";
 
 const AcceptInvitation: React.FC = () => {
     const [searchParams] = useSearchParams();
@@ -25,12 +24,9 @@ const AcceptInvitation: React.FC = () => {
         const acceptInvitation = async () => {
             const { error } = await acceptShareInvitation(invitationId, type);
             const message = error ? error : `You have successfully accepted the invitation to collab on ${type}!`;
-            const variant: Variant = error ? 'error' : 'success';
             if (error) setNotFound(true);
-            enqueueSnackbar(message, {
-                variant: variant,
-                preventDuplicate: true
-            });
+            if (error) toast.error(message);
+            else toast.success(message);
             setLoading(false);
         };
 
