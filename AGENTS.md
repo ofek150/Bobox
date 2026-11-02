@@ -47,6 +47,6 @@ Direction: **shadcn/ui + Tailwind, soft & friendly, light + dark, comfortable de
 
 ## Conventions
 - **Mobile responsive across the board** (Ofek's requirement): every page and component must work at ~390px and at desktop width — no horizontal page overflow, controls reachable with one hand, nav collapses to icons. Verify in the OpenChamber browser panel with `browser.resize viewport=mobile` (390×844) and desktop, screenshot with `browser.capture`, and read the image before calling a step done.
-- Work on a `feat/*` branch and use **conventional commits** (`feat(client):`, `build(client):`, `docs:`, `chore:`); one commit per logical step. `main` is the integration branch; no CI workflows exist.
+- Work on a `feat/*` branch and use **conventional commits** (`feat(client):`, `build(client):`, `fix(client):`, `perf(client):`, `docs:`, `chore:`); one commit per logical step — keep dependency changes (`build`) out of code commits, assets (`perf`, `chore`) separate, and split a mixed commit with `git reset --soft` (never rewrite pushed history; the feature branch is local-only until the final merge). `main` is the integration branch; no CI workflows exist.
 - ESLint disables `no-unused-vars` and `no-explicit-any` (client) — don't clean up pre-existing `any` noise as a side effect of UI work.
 - Netlify + Firebase deploy to live production; never deploy, change build settings, or switch the deploy repo without explicit approval.
