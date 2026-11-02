@@ -11,7 +11,7 @@ import CircularProgressWithLabel from "../components/UI/CircularProgressWithLabe
 import { determinePartSize } from "../utils/helpers";
 import { useParams } from "react-router-dom";
 import NotFoundPage from "./NotFoundPage";
-import { enqueueSnackbar } from "notistack";
+import { toast } from "sonner";
 
 const UploadFile: React.FC = () => {
     const { folderId } = useParams();
@@ -331,10 +331,7 @@ const UploadFile: React.FC = () => {
     const handleError = (error: string | null = null) => {
         console.log("Error occured, error: ", error);
         const message: string = error ? error : 'Unexpected error occured, please try again later!';
-        enqueueSnackbar(message, {
-            variant: 'error',
-            preventDuplicate: true
-        });
+        toast.error(message);
     }
 
     const handleUploadError = (error: string | null = null) => {
@@ -380,7 +377,7 @@ const UploadFile: React.FC = () => {
                         sx={{ mb: 2 }}
                     />
 
-                    {uploading && <CircularProgressWithLabel value={progress} sx={{ mt: 1, mb: 2 }} />}
+                    {uploading && <CircularProgressWithLabel value={progress} className="mt-4 mb-2" />}
                     {!uploaded && !uploading && !generatingLink &&
                         (
                             <Button

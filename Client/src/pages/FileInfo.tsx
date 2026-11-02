@@ -6,7 +6,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Box, Button, Container, Paper, Modal } from '@mui/material';
 import Loading from '../components/Loading';
 import streamSaver from 'streamsaver';
-import { enqueueSnackbar } from 'notistack';
+import { toast } from "sonner";
 
 const FileInfo: React.FC = () => {
   const { ownerUid, fileId } = useParams();
@@ -49,10 +49,7 @@ const FileInfo: React.FC = () => {
 
   const handleError = (error: string | null = null) => {
     setError(error || "An error occurred while fetching file information");
-    enqueueSnackbar(error, {
-      variant: 'error',
-      preventDuplicate: true
-    });
+    toast.error(error);
 
     navigate("/user/folders/root");
   };

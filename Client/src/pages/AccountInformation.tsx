@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, getUserData, logout } from '../services/firebase';
 import Loading from '../components/Loading';
-import { enqueueSnackbar } from 'notistack';
+import { toast } from "sonner";
 import { useNavigate } from 'react-router';
 import { formatFileSize } from '../utils/helpers';
 
@@ -57,10 +57,7 @@ const AccountInformation: React.FC = () => {
 
     const handleError = (error: string | null = null) => {
         console.error(error);
-        enqueueSnackbar(error, {
-          variant: 'error',
-          preventDuplicate: true
-        });
+        toast.error(error);
       };
 
     if(loading) return <Loading />
