@@ -27,7 +27,7 @@ Functions (`cd Server/functions`): `npm run build` (tsc → gitignored `lib/`), 
 - `.env` is gitignored repo-wide and no credential copies live in the repo. Source of truth is the Netlify site. Netlify CLI is installed and logged in; site `cfd4c299-f0d1-4e04-a2ee-35668f31ebd3`:
   `netlify api getEnvVars --data '{"account_id":"62e18fd0c154f71ceccba807","filter":"all","site_id":"cfd4c299-f0d1-4e04-a2ee-35668f31ebd3"}'`
   (`getSiteEnvVars` rejects `site_id`; use `account_id` = team id). Never print values. Firebase console / R2: log in with the user, ask for tokens via the secret card, or regenerate with approval.
-- Google sign-in cannot be tested in the OpenChamber browser panel (Google blocks it as insecure); use an email/password account for dev testing.
+- Google sign-in cannot be tested in the OpenChamber browser panel (Google blocks it as insecure). There is a **dev test account** in the real project — `bobox.dev@mailinator.com`, password in `~/.config/bobox/dev-account.txt` (outside the repo; create a new one through `/signup` if that file is gone).
 
 ## Architecture notes
 - Every client→server call goes through `Client/src/services/firebase.ts` as an `httpsCallable` named exactly like the export in `Server/functions/src/index.ts`; those names are the API contract.
