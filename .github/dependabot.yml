@@ -1,0 +1,46 @@
+version: 2
+updates:
+  # Security-only updates: Dependabot opens a PR for every alert (the
+  # "automatic security updates from Dependabot alerts").
+  - package-ecosystem: npm
+    directory: "/Client"
+    type: security
+    open-pull-requests-limit: 99
+    schedule:
+      interval: daily
+  - package-ecosystem: npm
+    directory: "/Server/functions"
+    type: security
+    open-pull-requests-limit: 99
+    schedule:
+      interval: daily
+  # Routine version updates: weekly, grouped, minor+patch only.
+  # The two packages install with different package managers, so keep them
+  # in separate directories (Dependabot detects pnpm from the lockfile).
+  - package-ecosystem: npm
+    directory: "/Client"
+    schedule:
+      interval: weekly
+      day: sunday
+      time: "03:00"
+      timezone: Asia/Jerusalem
+    open-pull-requests-limit: 6
+    groups:
+      prod-minor-patch:
+        dependency-type: production
+        update-types: [minor, patch]
+      dev-minor-patch:
+        dependency-type: development
+        update-types: [minor, patch]
+  - package-ecosystem: npm
+    directory: "/Server/functions"
+    schedule:
+      interval: weekly
+      day: sunday
+      time: "03:00"
+      timezone: Asia/Jerusalem
+    open-pull-requests-limit: 6
+    groups:
+      minor-patch:
+        dependency-type: all
+        update-types: [minor, patch]
