@@ -1,4 +1,4 @@
-import * as functions from "firebase-functions";
+import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { AbortMultiPartUploadParams, CompleteMultiPartParams, GenerateDownloadLinkParams, LinkInfo, UploadFileParams, UploadPartParams } from "./utils/types.js";
@@ -34,35 +34,37 @@ const addFileToDatabase = async (userId: string, data: any) => {
   try {
     await addFileToDB(userId, fileToAdd);
   } catch (error: any) {
-    if (error instanceof functions.https.HttpsError) throw error;
+    if (error instanceof HttpsError) throw error;
     throw new Error("Failed to upload file");
   }
   return { fileKey: fileKey, fileId: fileId };
 }
 
-export const initiateSmallFileUpload = functions.https.onCall(
-  async (data: UploadFileParams, context) => {
+export const initiateSmallFileUpload = onCall({ cors: true },
 
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+  async (request: CallableRequest<UploadFileParams>) => {
+    const data = request.data;
+
+    if (!request.auth) throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
 
     const { fileName, folderId, fileType, fileSize } = data || {};
-    if (!folderId || !fileName || !fileSize || !fileType) throw new functions.https.HttpsError('invalid-argument', 'Missing arguments');
+    if (!folderId || !fileName || !fileSize || !fileType) throw new HttpsError('invalid-argument', 'Missing arguments');
 
-    if (fileSize > MAX_FILE_SIZE) if (fileSize > MAX_FILE_SIZE) throw new functions.https.HttpsError('invalid-argument', `The file is bigger than the max allowed file size (${MAX_FILE_SIZE_STRING})`);
-    if (folderId === "shared") throw new functions.https.HttpsError('permission-denied', 'You are not allowed to upload files here');
+    if (fileSize > MAX_FILE_SIZE) if (fileSize > MAX_FILE_SIZE) throw new HttpsError('invalid-argument', `The file is bigger than the max allowed file size (${MAX_FILE_SIZE_STRING})`);
+    if (folderId === "shared") throw new HttpsError('permission-denied', 'You are not allowed to upload files here');
 
     try {
 
-      const parentFolder = await getFolderById(context.auth.uid, folderId);
-      if (!parentFolder) throw new functions.https.HttpsError('not-found', 'Parent folder not found');
+      const parentFolder = await getFolderById(request.auth.uid, folderId);
+      if (!parentFolder) throw new HttpsError('not-found', 'Parent folder not found');
 
 
-      const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(parentFolder, context.auth.uid);
-      if (parentFolder.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to upload files to this folder');
+      const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(parentFolder, request.auth.uid);
+      if (parentFolder.ownerUid != request.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new HttpsError('permission-denied', 'You are not allowed to upload files to this folder');
 
-      if (await isUniqueFileName(context.auth.uid, fileName, folderId)) throw new functions.https.HttpsError('already-exists', 'File with the same name already exist in the current folder!');
+      if (await isUniqueFileName(request.auth.uid, fileName, folderId)) throw new HttpsError('already-exists', 'File with the same name already exist in the current folder!');
 
-      const { fileKey, fileId } = await addFileToDatabase(context.auth.uid, data);
+      const { fileKey, fileId } = await addFileToDatabase(request.auth.uid, data);
 
       const signedUrl = await getSignedUrl(
         r2,
@@ -77,54 +79,58 @@ export const initiateSmallFileUpload = functions.https.onCall(
 
       return { uploadUrl: signedUrl, fileId: fileId };
     } catch (error: any) {
-      if (error instanceof functions.https.HttpsError) throw error;
-      else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+      if (error instanceof HttpsError) throw error;
+      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
   }
 );
 
-export const completeSmallFileUpload = functions.https.onCall(
-  async (fileId: string, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+export const completeSmallFileUpload = onCall({ cors: true },
 
-    if (!fileId) throw new functions.https.HttpsError('invalid-argument', 'Missing arguments');
+  async (request: CallableRequest<string>) => {
+    const fileId = request.data;
+    if (!request.auth) throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+
+    if (!fileId) throw new HttpsError('invalid-argument', 'Missing arguments');
 
     try {
-      if (!await setFileUploaded(context.auth.uid, fileId, 1)) throw new functions.https.HttpsError('not-found', 'File not found');
+      if (!await setFileUploaded(request.auth.uid, fileId, 1)) throw new HttpsError('not-found', 'File not found');
 
-      await addPrivateDownloadLink(context.auth.uid, fileId);
+      await addPrivateDownloadLink(request.auth.uid, fileId);
 
       return { success: true };
     } catch (error: any) {
-      if (error instanceof functions.https.HttpsError) throw error;
-      else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+      if (error instanceof HttpsError) throw error;
+      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
   }
 );
 
-export const initiateMultipartUpload = functions.https.onCall(
-  async (data: UploadFileParams, context) => {
+export const initiateMultipartUpload = onCall({ cors: true },
 
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+  async (request: CallableRequest<UploadFileParams>) => {
+    const data = request.data;
+
+    if (!request.auth) throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
 
     const { fileName, folderId, fileType, fileSize } = data || {};
     if (!folderId || !fileName || !fileSize || !fileType) {
-      throw new functions.https.HttpsError('invalid-argument', 'Missing arguments');
+      throw new HttpsError('invalid-argument', 'Missing arguments');
     }
-    if (fileSize > MAX_FILE_SIZE) throw new functions.https.HttpsError('invalid-argument', `The file is bigger than the max allowed file size (${MAX_FILE_SIZE_STRING})`);
-    if (folderId === "shared") throw new functions.https.HttpsError('permission-denied', 'You are not allowed to upload files here');
+    if (fileSize > MAX_FILE_SIZE) throw new HttpsError('invalid-argument', `The file is bigger than the max allowed file size (${MAX_FILE_SIZE_STRING})`);
+    if (folderId === "shared") throw new HttpsError('permission-denied', 'You are not allowed to upload files here');
     try {
 
-      const parentFolder = await getFolderById(context.auth.uid, folderId);
-      if (!parentFolder) throw new functions.https.HttpsError('not-found', 'Parent folder not found');
+      const parentFolder = await getFolderById(request.auth.uid, folderId);
+      if (!parentFolder) throw new HttpsError('not-found', 'Parent folder not found');
 
-      const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(parentFolder, context.auth.uid);
-      if (parentFolder.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to upload files to this folder');
+      const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(parentFolder, request.auth.uid);
+      if (parentFolder.ownerUid != request.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new HttpsError('permission-denied', 'You are not allowed to upload files to this folder');
 
-      if (await isUniqueFileName(context.auth.uid, fileName, folderId)) throw new functions.https.HttpsError('already-exists', 'File with the same name already exist in the current folder!');
+      if (await isUniqueFileName(request.auth.uid, fileName, folderId)) throw new HttpsError('already-exists', 'File with the same name already exist in the current folder!');
 
 
-      const { fileKey, fileId } = await addFileToDatabase(context.auth.uid, data);
+      const { fileKey, fileId } = await addFileToDatabase(request.auth.uid, data);
 
       const createMultiPartUploadCommand = new CreateMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
@@ -136,31 +142,33 @@ export const initiateMultipartUpload = functions.https.onCall(
 
       return { uploadId: uploadId, fileId: fileId };
     } catch (error: any) {
-      if (error instanceof functions.https.HttpsError) throw error;
-      else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+      if (error instanceof HttpsError) throw error;
+      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
   }
 );
 
-export const generateUploadPartURL = functions.https.onCall(
-  async (data: UploadPartParams, context) => {
+export const generateUploadPartURL = onCall({ cors: true },
+
+  async (request: CallableRequest<UploadPartParams>) => {
+    const data = request.data;
     // Ensure the user is authenticated
-    if (!context.auth) {
-      throw new functions.https.HttpsError(
+    if (!request.auth) {
+      throw new HttpsError(
         "unauthenticated",
         "The function must be called while authenticated."
       );
     }
     const { fileId, partNumber, uploadId } = data || {};
     if (!fileId || !partNumber || !uploadId) {
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         "invalid-argument",
         "Missing arguments"
       );
     }
     try {
-      const file = await getFileById(context.auth.uid, fileId);
-      if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+      const file = await getFileById(request.auth.uid, fileId);
+      if (!file) throw new HttpsError('not-found', 'File not found');
 
       const uploadPartCommand = new UploadPartCommand({
         Bucket: process.env.R2_BUCKET_NAME,
@@ -178,10 +186,10 @@ export const generateUploadPartURL = functions.https.onCall(
       return { uploadUrl: signedUrl };
     } catch (error: any) {
       if (error && error.code && error.code.startsWith("auth/")) {
-        throw new functions.https.HttpsError("invalid-argument", error.message);
+        throw new HttpsError("invalid-argument", error.message);
       }
       console.log("Failed generate upload part url: ", error.message);
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         "internal",
         "Failed generate upload part url"
       );
@@ -189,17 +197,19 @@ export const generateUploadPartURL = functions.https.onCall(
   }
 );
 
-export const completeMultipartUpload = functions.https.onCall(
-  async (data: CompleteMultiPartParams, context) => {
+export const completeMultipartUpload = onCall({ cors: true },
+
+  async (request: CallableRequest<CompleteMultiPartParams>) => {
+    const data = request.data;
     // Ensure the user is authenticated
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    if (!request.auth) throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
     const { uploadId, fileId, uploadResults } = data || {};
     if (!fileId || !uploadId || !uploadResults || !fileId) {
-      throw new functions.https.HttpsError('invalid-argument', 'Missing arguments');
+      throw new HttpsError('invalid-argument', 'Missing arguments');
     }
     try {
-      const file = await getFileById(context.auth.uid, fileId);
-      if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+      const file = await getFileById(request.auth.uid, fileId);
+      if (!file) throw new HttpsError('not-found', 'File not found');
 
       const completeCommand = new CompleteMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
@@ -219,29 +229,31 @@ export const completeMultipartUpload = functions.https.onCall(
       const result = await r2.send(completeCommand);
 
       if (result.$metadata.httpStatusCode === 200) {
-        await setFileUploaded(context.auth.uid, data.fileId, data.uploadResults.length);
-        await addPrivateDownloadLink(context.auth.uid, data.fileId);
+        await setFileUploaded(request.auth.uid, data.fileId, data.uploadResults.length);
+        await addPrivateDownloadLink(request.auth.uid, data.fileId);
         return { success: true };
       }
       throw new Error('Unexpected error occurred');
 
     } catch (error: any) {
-      if (error instanceof functions.https.HttpsError) throw error;
-      else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+      if (error instanceof HttpsError) throw error;
+      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
   }
 );
 
-export const abortMultipartUpload = functions.https.onCall(
-  async (data: AbortMultiPartUploadParams, context) => {
+export const abortMultipartUpload = onCall({ cors: true },
+
+  async (request: CallableRequest<AbortMultiPartUploadParams>) => {
+    const data = request.data;
     // Ensure the user is authenticated
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    if (!request.auth) throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
 
     const { uploadId, fileId } = data || {};
-    if (!fileId || !uploadId) throw new functions.https.HttpsError('invalid-argument', 'Missing arguments');
+    if (!fileId || !uploadId) throw new HttpsError('invalid-argument', 'Missing arguments');
     try {
-      const file = await getFileById(context.auth.uid, fileId);
-      if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+      const file = await getFileById(request.auth.uid, fileId);
+      if (!file) throw new HttpsError('not-found', 'File not found');
 
       const abortCommand = new AbortMultipartUploadCommand({
         Bucket: process.env.R2_BUCKET_NAME,
@@ -251,7 +263,7 @@ export const abortMultipartUpload = functions.https.onCall(
 
       const result = await r2.send(abortCommand);
       if (result.$metadata.httpStatusCode === 204) {
-        await deleteFileFromDB(context.auth.uid, fileId);
+        await deleteFileFromDB(request.auth.uid, fileId);
         return { success: true };
       }
 
@@ -260,29 +272,31 @@ export const abortMultipartUpload = functions.https.onCall(
 
 
     } catch (error: any) {
-      if (error instanceof functions.https.HttpsError) throw error;
-      else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+      if (error instanceof HttpsError) throw error;
+      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
   }
 );
 
-export const generatePublicDownloadLink = functions.https.onCall(
-  async (data: GenerateDownloadLinkParams, context) => {
+export const generatePublicDownloadLink = onCall({ cors: true },
+
+  async (request: CallableRequest<GenerateDownloadLinkParams>) => {
+    const data = request.data;
     // Ensure the user is authenticated
-    if (!context.auth) {
-      throw new functions.https.HttpsError(
+    if (!request.auth) {
+      throw new HttpsError(
         'unauthenticated',
         'The function must be called while authenticated.'
       );
     }
     const { fileId, neverExpires, expiresAt } = data || {};
     if (!fileId) {
-      throw new functions.https.HttpsError('invalid-argument', 'Missing arguments');
+      throw new HttpsError('invalid-argument', 'Missing arguments');
     }
 
     try {
-      const file = await getFileById(context.auth.uid, fileId);
-      if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+      const file = await getFileById(request.auth.uid, fileId);
+      if (!file) throw new HttpsError('not-found', 'File not found');
 
       let expiresIn: number | null = null;
       const currentDate = new Date();
@@ -317,21 +331,21 @@ export const generatePublicDownloadLink = functions.https.onCall(
         expiresAt: expiresAt,
       };
 
-      const downloadId = await addLinkToDB(context.auth.uid, fileId, linkInfo);
-      const shareLink = `${WEBSITE_URL}/user/${context.auth.uid}/files/${fileId}?downloadId=${downloadId}`;
+      const downloadId = await addLinkToDB(request.auth.uid, fileId, linkInfo);
+      const shareLink = `${WEBSITE_URL}/user/${request.auth.uid}/files/${fileId}?downloadId=${downloadId}`;
 
       return { link: shareLink };
     } catch (error: any) {
       console.error('Error:', error.message);
-      if (error instanceof functions.https.HttpsError) throw error;
-      else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+      if (error instanceof HttpsError) throw error;
+      else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
   }
 );
 
 export const addPrivateDownloadLink = async (userId: string, fileId: string) => {
   const file = await getFileById(userId, fileId);
-  if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+  if (!file) throw new HttpsError('not-found', 'File not found');
 
   const currentDate = new Date();
   const expirationDate = new Date(currentDate);

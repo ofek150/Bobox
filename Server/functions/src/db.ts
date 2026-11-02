@@ -1,4 +1,4 @@
-import * as functions from "firebase-functions";
+import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
 import { FileEntry, LinkInfo, SharedFile, DownloadInfoParams, RenameFileParams, CreateFolderParams, MoveFileToFolderParams, RenameFolderParams, ShareFileParams, ShareFolderParams } from "./utils/types.js";
 import { ACCESS_LEVEL, SEVEN_DAYS_SECONDS, WEBSITE_URL } from "./utils/constants.js";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
@@ -80,7 +80,7 @@ export const getWebsiteDocRef = async () => {
 
 export const addLinkToDB = async (uid: string, fileId: string, linkInfo: LinkInfo) => {
     const fileRef = await getFileRefById(uid, fileId);
-    if (!fileRef) throw new functions.https.HttpsError('not-found', 'File not found');
+    if (!fileRef) throw new HttpsError('not-found', 'File not found');
 
     const expirationDate = new Date(linkInfo.expiresAt);
     const linkDocRef = await fileRef.collection('links').add({
@@ -111,14 +111,14 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
     const websiteData = (await websiteDocRef.get()).data();
 
     if (websiteData!.totalFileSize == websiteData!.maxTotalFileSize) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             'resource-exhausted',
             `Website has reached the maximum total file size limit (${formatFileSize(websiteData!.maxTotalFileSize)})`
         );
     }
 
     if (websiteData!.totalFileSize + file.fileSize > websiteData!.maxTotalFileSize) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             'invalid-argument',
             `Adding this file would exceed the website's maximum total file size limit (${formatFileSize(websiteData!.maxTotalFileSize)})`
         );
@@ -127,14 +127,14 @@ export const addFileToDB = async (userId: string, file: FileEntry) => {
     const user = (await userRef.get()).data();
 
     if (user!.totalFileSize == user!.maxTotalFileSize) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             'resource-exhausted',
             `User has reached the maximum total file size limit (${formatFileSize(user!.maxTotalFileSize)})`
         );
     }
 
     if (user!.totalFileSize + file.fileSize > user!.maxTotalFileSize) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             'invalid-argument',
             `Adding this file would exceed the user's maximum total file size limit (${formatFileSize(user!.maxTotalFileSize)})`
         );
@@ -294,7 +294,7 @@ export const deleteFileFromDB = async (uid: string, fileId: string) => {
 
 export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid: string, fileId: string, downloadId: string) => {
     const fileRef = await getFileRefById(ownerUid, fileId);
-    if (!fileRef) throw new functions.https.HttpsError('not-found', 'File not found');
+    if (!fileRef) throw new HttpsError('not-found', 'File not found');
     const fileData = (await fileRef.get()).data();
 
     const linkDocRef = fileRef.collection('links').doc(downloadId);
@@ -306,12 +306,12 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
 
     if (!file || !linkInfo) throw new Error('File or link does not exist');
 
-    if (!linkInfo.isPublic && (downloaderUid != ownerUid && !file.collaborators[downloaderUid])) throw new functions.https.HttpsError('permission-denied', "You are not allowed to access this file");
+    if (!linkInfo.isPublic && (downloaderUid != ownerUid && !file.collaborators[downloaderUid])) throw new HttpsError('permission-denied', "You are not allowed to access this file");
 
     let downloadLink = linkInfo.downloadLink;
     if (!linkInfo.isPermanent && linkInfo.expiresAt && linkInfo.expiresAt.toDate() < new Date()) {
         await linkDocRef.delete();
-        throw new functions.https.HttpsError('invalid-argument', 'Download link has expired');
+        throw new HttpsError('invalid-argument', 'Download link has expired');
     }
     else if (linkInfo.isPermanent && linkInfo.expiresAt && linkInfo.expiresAt.toDate() < new Date()) {
         downloadLink = await generateDownloadLink(fileData.fileKey, SEVEN_DAYS_SECONDS);
@@ -339,34 +339,36 @@ export const getFileDownloadInfoFromDB = async (downloaderUid: string, ownerUid:
 export const getFilePrivateDownloadIdFromDB = async (userId: string, fileId: string) => {
     const file = await getFileById(userId, fileId);
 
-    if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+    if (!file) throw new HttpsError('not-found', 'File not found');
     return file.privateLinkDownloadId;
 }
 
-export const getFileDownloadInfo = functions.https.onCall(async (data: DownloadInfoParams, context) => {
+export const getFileDownloadInfo = onCall({ cors: true }, async (request: CallableRequest<DownloadInfoParams>) => {
+    const data = request.data;
     try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User not authenticated');
         }
         const { ownerUid, fileId, downloadId } = data || {};
 
         if (!ownerUid || !fileId || !downloadId) {
-            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+            throw new HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        const result = await getFileDownloadInfoFromDB(context.auth.uid, ownerUid, fileId, downloadId);
+        const result = await getFileDownloadInfoFromDB(request.auth.uid, ownerUid, fileId, downloadId);
         return { fileInfo: result };
     } catch (error: any) {
         console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof HttpsError) throw error;
+        else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
-export const renameFile = functions.https.onCall(async (data: RenameFileParams, context) => {
+export const renameFile = onCall({ cors: true }, async (request: CallableRequest<RenameFileParams>) => {
+    const data = request.data;
     try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User not authenticated');
         }
 
         console.log(data);
@@ -375,17 +377,17 @@ export const renameFile = functions.https.onCall(async (data: RenameFileParams, 
         console.log("FileId: ", fileId, " New file name: ", newFileName);
 
         if (!fileId || !newFileName) {
-            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+            throw new HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        const fileRef = await getFileRefById(context.auth.uid, fileId);
+        const fileRef = await getFileRefById(request.auth.uid, fileId);
 
-        if (!fileRef) throw new functions.https.HttpsError('not-found', 'File not found');
+        if (!fileRef) throw new HttpsError('not-found', 'File not found');
 
         const file = (await fileRef.get()).data();
 
-        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, context.auth.uid);
-        if (file!.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this file');
+        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, request.auth.uid);
+        if (file!.ownerUid != request.auth.uid && accessLevel > ACCESS_LEVEL.OPERATOR) throw new HttpsError('permission-denied', 'You are not allowed to rename this file');
 
         const oldFileName = file!.fileName;
         const oldFileExtension = oldFileName.includes('.') ? oldFileName.split('.').pop() : '';
@@ -398,8 +400,8 @@ export const renameFile = functions.https.onCall(async (data: RenameFileParams, 
         return { success: true };
     } catch (error: any) {
         console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof HttpsError) throw error;
+        else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
@@ -427,31 +429,32 @@ export const doesFolderNameExistInFolder = async (uid: string, parentFolderId: s
     return !folderDocs.empty;
 };
 
-export const createFolder = functions.https.onCall(async (data: CreateFolderParams, context) => {
+export const createFolder = onCall({ cors: true }, async (request: CallableRequest<CreateFolderParams>) => {
+    const data = request.data;
     try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User not authenticated');
         }
         const { folderName, parentFolderId } = data || {};
 
         if (!folderName || !parentFolderId) {
-            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+            throw new HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        if (parentFolderId === 'shared') throw new functions.https.HttpsError('permission-denied', 'You are not allowed to create folders here');
+        if (parentFolderId === 'shared') throw new HttpsError('permission-denied', 'You are not allowed to create folders here');
 
-        const parentFolderRef = await getFolderRefById(context.auth.uid, parentFolderId);
-        if (!parentFolderRef) throw new functions.https.HttpsError('invalid-argument', 'Parent folder does not exist');
+        const parentFolderRef = await getFolderRefById(request.auth.uid, parentFolderId);
+        if (!parentFolderRef) throw new HttpsError('invalid-argument', 'Parent folder does not exist');
         const parentFolder = (await parentFolderRef.get()).data();
         if (!parentFolder) throw new Error('Unknown error occurred');
 
-        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(parentFolder, context.auth.uid);
-        if (parentFolder.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to create folders here');
+        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(parentFolder, request.auth.uid);
+        if (parentFolder.ownerUid != request.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new HttpsError('permission-denied', 'You are not allowed to create folders here');
 
         const db = getFirestore();
 
 
-        if (await doesFolderNameExistInFolder(context.auth.uid, parentFolderId, folderName)) throw new functions.https.HttpsError('already-exists', 'Folder with the same name already exist in the current folder!');
+        if (await doesFolderNameExistInFolder(request.auth.uid, parentFolderId, folderName)) throw new HttpsError('already-exists', 'Folder with the same name already exist in the current folder!');
 
 
 
@@ -484,37 +487,38 @@ export const createFolder = functions.https.onCall(async (data: CreateFolderPara
         return { success: true };
     } catch (error: any) {
         console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof HttpsError) throw error;
+        else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 
 });
 
-export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFolderParams, context) => {
+export const moveFileToFolder = onCall({ cors: true }, async (request: CallableRequest<MoveFileToFolderParams>) => {
+    const data = request.data;
     try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User not authenticated');
         }
 
         const { fileId, currentFolderId, newFolderId } = data || {};
 
         if (!fileId || !currentFolderId || !newFolderId) {
-            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+            throw new HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        if (currentFolderId === newFolderId) throw new functions.https.HttpsError('already-exists', 'File already exists in that folder');
+        if (currentFolderId === newFolderId) throw new HttpsError('already-exists', 'File already exists in that folder');
         if (newFolderId === "shared") throw new Error("You are not allowed to upload files here");
 
-        const fileRef = await getFileRefById(context.auth.uid, fileId);
-        if (!fileRef) throw new functions.https.HttpsError('not-found', 'File not found');
+        const fileRef = await getFileRefById(request.auth.uid, fileId);
+        if (!fileRef) throw new HttpsError('not-found', 'File not found');
 
         const fileData = (await fileRef.get()).data();
-        if (context.auth.uid != fileData?.ownerUid) throw new functions.https.HttpsError('permission-denied', 'Only the owner can move shared file');
+        if (request.auth.uid != fileData?.ownerUid) throw new HttpsError('permission-denied', 'Only the owner can move shared file');
 
         // Check if the file exists in the current folder
         const currFolderId = currentFolderId === "shared" ? "root" : currentFolderId
-        const currentFolderRef = await getFolderRefById(context.auth.uid, currFolderId);
-        if (!currentFolderRef) throw new functions.https.HttpsError('not-found', 'Current folder not found');
+        const currentFolderRef = await getFolderRefById(request.auth.uid, currFolderId);
+        if (!currentFolderRef) throw new HttpsError('not-found', 'Current folder not found');
 
 
         const currentFolderData = (await currentFolderRef.get()).data();
@@ -526,8 +530,8 @@ export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFo
 
         await currentFolderRef.update({ files: FieldValue.arrayRemove(fileId) });
 
-        const newFolderRef = await getFolderRefById(context.auth.uid, newFolderId);
-        if (!newFolderRef) throw new functions.https.HttpsError('not-found', 'New folder not found');
+        const newFolderRef = await getFolderRefById(request.auth.uid, newFolderId);
+        if (!newFolderRef) throw new HttpsError('not-found', 'New folder not found');
 
         await newFolderRef.update({ files: FieldValue.arrayUnion(fileId) });
 
@@ -536,32 +540,33 @@ export const moveFileToFolder = functions.https.onCall(async (data: MoveFileToFo
         return { success: true };
     } catch (error: any) {
         console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof HttpsError) throw error;
+        else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
-export const renameFolder = functions.https.onCall(async (data: RenameFolderParams, context) => {
+export const renameFolder = onCall({ cors: true }, async (request: CallableRequest<RenameFolderParams>) => {
+    const data = request.data;
     try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User not authenticated');
         }
         const { folderId, newFolderName } = data || {};
         if (!folderId || !newFolderName) {
-            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+            throw new HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        if (folderId === "root") throw new functions.https.HttpsError('permission-denied', 'Cannot rename root folder');
-        if (folderId === "shared") throw new functions.https.HttpsError('permission-denied', 'Cannot rename shared folder');
+        if (folderId === "root") throw new HttpsError('permission-denied', 'Cannot rename root folder');
+        if (folderId === "shared") throw new HttpsError('permission-denied', 'Cannot rename shared folder');
 
-        const folderRef = await getFolderRefById(context.auth.uid, folderId);
+        const folderRef = await getFolderRefById(request.auth.uid, folderId);
         if (!folderRef) {
-            throw new functions.https.HttpsError('not-found', 'Folder not found');
+            throw new HttpsError('not-found', 'Folder not found');
         }
         const folder = (await folderRef.get()).data();
 
-        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(folder, context.auth.uid);
-        if (folder!.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.OPERATOR) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to rename this folder');
+        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(folder, request.auth.uid);
+        if (folder!.ownerUid != request.auth.uid && accessLevel > ACCESS_LEVEL.OPERATOR) throw new HttpsError('permission-denied', 'You are not allowed to rename this folder');
 
         await folderRef.update({
             'folderName': newFolderName
@@ -570,8 +575,8 @@ export const renameFolder = functions.https.onCall(async (data: RenameFolderPara
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof HttpsError) throw error;
+        else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
@@ -623,31 +628,32 @@ const getInvitationById = async (invitationId: string) => {
     }
 };
 
-export const shareFileWithUserByEmail = functions.https.onCall(async (data: ShareFileParams, context) => {
+export const shareFileWithUserByEmail = onCall({ cors: true }, async (request: CallableRequest<ShareFileParams>) => {
+    const data = request.data;
     try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User not authenticated');
         }
         const { email, fileId, accessLevel } = data || {};
         if (!email || !fileId || !accessLevel || accessLevel < ACCESS_LEVEL.ADMIN || accessLevel > ACCESS_LEVEL.VIEWER) {
-            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+            throw new HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        const file = await getFileById(context.auth.uid, fileId);
-        if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+        const file = await getFileById(request.auth.uid, fileId);
+        if (!file) throw new HttpsError('not-found', 'File not found');
 
-        const userAccessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, context.auth.uid);
-        if (file.ownerUid != context.auth.uid && userAccessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to share this file');
+        const userAccessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, request.auth.uid);
+        if (file.ownerUid != request.auth.uid && userAccessLevel > ACCESS_LEVEL.ADMIN) throw new HttpsError('permission-denied', 'You are not allowed to share this file');
 
-        const user = await getUserById(context.auth.uid);
+        const user = await getUserById(request.auth.uid);
         const invitedUser = await getUserByEmail(email);
 
         if (!invitedUser || !user) {
-            throw new functions.https.HttpsError('not-found', 'Invited user not found');
+            throw new HttpsError('not-found', 'Invited user not found');
         }
 
 
-        if (await isFileCollaborator(fileId, context.auth.uid, invitedUser.uid)) throw new functions.https.HttpsError('already-exists', 'User is already a collaborator on the folder');
+        if (await isFileCollaborator(fileId, request.auth.uid, invitedUser.uid)) throw new HttpsError('already-exists', 'User is already a collaborator on the folder');
 
         const db = getFirestore();
         const invitationDocRef = await db.collection('invitations').add({
@@ -698,35 +704,36 @@ export const shareFileWithUserByEmail = functions.https.onCall(async (data: Shar
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof HttpsError) throw error;
+        else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
-export const shareFolderWithUserByEmail = functions.https.onCall(async (data: ShareFolderParams, context) => {
+export const shareFolderWithUserByEmail = onCall({ cors: true }, async (request: CallableRequest<ShareFolderParams>) => {
+    const data = request.data;
     try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User not authenticated');
         }
         const { email, folderId, accessLevel } = data || {};
         if (!email || !folderId || !accessLevel || accessLevel < ACCESS_LEVEL.ADMIN || accessLevel > ACCESS_LEVEL.VIEWER) {
-            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+            throw new HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
-        const folder = await getFolderById(context.auth.uid, folderId);
-        if (!folder) throw new functions.https.HttpsError('not-found', 'Folder not found');
+        const folder = await getFolderById(request.auth.uid, folderId);
+        if (!folder) throw new HttpsError('not-found', 'Folder not found');
 
-        const userAccessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(folder, context.auth.uid);
-        if (folder.ownerUid != context.auth.uid && userAccessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to share this folder');
+        const userAccessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(folder, request.auth.uid);
+        if (folder.ownerUid != request.auth.uid && userAccessLevel > ACCESS_LEVEL.ADMIN) throw new HttpsError('permission-denied', 'You are not allowed to share this folder');
 
-        const user = await getUserById(context.auth.uid);
+        const user = await getUserById(request.auth.uid);
         const invitedUser = await getUserByEmail(email);
 
         if (!invitedUser || !user) {
-            throw new functions.https.HttpsError('not-found', 'Invited user not found');
+            throw new HttpsError('not-found', 'Invited user not found');
         }
 
-        if (await isFolderCollaborator(folderId, context.auth.uid, invitedUser.uid)) throw new functions.https.HttpsError('already-exists', 'User is already a collaborator on the folder');
+        if (await isFolderCollaborator(folderId, request.auth.uid, invitedUser.uid)) throw new HttpsError('already-exists', 'User is already a collaborator on the folder');
 
         const db = getFirestore();
         const invitationDocRef = await db.collection('invitations').add({
@@ -777,8 +784,8 @@ export const shareFolderWithUserByEmail = functions.https.onCall(async (data: Sh
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof HttpsError) throw error;
+        else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
@@ -887,32 +894,33 @@ const addCollaboratorToFolder = async (folderId: string, ownerId: string, invite
     }
 }
 
-export const acceptFileShareInvitation = functions.https.onCall(async (invitationId: string, context) => {
+export const acceptFileShareInvitation = onCall({ cors: true }, async (request: CallableRequest<string>) => {
+    const invitationId = request.data;
     try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User not authenticated');
         }
 
         if (!invitationId) {
-            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+            throw new HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
         const db = getFirestore();
 
         const invitation = await getInvitationById(invitationId);
 
-        if (!invitation) throw new functions.https.HttpsError('not-found', 'Invitation not found');
+        if (!invitation) throw new HttpsError('not-found', 'Invitation not found');
 
-        if (invitation.type != 'file') throw new functions.https.HttpsError('invalid-argument', 'Incorrect invitation type');
+        if (invitation.type != 'file') throw new HttpsError('invalid-argument', 'Incorrect invitation type');
 
-        //if (invitation.used) throw new functions.https.HttpsError('invalid-argument', 'Invitation was already used');
+        //if (invitation.used) throw new HttpsError('invalid-argument', 'Invitation was already used');
 
         const invitedUser = await getUserById(invitation.invitedUserId);
 
         if (!invitedUser) throw new Error('Unexpected error occurred');
 
-        if (invitedUser.uid != context.auth.uid) {
-            throw new functions.https.HttpsError('permission-denied', 'You do not have permission to accept this invitation');
+        if (invitedUser.uid != request.auth.uid) {
+            throw new HttpsError('permission-denied', 'You do not have permission to accept this invitation');
         }
 
         await addCollaboratorToFile(invitation.fileId, invitation.ownerId, invitedUser, invitation.accessLevel);
@@ -923,37 +931,38 @@ export const acceptFileShareInvitation = functions.https.onCall(async (invitatio
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof HttpsError) throw error;
+        else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
-export const acceptFolderShareInvitation = functions.https.onCall(async (invitationId: string, context) => {
+export const acceptFolderShareInvitation = onCall({ cors: true }, async (request: CallableRequest<string>) => {
+    const invitationId = request.data;
     try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User not authenticated');
         }
 
         if (!invitationId) {
-            throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+            throw new HttpsError('invalid-argument', 'Invalid or missing parameters');
         }
 
         const db = getFirestore();
 
         const invitation = await getInvitationById(invitationId);
 
-        if (!invitation) throw new functions.https.HttpsError('not-found', 'Invitation not found');
+        if (!invitation) throw new HttpsError('not-found', 'Invitation not found');
 
-        if (invitation.type != 'folder') throw new functions.https.HttpsError('invalid-argument', 'Incorrect invitation type');
+        if (invitation.type != 'folder') throw new HttpsError('invalid-argument', 'Incorrect invitation type');
 
-        //if (invitation.used) throw new functions.https.HttpsError('invalid-argument', 'Invitation was already used');
+        //if (invitation.used) throw new HttpsError('invalid-argument', 'Invitation was already used');
 
         const invitedUser = await getUserById(invitation.invitedUserId);
 
         if (!invitedUser) throw new Error('Unexpected error occurred');
 
-        if (invitedUser.uid != context.auth.uid) {
-            throw new functions.https.HttpsError('permission-denied', 'You do not have permission to accept this invitation');
+        if (invitedUser.uid != request.auth.uid) {
+            throw new HttpsError('permission-denied', 'You do not have permission to accept this invitation');
         }
 
         await addCollaboratorToFolder(invitation.folderId, invitation.ownerId, invitedUser, invitation.accessLevel)
@@ -964,62 +973,64 @@ export const acceptFolderShareInvitation = functions.https.onCall(async (invitat
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof HttpsError) throw error;
+        else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
-export const deleteFile = functions.https.onCall(async (fileId: string, context) => {
+export const deleteFile = onCall({ cors: true }, async (request: CallableRequest<string>) => {
+    const fileId = request.data;
     try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User not authenticated');
         }
 
-        const file = await getFileById(context.auth.uid, fileId);
-        if (!file) throw new functions.https.HttpsError('not-found', 'File not found');
+        const file = await getFileById(request.auth.uid, fileId);
+        if (!file) throw new HttpsError('not-found', 'File not found');
 
-        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, context.auth.uid);
-        if (file.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to delete this file');
+        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(file, request.auth.uid);
+        if (file.ownerUid != request.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new HttpsError('permission-denied', 'You are not allowed to delete this file');
         await deleteFileFromCloudStorage(file.fileKey);
-        await deleteFileFromDB(context.auth.uid, fileId)
+        await deleteFileFromDB(request.auth.uid, fileId)
         return { success: true };
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof HttpsError) throw error;
+        else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
 
-export const deleteFolder = functions.https.onCall(async (folderId: string, context) => {
+export const deleteFolder = onCall({ cors: true }, async (request: CallableRequest<string>) => {
+    const folderId = request.data;
     try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'User not authenticated');
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'User not authenticated');
         }
 
-        if (!folderId) throw new functions.https.HttpsError('invalid-argument', 'Invalid or missing parameters');
+        if (!folderId) throw new HttpsError('invalid-argument', 'Invalid or missing parameters');
 
-        if (folderId === "root") throw new functions.https.HttpsError('permission-denied', 'Cannot delete root folder');
-        if (folderId === "shared") throw new functions.https.HttpsError('permission-denied', 'Cannot delete shared folder');
+        if (folderId === "root") throw new HttpsError('permission-denied', 'Cannot delete root folder');
+        if (folderId === "shared") throw new HttpsError('permission-denied', 'Cannot delete shared folder');
 
-        const folderRef = await getFolderRefById(context.auth.uid, folderId);
-        if (!folderRef) throw new functions.https.HttpsError('not-found', 'Folder not found');
+        const folderRef = await getFolderRefById(request.auth.uid, folderId);
+        if (!folderRef) throw new HttpsError('not-found', 'Folder not found');
         const folder = (await folderRef.get()).data();
 
-        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(folder, context.auth.uid);
-        if (folder!.ownerUid != context.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new functions.https.HttpsError('permission-denied', 'You are not allowed to delete this folder');
+        const accessLevel: ACCESS_LEVEL = getCollaboratorAccessLevel(folder, request.auth.uid);
+        if (folder!.ownerUid != request.auth.uid && accessLevel > ACCESS_LEVEL.ADMIN) throw new HttpsError('permission-denied', 'You are not allowed to delete this folder');
 
         try {
             const fileIds = folder!.files;
             const fileKeys: string[] = [];
             if (fileIds && fileIds.length > 0) {
                 for (const fileId of fileIds) {
-                    const fileRef = await getFileRefById(context.auth.uid, fileId);
+                    const fileRef = await getFileRefById(request.auth.uid, fileId);
                     if (!fileRef) continue;
                     const file = (await fileRef.get()).data();
                     console.log("Deleting file file with key: ", file!.fileKey);
                     fileKeys.push(file!.fileKey);
-                    await deleteFileFromDB(context.auth.uid, fileId)
+                    await deleteFileFromDB(request.auth.uid, fileId)
                 }
 
                 await deleteFilesFromCloudStorage(fileKeys);
@@ -1030,7 +1041,7 @@ export const deleteFolder = functions.https.onCall(async (folderId: string, cont
                     await deleteSharedFolderEntryFromCollaborator(key, folderId);
                 }
             }
-            const parentFolderRef = await getFolderRefById(context.auth.uid, folder!.parentFolderId);
+            const parentFolderRef = await getFolderRefById(request.auth.uid, folder!.parentFolderId);
             if (!parentFolderRef) return;
 
             await parentFolderRef.update({ folders: FieldValue.arrayRemove(folderId) });
@@ -1044,7 +1055,7 @@ export const deleteFolder = functions.https.onCall(async (folderId: string, cont
 
     } catch (error: any) {
         console.error('Error:', error.message);
-        if (error instanceof functions.https.HttpsError) throw error;
-        else throw new functions.https.HttpsError('internal', 'Internal Server Error', { message: error.message });
+        if (error instanceof HttpsError) throw error;
+        else throw new HttpsError('internal', 'Internal Server Error', { message: error.message });
     }
 });
