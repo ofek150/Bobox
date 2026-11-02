@@ -58,6 +58,13 @@ export interface File {
     privateLinkDownloadId: string;
 }
 
+/** One collaborator's identity and access, as stored on file/folder docs. */
+export interface CollaboratorEntry {
+    name?: string;
+    email?: string;
+    accessLevel: number;
+}
+
 export interface Folder {
     folderId: string;
     folderName: string;
@@ -65,7 +72,7 @@ export interface Folder {
     createdAt: string | null;
     files: string[];
     folders: string[];
-    collaborators: {};
+    collaborators: Record<string, CollaboratorEntry>;
     shared: boolean;
     ownerUid: string;
 }

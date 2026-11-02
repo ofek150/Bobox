@@ -20,7 +20,8 @@ import { generatePublicDownloadLink, getFileInfo, shareFileWithUserByEmail } fro
 import MoveToFileFolderDialog from './MoveFileOrFolderDialog';
 import ConfirmDialog from './UI/ConfirmDialog';
 import ShareDialog from './UI/ShareDialog';
-import PreviewDialog, { previewKind } from './UI/PreviewDialog';
+import PreviewDialog from './UI/PreviewDialog';
+import { previewKind } from './UI/previewKind';
 import { FileIcon } from './UI/FileTypeIcon';
 import { useContextMenuGesture } from '../hooks/useContextMenuGesture';
 import { Button } from '@/components/ui/button';

@@ -31,7 +31,7 @@ const AcceptInvitation: React.FC = () => {
         };
 
         acceptInvitation();
-    }, [invitationId]);
+    }, [invitationId, type]);
 
     if (notFound) {
         return <NotFoundPage />;
