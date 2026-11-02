@@ -1,12 +1,12 @@
 # Bobox
 
-File-sharing platform: React 18 + Vite + Tailwind/shadcn client (MUI v5 fully removed on the overhaul branch), Firebase Cloud Functions backend, Cloudflare R2 object storage. Two independent packages, no workspace root: `Client/` and `Server/functions/`. Personal project, dormant since 2024; the active work is a full UI overhaul on branch `feat/ui-overhaul-shadcn`.
+File-sharing platform: React 18 + Vite + Tailwind/shadcn client (the full MUI v5 → shadcn/Tailwind UI overhaul merged into `main` and live in production as of 2026-11-02), Firebase Cloud Functions backend, Cloudflare R2 object storage. Two independent packages, no workspace root: `Client/` and `Server/functions/`.
 
 ## Layout
 - `Client/` — Vite + React + TS app. shadcn/ui components live in `Client/src/components/ui`, theme tokens in `Client/src/index.css`.
 - `Server/functions/` — Firebase v1 (ESM, Node 18 engine) https callables + one auth trigger. Rules in `Server/firestore.rules`; project `bobox-fe3c8` (`Server/.firebaserc`).
 - `Client/src/utils/` and `Server/functions/src/utils/` (`types.ts`, `constants.ts`, `helpers.ts`) are **manual duplicates** — a wire-format change must be edited in both.
-- The Netlify site builds from a **private GitLab repo** (`gitlab.com/ofek150/bobox`, base dir `Client`, cmd `yarn build`), not from the GitHub origin. Pushing GitHub alone does not deploy. Switching the site to GitHub + `pnpm build` is a planned step at the end of the overhaul.
+- The Netlify site (id `cfd4c299-f0d1-4e04-a2ee-35668f31ebd3`) still **links to the private GitLab repo** (`gitlab.com/ofek150/bobox`, base dir `Client`, cmd `yarn build`), so a GitHub push does not auto-deploy. Production ships via CLI: `cd Client && pnpm build && env -u NODE_ENV netlify deploy --prod --dir=dist --site cfd4c299-f0d1-4e04-a2ee-35668f31ebd3` (shipped 2026-11-02 from `main`). The repo-root `netlify.toml` (base `Client`, `pnpm build`, Node 22, SPA redirect) takes effect once the site is linked to GitHub — that switch needs the Netlify GitHub app connected in the dashboard (API repoint 500s without it).
 
 ## Commands
 Client uses **pnpm 10.14** (`packageManager` field; corepack is enabled on this PC). `Server/functions/` uses **npm** with `yarn.lock` present — leave it. There is **no test suite** in either package.
