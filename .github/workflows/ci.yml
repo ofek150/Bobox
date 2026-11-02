@@ -34,3 +34,52 @@ jobs:
         working-directory: Server/functions
       - run: yarn build
         working-directory: Server/functions
+
+  # Deploy the Cloud Functions after a green functions build on main.
+  # The live functions get their credentials from Server/functions/.env at
+  # deploy time, so CI rebuilds that file from repo secrets before deploying -
+  # a deploy without it would strip the live env vars.
+  deploy-functions:
+    name: deploy-functions
+    needs: functions-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+      SENDER_EMAIL_ADDRESS: ${{ secrets.SENDER_EMAIL_ADDRESS }}
+      SENDER_EMAIL_PASSWORD: ${{ secrets.SENDER_EMAIL_PASSWORD }}
+      _FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+      _FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+      _FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+      _FIREBASE_MEASUREMENT_ID: ${{ secrets.FIREBASE_MEASUREMENT_ID }}
+      _FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+      _FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+      _FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: yarn
+          cache-dependency-path: Server/functions/yarn.lock
+      - run: yarn install --frozen-lockfile
+        working-directory: Server/functions
+      - name: Rebuild functions .env from secrets
+        working-directory: Server/functions
+        run: |
+          for k in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET_NAME \
+                   SENDER_EMAIL_ADDRESS SENDER_EMAIL_PASSWORD \
+                   _FIREBASE_API_KEY _FIREBASE_APP_ID _FIREBASE_AUTH_DOMAIN \
+                   _FIREBASE_MEASUREMENT_ID _FIREBASE_MESSAGING_SENDER_ID \
+                   _FIREBASE_PROJECT_ID _FIREBASE_STORAGE_BUCKET; do
+            printf '%s=%s\n' "$k" "${!k}"
+          done > .env
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Deploy functions
+        working-directory: Server
+        run: npx --yes firebase-tools@15 deploy --only functions --project bobox-fe3c8 --non-interactive
