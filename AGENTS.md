@@ -21,6 +21,8 @@ Client (`cd Client`):
 
 Functions (`cd Server/functions`): `npm run build` (tsc → gitignored `lib/`), `npm run lint` (Google config), `npm run serve` (emulators, functions only), `npm run deploy` (predeploy runs lint + build, so lint failures block deploy).
 
+CI (`.github/workflows/ci.yml`): `client-build` (Node 22 + `corepack enable`, pnpm) and `functions-build` (Node **18** — the package `engines` pin + yarn enforces it) run on every PR and push to `main`; both are required checks on `main` (strict, `enforce_admins` off so direct pushes still work). Actions policy must stay `allowed_actions: all` — it shipped as `local_only`, which made every workflow using `actions/*` fail as `startup_failure` in 0s. Lint is deliberately NOT a CI gate (red baseline). Functions are deployed manually (`npm run deploy`); CI never deploys.
+
 ## Local development
 - `Client/src/services/firebase.ts` connects to Firebase emulators **only when `VITE_USE_FIREBASE_EMULATORS=1`** (Firestore `:8080`, Functions `:5001` — not the default 5000, Auth `:9099`; `firebase emulators:start --only auth,firestore,functions` from `Server/`). Unset = the dev app uses the **real** `bobox-fe3c8` project, so real logins and real files work in dev. `Client/.env.example` lists every var.
 - `Client/.env` needs the 7 `VITE_*` Firebase web-config keys; missing ones compile fine and break at runtime.
