@@ -25,7 +25,11 @@ export const db = getFirestore(app);
 const functions = getFunctions(app);
 
 
-if (process.env.NODE_ENV === 'development') {
+// Emulators are opt-in: set VITE_USE_FIREBASE_EMULATORS=1 to talk to the local
+// Firebase suite (run `firebase emulators:start` from Server/) instead of the real project.
+const USE_FIREBASE_EMULATORS = import.meta.env.VITE_USE_FIREBASE_EMULATORS === "1";
+
+if (USE_FIREBASE_EMULATORS) {
   connectFirestoreEmulator(db, "localhost", 8080);
   connectFunctionsEmulator(functions, "localhost", 5001);
   connectAuthEmulator(auth, "http://localhost:9099");
