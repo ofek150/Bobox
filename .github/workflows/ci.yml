@@ -82,4 +82,4 @@ jobs:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       - name: Deploy functions
         working-directory: Server
-        run: npx --yes firebase-tools@15 deploy --only functions --project bobox-fe3c8 --non-interactive
+        run: npx --yes firebase-tools@15 deploy --only functions --project bobox-fe3c8 --non-interactive --force
