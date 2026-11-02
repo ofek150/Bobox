@@ -1,6 +1,6 @@
 # Bobox
 
-File-sharing platform: React 18 + Vite + Tailwind/shadcn client (migrating off MUI v5), Firebase Cloud Functions backend, Cloudflare R2 object storage. Two independent packages, no workspace root: `Client/` and `Server/functions/`. Personal project, dormant since 2024; the active work is a full UI overhaul on branch `feat/ui-overhaul-shadcn`.
+File-sharing platform: React 18 + Vite + Tailwind/shadcn client (MUI v5 fully removed on the overhaul branch), Firebase Cloud Functions backend, Cloudflare R2 object storage. Two independent packages, no workspace root: `Client/` and `Server/functions/`. Personal project, dormant since 2024; the active work is a full UI overhaul on branch `feat/ui-overhaul-shadcn`.
 
 ## Layout
 - `Client/` — Vite + React + TS app. shadcn/ui components live in `Client/src/components/ui`, theme tokens in `Client/src/index.css`.
@@ -37,12 +37,12 @@ Functions (`cd Server/functions`): `npm run build` (tsc → gitignored `lib/`), 
 
 ## UI overhaul state
 Direction: **shadcn/ui + Tailwind, soft & friendly, light + dark, comfortable density**, MUI fully out.
-- Done: Vite 4→7 + plugin-react 4.7 (Tailwind v4's plugin needs Vite ≥5.2), pnpm, `@/*` alias in `tsconfig.json` + `vite.config.ts`, shadcn (radix/nova preset, 27 components), Bobox palette + 0.875rem radius in `src/index.css`, next-themes toggle, shadcn Navbar/Layout.
-- MUI is now **dev-fragile**: importing `createTheme` from `@mui/material` crashes the dev server under Vite 7 pre-bundling (`createTheme_default is not a function`); `Client/src/theme.tsx` is unreferenced and must go with MUI. Un-migrated pages render with plain MUI defaults, so migrate pages rather than re-adding MUI theming.
-- Removing MUI from `optimizeDeps` is a dead end — `@emotion`/`hoist-non-react-statics`/`prop-types` CJS default-import interop breaks unoptimized. Keep default pre-bundling.
-- MUI usage to finish: 23 files import `@mui/*` (shell files done, pages pending), 8 files use notistack `useSnackbar` → move to `sonner` `toast` (`<Toaster>` is already mounted in `main.tsx`).
+- **MUI migration is DONE** (branch `feat/ui-overhaul-shadcn`): every page and component is shadcn/Tailwind; `@mui/*`, `@emotion/*`, `notistack`, `dayjs`, `@preact/signals-react`, `@fontsource/roboto`, `src/theme.tsx` and the Google PNGs are all removed. Google sign-in uses an inline SVG (`components/UI/GoogleIcon.tsx`).
+- File browser: row-based list in `FolderComponent`/`FileComponent` with kebab dropdowns, `ShareDialog`/`ConfirmDialog`/`FileTypeIcon` under `components/UI/`, sticky mobile action bar in `MyFiles`.
+- Routes are `React.lazy`-split in `App.tsx`; the main chunk is ~190 kB gzip (Firebase SDK dominates). `src/assets/Logo.png` is 160×160 (~10 kB).
+- `pnpm lint`: 1 pre-existing error left (`ban-types` in `utils/types.ts`) + 7 warnings; the 3 `rules-of-hooks` errors were fixed with the page rewrites. Don't add new ones.
+- The shadcn components (radix/nova preset) are React-19-style function components: under React 18 dev you get "Function components cannot be given refs" warnings from Radix Slots — dev noise, harmless, don't chase.
 - `lucide-react` 1.x renamed icons: no `FolderShared` (use `FolderUsers`); check `Object.keys(require('lucide-react'))` before guessing.
-- Also delete when done: `@preact/signals-react` (unused), `dayjs` (unused), `@fontsource/roboto`, the Google sign-in PNGs in `Client/src/assets/google/`.
 - Roboto Variable is the single font, imported in `src/index.css`.
 
 ## Conventions
