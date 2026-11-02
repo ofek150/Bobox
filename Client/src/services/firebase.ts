@@ -54,7 +54,13 @@ export const waitForRoot = async () => {
 
 export const signInWithGoogle = async () => {
   await signInWithPopup(auth, googleProvider);
-
+  // The user document + root folder are initialized by a callable (v2 functions
+  // have no auth triggers). Idempotent, and the app waits for the root doc.
+  try {
+    await httpsCallable(functions, "completeGoogleSignUp")();
+  } catch (error) {
+    console.error("completeGoogleSignUp failed", error);
+  }
 };
 
 export const loginWithEmailAndPassword = async (email: string, password: string) => {
