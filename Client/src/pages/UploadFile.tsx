@@ -8,8 +8,8 @@ import { MIN_MULTIPART_UPLOAD_SIZE, MAX_UPLOAD_RETRIES, LARGE_FILE_MAX_SIZE, MAX
 import { initiateSmallFileUpload, completeSmallFileUpload, initiateMultipartUpload, generateUploadPartURL, completeMultipartUpload, abortMultipartUpload, generatePublicDownloadLink } from "../services/firebase";
 import { UploadFileParams, UploadPartParams, CompleteMultiPartParams, GenerateDownloadLinkParams } from "../utils/types";
 import useAbortUploadData from "../hooks/useAbortUploadData";
-import CircularProgressWithLabel from "../components/UI/CircularProgressWithLabel";
-import { FileIcon } from "../components/UI/FileTypeIcon";
+import CircularProgressWithLabel from "../components/common/CircularProgressWithLabel";
+import { FileIcon } from "../components/common/FileTypeIcon";
 import NotFoundPage from "./NotFoundPage";
 import { determinePartSize, formatFileSize } from "../utils/helpers";
 import { copyToClipboard, toFriendlyMessage } from "../utils/errors";

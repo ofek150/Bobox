@@ -9,8 +9,9 @@ import FileNotFound from '../components/FileNotFound';
 import { DownloadInfoParams, SharedFile } from '../utils/types';
 import { getFileInfo } from '../services/firebase';
 import Loading from '../components/Loading';
-import PreviewDialog, { previewKind } from '../components/UI/PreviewDialog';
-import { FileIcon } from '../components/UI/FileTypeIcon';
+import PreviewDialog from '../components/common/PreviewDialog';
+import { previewKind } from '../components/common/previewKind';
+import { FileIcon } from '../components/common/FileTypeIcon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 

@@ -96,3 +96,4 @@ release-artifacts-*
 
 # OpenChamber session artifacts (screenshots etc.)
 .openchamber/
+/Bobox-showcase.html

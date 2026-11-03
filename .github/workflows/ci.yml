@@ -66,6 +66,37 @@ jobs:
       - run: npx vitest run
         working-directory: Server/functions
 
+  # Style gates: both packages lint clean (the client's 2023 baseline was
+  # fixed 2026-11-03), so lint failures block merges now.
+  client-lint:
+    name: client-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        working-directory: Client
+      - run: pnpm lint
+        working-directory: Client
+
+  functions-lint:
+    name: functions-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: Server/functions/yarn.lock
+      - run: yarn install --frozen-lockfile
+        working-directory: Server/functions
+      - run: yarn lint
+        working-directory: Server/functions
+
   # Deploy the Cloud Functions after a green functions build on main.
   # The live functions get their credentials from Server/functions/.env at
   # deploy time, so CI rebuilds that file from repo secrets before deploying -

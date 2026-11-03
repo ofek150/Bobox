@@ -10,10 +10,11 @@ const useAbortUploadData = (): [AbortMultiPartUploadParams, React.Dispatch<React
     fileId: ''
   };
   useEffect(() => {
-    if (initialState.uploadId && initialState.fileId) {
-      // A page reload during an upload leaves an open multipart upload behind:
-      // close it server-side so the quota and storage stay clean.
-      abortMultipartUpload(initialState).then(() => {
+    // A page reload during an upload leaves an open multipart upload behind:
+    // close it server-side so the quota and storage stay clean.
+    const saved: AbortMultiPartUploadParams | null = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null');
+    if (saved?.uploadId && saved?.fileId) {
+      abortMultipartUpload(saved).then(() => {
         setAbortUploadData({
           uploadId: '',
           fileId: ''

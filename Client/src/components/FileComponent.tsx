@@ -18,10 +18,11 @@ import { ACCESS_LEVEL } from '../utils/constants';
 import { formatFileSize } from '../utils/helpers';
 import { generatePublicDownloadLink, getFileInfo, shareFileWithUserByEmail } from '../services/firebase';
 import MoveToFileFolderDialog from './MoveFileOrFolderDialog';
-import ConfirmDialog from './UI/ConfirmDialog';
-import ShareDialog from './UI/ShareDialog';
-import PreviewDialog, { previewKind } from './UI/PreviewDialog';
-import { FileIcon } from './UI/FileTypeIcon';
+import ConfirmDialog from './common/ConfirmDialog';
+import ShareDialog from './common/ShareDialog';
+import PreviewDialog from './common/PreviewDialog';
+import { previewKind } from './common/previewKind';
+import { FileIcon } from './common/FileTypeIcon';
 import { useContextMenuGesture } from '../hooks/useContextMenuGesture';
 import { Button } from '@/components/ui/button';
 import {

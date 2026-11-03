@@ -12,7 +12,7 @@ import {
 import { isValidEmail, isValidName } from "../utils/validations";
 import { toFriendlyMessage } from "../utils/errors";
 import PasswordStrengthIndicator from "../components/PasswordStrengthIndicator";
-import { GoogleIcon } from "../components/UI/GoogleIcon";
+import { GoogleIcon } from "../components/common/GoogleIcon";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

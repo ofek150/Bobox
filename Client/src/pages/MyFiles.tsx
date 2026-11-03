@@ -7,8 +7,8 @@ import { deleteFile, getAllFilesOfUser, renameFile, createFolder, moveFileToFold
 import { File, Folder } from '../utils/types';
 import Loading from '../components/Loading';
 import FolderComponent from '../components/FolderComponent';
-import SearchBox from '../components/UI/SearchBox';
-import PathBar from '../components/UI/PathBar';
+import SearchBox from '../components/common/SearchBox';
+import PathBar from '../components/common/PathBar';
 import { useFolderStructureContext } from '../contexts/FolderStructureContext';
 import { Button } from '@/components/ui/button';
 import {
